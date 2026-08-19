@@ -124,7 +124,7 @@ export function HistorialVentas({ ventas, clientes, medicamentos, onVentaAnulada
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onSelect={() => setFacturaTarget(v)}>
                           <Eye className="size-4" aria-hidden />
-                          Ver factura
+                          Ver / reimprimir factura
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           variant="destructive"

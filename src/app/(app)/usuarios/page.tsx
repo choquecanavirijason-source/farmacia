@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
 import { deleteUsuario, fetchUsuarios } from "@/lib/api/usuarios";
-import { setAuthToken } from "@/lib/api/http";
+import { getClientSession } from "@/lib/auth/client-session";
 import type { Sesion, Usuario } from "@/lib/types";
 import { UsuarioFormDialog } from "@/app/(app)/usuarios/usuario-form-dialog";
 
@@ -38,14 +38,8 @@ export default function UsuariosPage() {
   const [deleteTarget, setDeleteTarget] = useState<Usuario | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        const sesionData: Sesion | null = data?.sesion ?? null;
-        setSesion(sesionData);
-        setAuthToken(sesionData?.token ?? null);
-        fetchUsuarios().then(setUsuarios);
-      });
+    setSesion(getClientSession());
+    fetchUsuarios().then(setUsuarios);
   }, []);
 
   const filtered = useMemo(() => {

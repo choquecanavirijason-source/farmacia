@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -86,15 +86,10 @@ function DarDeBajaBody({
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="cantidad">Cantidad a dar de baja</Label>
-          <Input
+          <NumericInput
             id="cantidad"
-            type="number"
-            min="1"
-            max={lote.cantidad_actual}
-            step="1"
-            inputMode="numeric"
             value={cantidad}
-            onChange={(e) => setCantidad(e.target.value)}
+            onValueChange={setCantidad}
             disabled={saving}
             autoFocus
           />

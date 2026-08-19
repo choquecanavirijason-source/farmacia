@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Building2, ImagePlus, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -150,10 +151,10 @@ export default function ConfiguracionPage() {
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="nit">NIT</Label>
-                  <Input
+                  <NumericInput
                     id="nit"
                     value={empresa.nit}
-                    onChange={(e) => update("nit", e.target.value)}
+                    onValueChange={(v) => update("nit", v)}
                     disabled={saving}
                   />
                 </div>
@@ -171,10 +172,10 @@ export default function ConfiguracionPage() {
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="telefono">Teléfono</Label>
-                  <Input
+                  <NumericInput
                     id="telefono"
                     value={empresa.telefono}
-                    onChange={(e) => update("telefono", e.target.value)}
+                    onValueChange={(v) => update("telefono", v)}
                     disabled={saving}
                   />
                 </div>

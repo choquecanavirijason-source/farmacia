@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -275,27 +276,20 @@ function CompraFormBody({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor={`cantidad-${row.tempId}`}>Cantidad</Label>
-                  <Input
+                  <NumericInput
                     id={`cantidad-${row.tempId}`}
-                    type="number"
-                    min="1"
-                    step="1"
-                    inputMode="numeric"
                     value={row.cantidad}
-                    onChange={(e) => updateRow(row.tempId, { cantidad: e.target.value })}
+                    onValueChange={(v) => updateRow(row.tempId, { cantidad: v })}
                     disabled={saving}
                   />
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor={`precio_unitario-${row.tempId}`}>Precio unitario (Bs)</Label>
-                  <Input
+                  <NumericInput
                     id={`precio_unitario-${row.tempId}`}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    inputMode="decimal"
+                    allowDecimal
                     value={row.precio_unitario}
-                    onChange={(e) => updateRow(row.tempId, { precio_unitario: e.target.value })}
+                    onValueChange={(v) => updateRow(row.tempId, { precio_unitario: v })}
                     disabled={saving}
                   />
                 </div>

@@ -1,35 +1,45 @@
-import { ApiError, delay, readCollection, writeCollection } from "@/lib/api/client";
+import { apiFetch } from "@/lib/api/http";
 import type { Caja, MovimientoCaja, MovimientoCajaTipo } from "@/lib/types";
 
-const CAJAS_KEY = "cajas";
-const MOVIMIENTOS_KEY = "movimientos_caja";
+interface CajaApi extends Omit<Caja, "monto_apertura" | "monto_cierre" | "monto_esperado_cierre"> {
+  monto_apertura: string;
+  monto_cierre: string | null;
+  monto_esperado_cierre: string | null;
+}
 
-const CAJAS_SEED: Caja[] = [];
-const MOVIMIENTOS_SEED: MovimientoCaja[] = [];
+function toCaja(c: CajaApi): Caja {
+  return {
+    ...c,
+    monto_apertura: Number(c.monto_apertura),
+    monto_cierre: c.monto_cierre === null ? null : Number(c.monto_cierre),
+    monto_esperado_cierre: c.monto_esperado_cierre === null ? null : Number(c.monto_esperado_cierre),
+  };
+}
 
-function nextId<T>(items: T[], idOf: (item: T) => number): number {
-  return items.reduce((max, item) => Math.max(max, idOf(item)), 0) + 1;
+interface MovimientoCajaApi extends Omit<MovimientoCaja, "monto"> {
+  monto: string;
+}
+
+function toMovimiento(m: MovimientoCajaApi): MovimientoCaja {
+  return { ...m, monto: Number(m.monto) };
 }
 
 export async function fetchCajas(): Promise<Caja[]> {
-  await delay();
-  return readCollection<Caja>(CAJAS_KEY, CAJAS_SEED);
+  const data = await apiFetch<CajaApi[]>("/cajas");
+  return data.map(toCaja);
 }
 
 export async function fetchCajaAbierta(): Promise<Caja | null> {
-  const cajas = await fetchCajas();
-  return cajas.find((c) => c.estado === "abierta") ?? null;
+  const data = await apiFetch<CajaApi | null>("/cajas/abierta");
+  return data ? toCaja(data) : null;
 }
 
 export async function fetchMovimientosByCaja(id_caja: number): Promise<MovimientoCaja[]> {
-  await delay();
-  const movimientos = readCollection<MovimientoCaja>(MOVIMIENTOS_KEY, MOVIMIENTOS_SEED);
-  return movimientos
-    .filter((m) => m.id_caja === id_caja)
-    .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  const data = await apiFetch<MovimientoCajaApi[]>(`/cajas/${id_caja}/movimientos`);
+  return data.map(toMovimiento);
 }
 
-/** Total esperado en caja: apertura + ingresos - egresos (aún sin ventas, que llegan en una fase posterior). */
+/** Total esperado en caja: apertura + ingresos - egresos. */
 export function montoEsperado(caja: Caja, movimientos: MovimientoCaja[]): number {
   return movimientos.reduce(
     (total, m) => total + (m.tipo === "ingreso" ? m.monto : -m.monto),
@@ -38,25 +48,11 @@ export function montoEsperado(caja: Caja, movimientos: MovimientoCaja[]): number
 }
 
 export async function abrirCaja(monto_apertura: number): Promise<Caja> {
-  await delay();
-  if (!Number.isFinite(monto_apertura) || monto_apertura < 0) {
-    throw new ApiError("El monto de apertura debe ser 0 o mayor.", 400);
-  }
-  const cajas = readCollection<Caja>(CAJAS_KEY, CAJAS_SEED);
-  if (cajas.some((c) => c.estado === "abierta")) {
-    throw new ApiError("Ya hay una caja abierta.", 409);
-  }
-  const nueva: Caja = {
-    id_caja: nextId(cajas, (c) => c.id_caja),
-    fecha_apertura: new Date().toISOString(),
-    monto_apertura,
-    fecha_cierre: null,
-    monto_cierre: null,
-    monto_esperado_cierre: null,
-    estado: "abierta",
-  };
-  writeCollection(CAJAS_KEY, [...cajas, nueva]);
-  return nueva;
+  const data = await apiFetch<CajaApi>("/cajas", {
+    method: "POST",
+    body: JSON.stringify({ monto_apertura }),
+  });
+  return toCaja(data);
 }
 
 export async function registrarMovimiento(
@@ -65,29 +61,11 @@ export async function registrarMovimiento(
   monto: number,
   concepto: string
 ): Promise<MovimientoCaja> {
-  await delay();
-  if (!Number.isFinite(monto) || monto <= 0) {
-    throw new ApiError("El monto debe ser mayor a 0.", 400);
-  }
-  if (!concepto.trim()) {
-    throw new ApiError("El concepto es obligatorio.", 400);
-  }
-  const cajas = readCollection<Caja>(CAJAS_KEY, CAJAS_SEED);
-  const caja = cajas.find((c) => c.id_caja === id_caja);
-  if (!caja || caja.estado !== "abierta") {
-    throw new ApiError("La caja no está abierta.", 409);
-  }
-  const movimientos = readCollection<MovimientoCaja>(MOVIMIENTOS_KEY, MOVIMIENTOS_SEED);
-  const nuevo: MovimientoCaja = {
-    id_movimiento: nextId(movimientos, (m) => m.id_movimiento),
-    id_caja,
-    tipo,
-    monto,
-    concepto: concepto.trim(),
-    fecha: new Date().toISOString(),
-  };
-  writeCollection(MOVIMIENTOS_KEY, [...movimientos, nuevo]);
-  return nuevo;
+  const data = await apiFetch<MovimientoCajaApi>(`/cajas/${id_caja}/movimientos`, {
+    method: "POST",
+    body: JSON.stringify({ tipo, monto, concepto }),
+  });
+  return toMovimiento(data);
 }
 
 export interface CierreResultado {
@@ -97,30 +75,9 @@ export interface CierreResultado {
 }
 
 export async function cerrarCaja(id_caja: number, monto_cierre: number): Promise<CierreResultado> {
-  await delay();
-  if (!Number.isFinite(monto_cierre) || monto_cierre < 0) {
-    throw new ApiError("El monto contado debe ser 0 o mayor.", 400);
-  }
-  const cajas = readCollection<Caja>(CAJAS_KEY, CAJAS_SEED);
-  const caja = cajas.find((c) => c.id_caja === id_caja);
-  if (!caja || caja.estado !== "abierta") {
-    throw new ApiError("La caja no está abierta.", 409);
-  }
-  const movimientos = readCollection<MovimientoCaja>(MOVIMIENTOS_KEY, MOVIMIENTOS_SEED);
-  const deEstaCaja = movimientos.filter((m) => m.id_caja === id_caja);
-  const esperado = montoEsperado(caja, deEstaCaja);
-
-  const actualizada: Caja = {
-    ...caja,
-    fecha_cierre: new Date().toISOString(),
-    monto_cierre,
-    monto_esperado_cierre: esperado,
-    estado: "cerrada",
-  };
-  writeCollection(
-    CAJAS_KEY,
-    cajas.map((c) => (c.id_caja === id_caja ? actualizada : c))
+  const data = await apiFetch<{ caja: CajaApi; esperado: number; diferencia: number }>(
+    `/cajas/${id_caja}/cerrar`,
+    { method: "POST", body: JSON.stringify({ monto_cierre }) }
   );
-
-  return { caja: actualizada, esperado, diferencia: monto_cierre - esperado };
+  return { caja: toCaja(data.caja), esperado: data.esperado, diferencia: data.diferencia };
 }

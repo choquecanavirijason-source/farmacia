@@ -1,37 +1,39 @@
-import { delay } from "@/lib/api/client";
+import { apiFetch } from "@/lib/api/http";
 import type { Empresa } from "@/lib/types";
 
-/**
- * Registro único (no colección) — se guarda directo bajo una clave fija de
- * localStorage en vez de usar readCollection/writeCollection, que están
- * pensados para arrays.
- */
-const EMPRESA_KEY = "farmacia:empresa";
+interface EmpresaApi {
+  nombre: string;
+  nit: string | null;
+  direccion: string | null;
+  telefono: string | null;
+  logo_path: string | null;
+}
 
-const EMPRESA_SEED: Empresa = {
-  nombre: "Farmacia Juan de Dios",
-  nit: "",
-  direccion: "Potosí, Bolivia",
-  telefono: "",
-  logo: null,
-};
+function toEmpresa(e: EmpresaApi): Empresa {
+  return {
+    nombre: e.nombre,
+    nit: e.nit ?? "",
+    direccion: e.direccion ?? "",
+    telefono: e.telefono ?? "",
+    logo: e.logo_path,
+  };
+}
 
 export async function fetchEmpresa(): Promise<Empresa> {
-  await delay();
-  if (typeof window === "undefined") return EMPRESA_SEED;
-  const raw = window.localStorage.getItem(EMPRESA_KEY);
-  if (!raw) return EMPRESA_SEED;
-  try {
-    return { ...EMPRESA_SEED, ...(JSON.parse(raw) as Partial<Empresa>) };
-  } catch {
-    return EMPRESA_SEED;
-  }
+  const data = await apiFetch<EmpresaApi>("/empresa");
+  return toEmpresa(data);
 }
 
 export async function updateEmpresa(input: Empresa): Promise<Empresa> {
-  await delay();
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(EMPRESA_KEY, JSON.stringify(input));
-  }
-  return input;
+  const data = await apiFetch<EmpresaApi>("/empresa", {
+    method: "PUT",
+    body: JSON.stringify({
+      nombre: input.nombre,
+      nit: input.nit,
+      direccion: input.direccion,
+      telefono: input.telefono,
+      logo: input.logo,
+    }),
+  });
+  return toEmpresa(data);
 }

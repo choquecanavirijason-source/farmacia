@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -112,10 +113,10 @@ function ProveedorFormBody({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="nit">NIT</Label>
-            <Input
+            <NumericInput
               id="nit"
               value={form.nit}
-              onChange={(e) => update("nit", e.target.value)}
+              onValueChange={(v) => update("nit", v)}
               disabled={saving}
             />
           </div>
@@ -124,10 +125,10 @@ function ProveedorFormBody({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label htmlFor="telefono">Teléfono</Label>
-            <Input
+            <NumericInput
               id="telefono"
               value={form.telefono}
-              onChange={(e) => update("telefono", e.target.value)}
+              onValueChange={(v) => update("telefono", v)}
               disabled={saving}
             />
           </div>

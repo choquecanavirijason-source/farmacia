@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -77,14 +77,11 @@ function CerrarCajaBody({
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="monto_cierre">Monto contado (Bs)</Label>
-          <Input
+          <NumericInput
             id="monto_cierre"
-            type="number"
-            min="0"
-            step="0.01"
-            inputMode="decimal"
+            allowDecimal
             value={montoContado}
-            onChange={(e) => setMontoContado(e.target.value)}
+            onValueChange={setMontoContado}
             disabled={saving}
             autoFocus
           />

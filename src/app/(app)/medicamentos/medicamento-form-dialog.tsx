@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { NumericInput } from "@/components/ui/numeric-input";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +62,15 @@ const EMPTY_FORM: FormState = {
   estado: "activo",
 };
 
+/** Presentaciones donde la concentración se expresa como dosis/volumen (ej. "8 mg/5 ml"). */
+const PRESENTACIONES_CON_VOLUMEN = ["Jarabe", "Ampolla"];
+
+/** Reconstruye mg/ml a partir del texto libre guardado, para precargar el formulario al editar. */
+function parseConcentracion(raw: string): { mg: string; ml: string } {
+  const match = raw.match(/([\d.]+)\s*mg(?:\s*\/\s*([\d.]+)\s*ml)?/i);
+  return { mg: match?.[1] ?? "", ml: match?.[2] ?? "" };
+}
+
 function medicamentoToForm(medicamento: Medicamento): FormState {
   return {
     codigo: medicamento.codigo,
@@ -93,11 +103,25 @@ function MedicamentoFormBody({
   const [form, setForm] = useState<FormState>(() =>
     medicamento ? medicamentoToForm(medicamento) : EMPTY_FORM
   );
+  const [{ mg, ml }, setDosis] = useState(() => parseConcentracion(medicamento?.concentracion ?? ""));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const presentacionSeleccionada = presentaciones.find(
+    (p) => String(p.id_presentacion) === form.id_presentacion
+  );
+  const conVolumen = presentacionSeleccionada ? PRESENTACIONES_CON_VOLUMEN.includes(presentacionSeleccionada.nombre) : false;
+
+  function updateDosis(next: { mg?: string; ml?: string }) {
+    const nextMg = next.mg ?? mg;
+    const nextMl = next.ml ?? ml;
+    setDosis({ mg: nextMg, ml: nextMl });
+    const compuesta = nextMg ? (conVolumen && nextMl ? `${nextMg} mg/${nextMl} ml` : `${nextMg} mg`) : "";
+    update("concentracion", compuesta);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -179,14 +203,36 @@ function MedicamentoFormBody({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="concentracion">Concentración</Label>
-            <Input
-              id="concentracion"
-              placeholder="500 mg"
-              value={form.concentracion}
-              onChange={(e) => update("concentracion", e.target.value)}
-              disabled={saving}
-            />
+            <Label htmlFor="mg">Concentración</Label>
+            <div className="flex items-center gap-2">
+              <NumericInput
+                id="mg"
+                allowDecimal
+                maxDigits={6}
+                placeholder="500"
+                value={mg}
+                onValueChange={(v) => updateDosis({ mg: v })}
+                disabled={saving}
+              />
+              {conVolumen ? (
+                <>
+                  <span className="shrink-0 text-xs text-muted-foreground">mg /</span>
+                  <NumericInput
+                    id="ml"
+                    allowDecimal
+                    maxDigits={6}
+                    placeholder="5"
+                    value={ml}
+                    onValueChange={(v) => updateDosis({ ml: v })}
+                    disabled={saving}
+                    aria-label="Volumen en mililitros"
+                  />
+                  <span className="shrink-0 text-xs text-muted-foreground">ml</span>
+                </>
+              ) : (
+                <span className="shrink-0 text-xs text-muted-foreground">mg</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -263,27 +309,20 @@ function MedicamentoFormBody({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label htmlFor="precio_venta">Precio de venta (Bs)</Label>
-            <Input
+            <NumericInput
               id="precio_venta"
-              type="number"
-              min="0"
-              step="0.01"
-              inputMode="decimal"
+              allowDecimal
               value={form.precio_venta}
-              onChange={(e) => update("precio_venta", e.target.value)}
+              onValueChange={(v) => update("precio_venta", v)}
               disabled={saving}
             />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="stock_minimo">Stock mínimo</Label>
-            <Input
+            <NumericInput
               id="stock_minimo"
-              type="number"
-              min="0"
-              step="1"
-              inputMode="numeric"
               value={form.stock_minimo}
-              onChange={(e) => update("stock_minimo", e.target.value)}
+              onValueChange={(v) => update("stock_minimo", v)}
               disabled={saving}
             />
           </div>

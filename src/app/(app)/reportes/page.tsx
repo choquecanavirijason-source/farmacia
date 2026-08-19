@@ -31,8 +31,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ModulePlaceholder } from "@/components/layout/module-placeholder";
 import { PrintDialog } from "@/components/layout/print-dialog";
+import { SimpleBarChart } from "@/components/ui/simple-bar-chart";
 import {
   computeProximosAVencer,
   computeStockBajo,
@@ -43,10 +43,47 @@ import {
   type StockBajoItem,
 } from "@/lib/api/lotes";
 import { fetchMedicamentos } from "@/lib/api/medicamentos";
-import type { Lote, Medicamento } from "@/lib/types";
+import { fetchDetallesByVenta, fetchVentas } from "@/lib/api/ventas";
+import type { Lote, Medicamento, Venta } from "@/lib/types";
 
 function formatFecha(iso: string): string {
   return new Date(iso).toLocaleString("es-BO", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function formatBs(valor: number): string {
+  return `Bs. ${valor.toFixed(2)}`;
+}
+
+function formatFechaCorta(iso: string): string {
+  return new Date(iso).toLocaleDateString("es-BO", { day: "2-digit", month: "short" });
+}
+
+interface MasVendidoItem {
+  medicamento: Medicamento;
+  cantidad: number;
+}
+
+/** Agrupa las ventas activas de los últimos `dias` días por fecha calendario. */
+function agruparVentasPorDia(ventas: Venta[], dias: number): { label: string; value: number }[] {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const buckets = new Map<string, number>();
+  for (let i = dias - 1; i >= 0; i--) {
+    const d = new Date(hoy);
+    d.setDate(d.getDate() - i);
+    buckets.set(d.toISOString().slice(0, 10), 0);
+  }
+  for (const v of ventas) {
+    if (v.estado !== "activa") continue;
+    const key = v.fecha.slice(0, 10);
+    if (buckets.has(key)) {
+      buckets.set(key, (buckets.get(key) ?? 0) + v.total);
+    }
+  }
+  return Array.from(buckets.entries()).map(([fecha, total]) => ({
+    label: formatFechaCorta(fecha),
+    value: Math.round(total * 100) / 100,
+  }));
 }
 
 const TIPO_META = {
@@ -58,6 +95,8 @@ const TIPO_META = {
 export default function ReportesPage() {
   const [medicamentos, setMedicamentos] = useState<Medicamento[] | null>(null);
   const [lotes, setLotes] = useState<Lote[] | null>(null);
+  const [ventas, setVentas] = useState<Venta[] | null>(null);
+  const [masVendidos, setMasVendidos] = useState<MasVendidoItem[] | null>(null);
   const [ventanaDias, setVentanaDias] = useState("30");
 
   const [idMedicamentoKardex, setIdMedicamentoKardex] = useState("");
@@ -65,9 +104,30 @@ export default function ReportesPage() {
   const [printOpen, setPrintOpen] = useState<"stock-bajo" | "por-vencer" | "kardex" | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchMedicamentos(), fetchLotes()]).then(([m, l]) => {
+    Promise.all([fetchMedicamentos(), fetchLotes(), fetchVentas()]).then(([m, l, v]) => {
       setMedicamentos(m);
       setLotes(l);
+      setVentas(v);
+
+      const activas = v.filter((venta) => venta.estado === "activa");
+      Promise.all(activas.map((venta) => fetchDetallesByVenta(venta.id_venta))).then((detallesPorVenta) => {
+        const cantidadPorMedicamento = new Map<number, number>();
+        for (const detalles of detallesPorVenta) {
+          for (const d of detalles) {
+            cantidadPorMedicamento.set(
+              d.id_medicamento,
+              (cantidadPorMedicamento.get(d.id_medicamento) ?? 0) + d.cantidad
+            );
+          }
+        }
+        const medicamentoById = new Map(m.map((med) => [med.id_medicamento, med]));
+        const top = Array.from(cantidadPorMedicamento.entries())
+          .map(([id_medicamento, cantidad]) => ({ medicamento: medicamentoById.get(id_medicamento), cantidad }))
+          .filter((x): x is MasVendidoItem => Boolean(x.medicamento))
+          .sort((a, b) => b.cantidad - a.cantidad)
+          .slice(0, 5);
+        setMasVendidos(top);
+      });
     });
   }, []);
 
@@ -108,20 +168,48 @@ export default function ReportesPage() {
           <TabsTrigger value="kardex">Kardex por medicamento</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="ventas">
-          <ModulePlaceholder
-            title="Ventas del día / por rango"
-            description="Este reporte se arma con los datos del módulo de Ventas, todavía pendiente de construir."
-            icon={ShoppingBag}
-          />
+        <TabsContent value="ventas" className="flex flex-col gap-4">
+          {ventas === null ? (
+            <Skeleton className="h-56 w-full" />
+          ) : ventas.filter((v) => v.estado === "activa").length === 0 ? (
+            <Card className="border-dashed border-border/60 bg-background/60">
+              <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
+                <ShoppingBag className="size-6 text-muted-foreground" aria-hidden />
+                <p className="text-sm font-medium">Todavía no hay ventas registradas</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="py-6">
+                <p className="mb-4 text-sm font-medium text-muted-foreground">Últimos 7 días (Bs.)</p>
+                <SimpleBarChart data={agruparVentasPorDia(ventas, 7)} formatValue={formatBs} />
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
-        <TabsContent value="mas-vendidos">
-          <ModulePlaceholder
-            title="Productos más vendidos"
-            description="Este reporte se arma con los datos del módulo de Ventas, todavía pendiente de construir."
-            icon={TrendingUp}
-          />
+        <TabsContent value="mas-vendidos" className="flex flex-col gap-4">
+          {masVendidos === null ? (
+            <Skeleton className="h-56 w-full" />
+          ) : masVendidos.length === 0 ? (
+            <Card className="border-dashed border-border/60 bg-background/60">
+              <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
+                <TrendingUp className="size-6 text-muted-foreground" aria-hidden />
+                <p className="text-sm font-medium">Todavía no hay ventas registradas</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="py-6">
+                <p className="mb-4 text-sm font-medium text-muted-foreground">
+                  Top 5 medicamentos por unidades vendidas
+                </p>
+                <SimpleBarChart
+                  data={masVendidos.map((x) => ({ label: x.medicamento.nombre, value: x.cantidad }))}
+                />
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="stock-bajo" className="flex flex-col gap-4">

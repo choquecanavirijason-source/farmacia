@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -165,28 +166,21 @@ function LoteFormBody({
           {isEditing ? null : (
             <div className="flex flex-col gap-2">
               <Label htmlFor="cantidad_actual">Cantidad inicial</Label>
-              <Input
+              <NumericInput
                 id="cantidad_actual"
-                type="number"
-                min="1"
-                step="1"
-                inputMode="numeric"
                 value={form.cantidad_actual}
-                onChange={(e) => update("cantidad_actual", e.target.value)}
+                onValueChange={(v) => update("cantidad_actual", v)}
                 disabled={saving}
               />
             </div>
           )}
           <div className="flex flex-col gap-2">
             <Label htmlFor="precio_compra">Precio de compra (Bs)</Label>
-            <Input
+            <NumericInput
               id="precio_compra"
-              type="number"
-              min="0"
-              step="0.01"
-              inputMode="decimal"
+              allowDecimal
               value={form.precio_compra}
-              onChange={(e) => update("precio_compra", e.target.value)}
+              onValueChange={(v) => update("precio_compra", v)}
               disabled={saving}
             />
           </div>

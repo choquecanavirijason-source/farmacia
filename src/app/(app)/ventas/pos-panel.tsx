@@ -17,6 +17,7 @@ import { fetchCategorias, fetchLaboratorios, fetchPresentaciones } from "@/lib/a
 import { MedicamentoFormDialog } from "@/app/(app)/medicamentos/medicamento-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -205,7 +206,10 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
     setCart([]);
     setIdCliente("1");
     onVentaRegistrada(venta);
-    setFacturaVenta(venta);
+    // Espera a que el diálogo de checkout termine su animación de cierre antes
+    // de abrir la factura — evita que ambos pop-ups se crucen (fade-out y
+    // fade-in superpuestos se ven como un salto, no como una transición).
+    window.setTimeout(() => setFacturaVenta(venta), 180);
     // refresca stock local para reflejar el descuento sin recargar la página
     fetchLotes().then(setLotes);
   }
@@ -330,7 +334,6 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
                 const m = medicamentoById.get(line.id_medicamento);
                 if (!m) return null;
                 const precioFinal = precioConDescuento(m.precio_venta, line.descuentoPct);
-                const disponible = stockPorMedicamento.get(line.id_medicamento) ?? 0;
                 return (
                   <div key={line.id_medicamento} className="flex flex-col gap-2 rounded-lg border border-border/60 p-2">
                     <div className="flex items-center gap-2">
@@ -367,12 +370,10 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
                         >
                           <Minus className="size-3.5" aria-hidden />
                         </Button>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={disponible}
-                          value={line.cantidad}
-                          onChange={(e) => setCantidad(line.id_medicamento, Number(e.target.value))}
+                        <NumericInput
+                          value={String(line.cantidad)}
+                          onValueChange={(v) => setCantidad(line.id_medicamento, Number(v || 0))}
+                          maxDigits={5}
                           className="h-7 w-14 px-1 text-center"
                           aria-label={`Cantidad de ${m.nombre}`}
                         />
@@ -388,12 +389,10 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
                       </div>
 
                       <div className="flex min-w-0 flex-1 items-center gap-1">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={line.descuentoPct}
-                          onChange={(e) => setDescuento(line.id_medicamento, Number(e.target.value))}
+                        <NumericInput
+                          value={String(line.descuentoPct)}
+                          onValueChange={(v) => setDescuento(line.id_medicamento, Number(v || 0))}
+                          maxDigits={3}
                           className="h-7 w-14 px-1 text-center"
                           aria-label={`Descuento de ${m.nombre}`}
                         />
@@ -441,6 +440,7 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
         cliente={cliente}
         idUsuario={idUsuario}
         idCaja={idCaja}
+        medicamentos={medicamentos}
         onSold={handleSold}
       />
 
@@ -470,6 +470,7 @@ interface CheckoutDialogProps {
   cliente: Cliente | undefined;
   idUsuario: number;
   idCaja: number;
+  medicamentos: Medicamento[];
   onSold: (venta: Venta) => void;
 }
 
@@ -481,6 +482,7 @@ function CheckoutBody({
   cliente,
   idUsuario,
   idCaja,
+  medicamentos,
   onSold,
 }: Omit<CheckoutDialogProps, "open"> & { onDirtyChange: (dirty: boolean) => void }) {
   const [formaPago, setFormaPago] = useState<FormaPagoNombre>("Efectivo");
@@ -539,12 +541,31 @@ function CheckoutBody({
     <>
       <DialogHeader>
         <DialogTitle>Confirmar venta</DialogTitle>
-        <DialogDescription>
-          Cliente: {cliente?.nombre ?? "—"} — Total: <strong>{formatCurrency(total)}</strong>
-        </DialogDescription>
+        <DialogDescription>Cliente: {cliente?.nombre ?? "—"}</DialogDescription>
       </DialogHeader>
 
       <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5 rounded-lg border border-border/60 bg-muted/30 p-2.5">
+          {cart.map((line) => {
+            const m = medicamentos.find((med) => med.id_medicamento === line.id_medicamento);
+            const precioFinal = precioConDescuento(m?.precio_venta ?? 0, line.descuentoPct);
+            return (
+              <div key={line.id_medicamento} className="flex items-center justify-between gap-2 text-sm">
+                <span className="min-w-0 flex-1 truncate" title={m?.nombre}>
+                  {m?.nombre ?? "—"} <span className="text-muted-foreground">× {line.cantidad}</span>
+                </span>
+                <span className="shrink-0 font-medium tabular-nums">
+                  {formatCurrency(precioFinal * line.cantidad)}
+                </span>
+              </div>
+            );
+          })}
+          <div className="mt-1 flex items-center justify-between border-t border-border/60 pt-1.5 text-sm font-semibold">
+            <span>Total</span>
+            <span className="tabular-nums">{formatCurrency(total)}</span>
+          </div>
+        </div>
+
         <div className="flex flex-col gap-2">
           <Label htmlFor="forma_pago">Forma de pago</Label>
           <Select value={formaPago} onValueChange={(v) => setFormaPago((v as FormaPagoNombre) ?? "Efectivo")} disabled={saving}>
@@ -564,14 +585,11 @@ function CheckoutBody({
         {formaPago === "Efectivo" ? (
           <div className="flex flex-col gap-2">
             <Label htmlFor="monto_recibido">Monto recibido (Bs)</Label>
-            <Input
+            <NumericInput
               id="monto_recibido"
-              type="number"
-              min="0"
-              step="0.01"
-              inputMode="decimal"
+              allowDecimal
               value={montoRecibido}
-              onChange={(e) => setMontoRecibido(e.target.value)}
+              onValueChange={setMontoRecibido}
               disabled={saving}
               autoFocus
             />

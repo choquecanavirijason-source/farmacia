@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut, Menu, Pill, Settings } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -18,6 +17,8 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { NavList } from "@/components/layout/nav-list";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { clearClientSession } from "@/lib/auth/client-session";
+import { apiFetch, setAuthToken } from "@/lib/api/http";
 import type { MenuGroup } from "@/lib/nav/menu-config";
 import type { Sesion } from "@/lib/types";
 
@@ -43,12 +44,13 @@ export function Topbar({ sesion, groups }: TopbarProps) {
   async function handleLogout() {
     setLoggingOut(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      router.push("/login");
-      router.refresh();
+      await apiFetch("/auth/logout", { method: "POST" });
     } catch {
-      toast.error("No se pudo cerrar sesión. Intenta nuevamente.");
-      setLoggingOut(false);
+      // Token ya inválido o servidor inalcanzable: igual cerramos sesión localmente.
+    } finally {
+      clearClientSession();
+      setAuthToken(null);
+      router.push("/login");
     }
   }
 
@@ -83,6 +85,18 @@ export function Topbar({ sesion, groups }: TopbarProps) {
       </Sheet>
 
       <div className="flex-1" />
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        disabled={loggingOut}
+        onClick={handleLogout}
+        aria-label="Cerrar sesión"
+        title="Cerrar sesión"
+      >
+        <LogOut className="size-4.5" aria-hidden />
+      </Button>
 
       <ThemeToggle />
 

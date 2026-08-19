@@ -8,7 +8,7 @@ export default function LoginPage() {
     <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden px-4 py-10">
       <MeshBackground />
 
-      <Suspense fallback={<Skeleton className="h-105 w-full max-w-sm rounded-3xl" />}>
+      <Suspense fallback={<Skeleton className="h-136 w-full max-w-md rounded-4xl" />}>
         <LoginForm />
       </Suspense>
     </div>

@@ -2,7 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Pill } from "lucide-react";
+import { Eye, EyeOff, Loader2, Lock, Pill, User } from "lucide-react";
+import { setClientSession } from "@/lib/auth/client-session";
+import { apiFetch, setAuthToken } from "@/lib/api/http";
+import type { RolNombre, Sesion } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +24,7 @@ export function LoginForm() {
 
   const [usuario, setUsuario] = useState("");
   const [contrasena, setContrasena] = useState("");
+  const [verContrasena, setVerContrasena] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -29,100 +33,149 @@ export function LoginForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const data = await apiFetch<{
+        token: string;
+        usuario: { id_usuario: number; nombre: string; usuario: string; rol: { nombre: RolNombre } };
+      }>("/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usuario, contrasena }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.message ?? "No se pudo iniciar sesión.");
-        return;
-      }
+      const sesion: Sesion = {
+        id_usuario: data.usuario.id_usuario,
+        nombre: data.usuario.nombre,
+        usuario: data.usuario.usuario,
+        rol: data.usuario.rol.nombre,
+        token: data.token,
+      };
+      setClientSession(sesion);
+      setAuthToken(sesion.token);
       router.push(next);
-      router.refresh();
-    } catch {
-      setError("Error de conexión. Intenta nuevamente.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo iniciar sesión.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    // Borde de luz angular (edge light): gradiente diagonal blanco -> transparente vía padding-box.
-    <div className="relative w-full max-w-sm rounded-3xl bg-gradient-to-br from-white/70 via-white/20 to-transparent p-px shadow-[0_25px_70px_-20px_rgba(15,23,42,0.35)]">
-      {/* Panel de cristal: fondo translúcido + blur, con textura de ruido y sombra interior para dar grosor. */}
-      <div className="relative overflow-hidden rounded-[calc(var(--radius-3xl)-1px)] bg-background/75 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.5)] backdrop-blur-2xl">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-noise opacity-[0.035] mix-blend-overlay" />
+    <div className="flex w-full max-w-md flex-col items-center gap-6">
+      {/* Borde de luz angular (edge light): gradiente diagonal blanco -> transparente vía padding-box. */}
+      <div className="relative w-full rounded-4xl bg-gradient-to-br from-white/80 via-white/25 to-transparent p-px shadow-[0_35px_90px_-25px_rgba(15,23,42,0.4)]">
+        {/* Panel de cristal: fondo translúcido + blur, con textura de ruido y sombra interior para dar grosor. */}
+        <div className="relative overflow-hidden rounded-[calc(var(--radius-4xl)-1px)] bg-background/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] backdrop-blur-2xl">
+          <div aria-hidden className="pointer-events-none absolute inset-0 bg-noise opacity-[0.035] mix-blend-overlay" />
 
-        <div className="relative">
-          <CardHeader className="items-center gap-2 pt-8 text-center">
-            <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Pill className="size-6" aria-hidden />
-            </div>
-            {/* Guardia de contraste: título/labels usan foreground sólido, nunca opacidad reducida sobre el cristal. */}
-            <CardTitle className="text-xl font-semibold tracking-tight text-balance text-foreground">
-              Farmacia Juan de Dios
-            </CardTitle>
-            <CardDescription>Ingresa tus credenciales para continuar</CardDescription>
-          </CardHeader>
-
-          <form onSubmit={handleSubmit}>
-            <CardContent className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="usuario">Usuario</Label>
-                <Input
-                  id="usuario"
-                  name="usuario"
-                  autoComplete="username"
-                  autoFocus
-                  required
-                  value={usuario}
-                  onChange={(e) => setUsuario(e.target.value)}
-                  disabled={loading}
-                  className="bg-background/80"
-                />
+          <div className="relative flex flex-col gap-6">
+            <CardHeader className="items-center gap-3 pt-10 text-center">
+              <div className="flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/25 to-primary/10 text-primary shadow-[inset_0_1px_0_0_rgba(255,255,255,0.5)] ring-1 ring-primary/20">
+                <Pill className="size-8" aria-hidden />
               </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="contrasena">Contraseña</Label>
-                <Input
-                  id="contrasena"
-                  name="contrasena"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={contrasena}
-                  onChange={(e) => setContrasena(e.target.value)}
-                  disabled={loading}
-                  className="bg-background/80"
-                />
+              {/* Guardia de contraste: título/labels usan foreground sólido, nunca opacidad reducida sobre el cristal. */}
+              <div className="flex flex-col gap-1">
+                <CardTitle className="text-2xl font-semibold tracking-tight text-balance text-foreground sm:text-3xl">
+                  Farmacia Juan de Dios
+                </CardTitle>
+                <CardDescription className="text-base text-foreground/60">
+                  Ingresa tus credenciales para continuar
+                </CardDescription>
               </div>
+            </CardHeader>
 
-              {error ? (
-                <p role="alert" className="text-sm wrap-break-word text-destructive">
-                  {error}
+            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+              <CardContent className="flex flex-col gap-4 px-8 sm:px-10">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="usuario" className="text-sm font-medium text-foreground">
+                    Usuario
+                  </Label>
+                  <div className="relative">
+                    <User
+                      className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden
+                    />
+                    <Input
+                      id="usuario"
+                      name="usuario"
+                      autoComplete="username"
+                      autoFocus
+                      required
+                      value={usuario}
+                      onChange={(e) => setUsuario(e.target.value)}
+                      disabled={loading}
+                      className="h-12 rounded-xl bg-background/90 pl-11 text-base"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="contrasena" className="text-sm font-medium text-foreground">
+                    Contraseña
+                  </Label>
+                  <div className="relative">
+                    <Lock
+                      className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden
+                    />
+                    <Input
+                      id="contrasena"
+                      name="contrasena"
+                      type={verContrasena ? "text" : "password"}
+                      autoComplete="current-password"
+                      required
+                      value={contrasena}
+                      onChange={(e) => setContrasena(e.target.value)}
+                      disabled={loading}
+                      className="h-12 rounded-xl bg-background/90 pr-11 pl-11 text-base"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setVerContrasena((v) => !v)}
+                      disabled={loading}
+                      aria-label={verContrasena ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {verContrasena ? (
+                        <EyeOff className="size-4.5" aria-hidden />
+                      ) : (
+                        <Eye className="size-4.5" aria-hidden />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {error ? (
+                  <p
+                    role="alert"
+                    className="wrap-break-word rounded-lg bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive"
+                  >
+                    {error}
+                  </p>
+                ) : null}
+              </CardContent>
+
+              <CardFooter className="flex-col gap-4 px-8 pb-10 sm:px-10">
+                <Button
+                  type="submit"
+                  className="h-12 w-full rounded-xl text-base font-semibold shadow-[0_10px_30px_-10px_var(--primary)] transition-transform duration-300 ease-in-out hover:-translate-y-0.5 active:translate-y-0"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="size-4.5 animate-spin" aria-hidden />
+                      Ingresando…
+                    </>
+                  ) : (
+                    "Ingresar"
+                  )}
+                </Button>
+                <p className="text-center text-xs text-balance text-muted-foreground">
+                  Acceso restringido al personal autorizado de la farmacia.
                 </p>
-              ) : null}
-            </CardContent>
-
-            <CardFooter className="flex-col gap-3 pb-8">
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
-                    Ingresando…
-                  </>
-                ) : (
-                  "Ingresar"
-                )}
-              </Button>
-              <p className="text-center text-xs text-balance text-muted-foreground">
-                Acceso restringido al personal autorizado de la farmacia.
-              </p>
-            </CardFooter>
-          </form>
+              </CardFooter>
+            </form>
+          </div>
         </div>
       </div>
+
+      <p className="text-xs text-foreground/40">Sistema de Gestión Farmacéutica</p>
     </div>
   );
 }
