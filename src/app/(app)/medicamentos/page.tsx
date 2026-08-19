@@ -166,8 +166,8 @@ export default function MedicamentosPage() {
                 <TableHead>Nombre</TableHead>
                 <TableHead>Categoría</TableHead>
                 <TableHead>Laboratorio</TableHead>
-                <TableHead>Precio</TableHead>
-                <TableHead>Stock mín.</TableHead>
+                <TableHead className="text-right">Precio</TableHead>
+                <TableHead className="text-right">Stock mín.</TableHead>
                 <TableHead>Receta</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="w-10" />
@@ -231,8 +231,8 @@ export default function MedicamentosPage() {
                 <TableHead>Nombre</TableHead>
                 <TableHead>Categoría</TableHead>
                 <TableHead>Laboratorio</TableHead>
-                <TableHead>Precio</TableHead>
-                <TableHead>Stock mín.</TableHead>
+                <TableHead className="text-right">Precio</TableHead>
+                <TableHead className="text-right">Stock mín.</TableHead>
                 <TableHead>Receta</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="w-10">
@@ -258,8 +258,8 @@ export default function MedicamentosPage() {
                   <TableCell className="max-w-32 truncate" title={laboratorioById.get(m.id_laboratorio)}>
                     {laboratorioById.get(m.id_laboratorio) ?? "—"}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{formatCurrency(m.precio_venta)}</TableCell>
-                  <TableCell>{m.stock_minimo}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right">{formatCurrency(m.precio_venta)}</TableCell>
+                  <TableCell className="text-right">{m.stock_minimo}</TableCell>
                   <TableCell>
                     <Badge variant={m.requiere_receta ? "outline" : "secondary"}>
                       {m.requiere_receta ? "Sí" : "No"}

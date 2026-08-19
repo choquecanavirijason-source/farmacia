@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,10 +65,11 @@ function rowSubtotal(row: ItemRow): number {
 
 function CompraFormBody({
   onOpenChange,
+  onDirtyChange,
   proveedores,
   medicamentos,
   onSaved,
-}: Omit<CompraFormDialogProps, "open">) {
+}: Omit<CompraFormDialogProps, "open"> & { onDirtyChange: (dirty: boolean) => void }) {
   const [idProveedor, setIdProveedor] = useState("");
   const [numeroFactura, setNumeroFactura] = useState("");
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
@@ -77,6 +78,17 @@ function CompraFormBody({
   const [saving, setSaving] = useState(false);
 
   const total = items.reduce((sum, row) => sum + rowSubtotal(row), 0);
+
+  const dirty =
+    Boolean(idProveedor) ||
+    numeroFactura.trim() !== "" ||
+    items.some(
+      (r) => r.id_medicamento || r.numero_lote || r.fecha_vencimiento || r.cantidad || r.precio_unitario
+    );
+
+  useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
 
   function updateRow(tempId: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((row) => (row.tempId === tempId ? { ...row, ...patch } : row)));
@@ -329,10 +341,28 @@ function CompraFormBody({
 }
 
 export function CompraFormDialog({ open, onOpenChange, ...bodyProps }: CompraFormDialogProps) {
+  const [dirty, setDirty] = useState(false);
+
+  function handleDialogOpenChange(next: boolean) {
+    if (!next && dirty) {
+      if (!window.confirm("Hay datos sin guardar en esta compra. ¿Cerrar de todas formas?")) {
+        return;
+      }
+    }
+    onOpenChange(next);
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        {open ? <CompraFormBody key="compra-form" onOpenChange={onOpenChange} {...bodyProps} /> : null}
+        {open ? (
+          <CompraFormBody
+            key="compra-form"
+            onOpenChange={onOpenChange}
+            onDirtyChange={setDirty}
+            {...bodyProps}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   );

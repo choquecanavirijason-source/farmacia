@@ -19,7 +19,7 @@ export default function NotFound() {
               La página que buscas no existe o fue movida.
             </p>
           </div>
-          <Button render={<Link href="/dashboard" />}>Ir al menú principal</Button>
+          <Button nativeButton={false} render={<Link href="/dashboard" />}>Ir al menú principal</Button>
         </CardContent>
       </Card>
     </div>

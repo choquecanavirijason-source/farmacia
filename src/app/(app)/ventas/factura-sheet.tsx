@@ -65,11 +65,9 @@ function FacturaBody({ venta, medicamentos }: { venta: Venta; medicamentos: Medi
         Imprimir recibo
       </Button>
 
-      {/* Recibo — estilo comprobante, es lo único visible al imprimir (ver #factura-print en globals.css). */}
-      <div
-        id="factura-print"
-        className="mx-auto flex w-full max-w-xs flex-col gap-3 rounded-lg border border-dashed border-border/60 bg-background p-4 font-mono text-xs"
-      >
+      {/* Recibo — estilo comprobante, es lo único visible al imprimir (ver .print-area en globals.css). */}
+      <div className="print-area mx-auto flex w-full max-w-xs flex-col gap-3 rounded-lg border border-dashed border-border/60 bg-background p-4 font-mono text-xs">
+
         <div className="flex flex-col items-center gap-0.5 text-center">
           <p className="text-sm font-semibold">{empresa.nombre}</p>
           {empresa.nit ? <p>NIT: {empresa.nit}</p> : null}

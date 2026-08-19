@@ -6,11 +6,13 @@ import {
   ArrowUpCircle,
   BarChart3,
   CalendarClock,
+  Printer,
   ShoppingBag,
   SlidersHorizontal,
   TrendingUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -30,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ModulePlaceholder } from "@/components/layout/module-placeholder";
+import { PrintDialog } from "@/components/layout/print-dialog";
 import {
   computeProximosAVencer,
   computeStockBajo,
@@ -37,6 +40,7 @@ import {
   fetchKardexByMedicamento,
   fetchLotes,
   type KardexMovimientoConLote,
+  type StockBajoItem,
 } from "@/lib/api/lotes";
 import { fetchMedicamentos } from "@/lib/api/medicamentos";
 import type { Lote, Medicamento } from "@/lib/types";
@@ -58,6 +62,8 @@ export default function ReportesPage() {
 
   const [idMedicamentoKardex, setIdMedicamentoKardex] = useState("");
 
+  const [printOpen, setPrintOpen] = useState<"stock-bajo" | "por-vencer" | "kardex" | null>(null);
+
   useEffect(() => {
     Promise.all([fetchMedicamentos(), fetchLotes()]).then(([m, l]) => {
       setMedicamentos(m);
@@ -78,6 +84,10 @@ export default function ReportesPage() {
   const medicamentoById = useMemo(
     () => new Map((medicamentos ?? []).map((m) => [m.id_medicamento, m])),
     [medicamentos]
+  );
+
+  const medicamentoKardexSeleccionado = medicamentos?.find(
+    (m) => m.id_medicamento === Number(idMedicamentoKardex)
   );
 
   return (
@@ -129,39 +139,24 @@ export default function ReportesPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="overflow-x-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Medicamento</TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Stock actual</TableHead>
-                    <TableHead>Stock mínimo</TableHead>
-                    <TableHead>Déficit</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {stockBajo.map(({ medicamento, stock }) => (
-                    <TableRow key={medicamento.id_medicamento}>
-                      <TableCell className="max-w-56 truncate font-medium" title={medicamento.nombre}>
-                        {medicamento.nombre}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap font-mono text-xs">{medicamento.codigo}</TableCell>
-                      <TableCell>{stock}</TableCell>
-                      <TableCell>{medicamento.stock_minimo}</TableCell>
-                      <TableCell>
-                        <Badge variant="destructive">{medicamento.stock_minimo - stock}</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-fit gap-1.5"
+                onClick={() => setPrintOpen("stock-bajo")}
+              >
+                <Printer className="size-4" aria-hidden />
+                Imprimir
+              </Button>
+              <StockBajoTable items={stockBajo} />
+            </>
           )}
         </TabsContent>
 
         <TabsContent value="por-vencer" className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <CalendarClock className="size-4 text-muted-foreground" aria-hidden />
             <p className="text-sm text-muted-foreground">Ventana:</p>
             <Select value={ventanaDias} onValueChange={(v) => setVentanaDias(v ?? "30")}>
@@ -175,6 +170,18 @@ export default function ReportesPage() {
                 <SelectItem value="90">90 días</SelectItem>
               </SelectContent>
             </Select>
+            {proximosAVencer && proximosAVencer.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="ml-auto gap-1.5"
+                onClick={() => setPrintOpen("por-vencer")}
+              >
+                <Printer className="size-4" aria-hidden />
+                Imprimir
+              </Button>
+            ) : null}
           </div>
 
           {proximosAVencer === null ? (
@@ -191,59 +198,38 @@ export default function ReportesPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="overflow-x-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Medicamento</TableHead>
-                    <TableHead>N° Lote</TableHead>
-                    <TableHead>Vencimiento</TableHead>
-                    <TableHead>Días</TableHead>
-                    <TableHead>Cantidad</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {proximosAVencer.map((l) => {
-                    const dias = diasHasta(l.fecha_vencimiento);
-                    return (
-                      <TableRow key={l.id_lote}>
-                        <TableCell
-                          className="max-w-56 truncate font-medium"
-                          title={medicamentoById.get(l.id_medicamento)?.nombre}
-                        >
-                          {medicamentoById.get(l.id_medicamento)?.nombre ?? "—"}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap font-mono text-xs">{l.numero_lote}</TableCell>
-                        <TableCell className="whitespace-nowrap">{l.fecha_vencimiento}</TableCell>
-                        <TableCell>
-                          <Badge variant={dias < 0 ? "destructive" : "warning"}>
-                            {dias < 0 ? `Venció hace ${Math.abs(dias)} d.` : `${dias} d.`}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{l.cantidad_actual}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <ProximosAVencerTable items={proximosAVencer} medicamentoById={medicamentoById} />
           )}
         </TabsContent>
 
         <TabsContent value="kardex" className="flex flex-col gap-4">
-          <div className="flex min-w-0 max-w-sm flex-col gap-2">
-            <Select value={idMedicamentoKardex} onValueChange={(v) => setIdMedicamentoKardex(v ?? "")}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecciona un medicamento" />
-              </SelectTrigger>
-              <SelectContent>
-                {(medicamentos ?? []).map((m) => (
-                  <SelectItem key={m.id_medicamento} value={String(m.id_medicamento)}>
-                    {m.nombre} ({m.codigo})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-w-0 max-w-sm flex-1 flex-col gap-2">
+              <Select value={idMedicamentoKardex} onValueChange={(v) => setIdMedicamentoKardex(v ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecciona un medicamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(medicamentos ?? []).map((m) => (
+                    <SelectItem key={m.id_medicamento} value={String(m.id_medicamento)}>
+                      {m.nombre} ({m.codigo})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {idMedicamentoKardex ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setPrintOpen("kardex")}
+              >
+                <Printer className="size-4" aria-hidden />
+                Imprimir
+              </Button>
+            ) : null}
           </div>
 
           {!idMedicamentoKardex ? (
@@ -253,6 +239,112 @@ export default function ReportesPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <PrintDialog
+        open={printOpen === "stock-bajo"}
+        onOpenChange={(open) => !open && setPrintOpen(null)}
+        title="Medicamentos con stock bajo"
+      >
+        {stockBajo ? <StockBajoTable items={stockBajo} /> : null}
+      </PrintDialog>
+
+      <PrintDialog
+        open={printOpen === "por-vencer"}
+        onOpenChange={(open) => !open && setPrintOpen(null)}
+        title={`Lotes próximos a vencer (${ventanaDias} días)`}
+      >
+        {proximosAVencer ? (
+          <ProximosAVencerTable items={proximosAVencer} medicamentoById={medicamentoById} />
+        ) : null}
+      </PrintDialog>
+
+      <PrintDialog
+        open={printOpen === "kardex"}
+        onOpenChange={(open) => !open && setPrintOpen(null)}
+        title={`Kardex — ${medicamentoKardexSeleccionado?.nombre ?? ""}`}
+      >
+        {idMedicamentoKardex ? <KardexTabla idMedicamento={Number(idMedicamentoKardex)} /> : null}
+      </PrintDialog>
+    </div>
+  );
+}
+
+function StockBajoTable({ items }: { items: StockBajoItem[] }) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Medicamento</TableHead>
+            <TableHead>Código</TableHead>
+            <TableHead className="text-right">Stock actual</TableHead>
+            <TableHead className="text-right">Stock mínimo</TableHead>
+            <TableHead className="text-right">Déficit</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map(({ medicamento, stock }) => (
+            <TableRow key={medicamento.id_medicamento}>
+              <TableCell className="max-w-56 truncate font-medium" title={medicamento.nombre}>
+                {medicamento.nombre}
+              </TableCell>
+              <TableCell className="whitespace-nowrap font-mono text-xs">{medicamento.codigo}</TableCell>
+              <TableCell className="text-right">{stock}</TableCell>
+              <TableCell className="text-right">{medicamento.stock_minimo}</TableCell>
+              <TableCell className="text-right">
+                <Badge variant="destructive">{medicamento.stock_minimo - stock}</Badge>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function ProximosAVencerTable({
+  items,
+  medicamentoById,
+}: {
+  items: Lote[];
+  medicamentoById: Map<number, Medicamento>;
+}) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Medicamento</TableHead>
+            <TableHead>N° Lote</TableHead>
+            <TableHead>Vencimiento</TableHead>
+            <TableHead>Días</TableHead>
+            <TableHead className="text-right">Cantidad</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((l) => {
+            const dias = diasHasta(l.fecha_vencimiento);
+            return (
+              <TableRow key={l.id_lote}>
+                <TableCell
+                  className="max-w-56 truncate font-medium"
+                  title={medicamentoById.get(l.id_medicamento)?.nombre}
+                >
+                  {medicamentoById.get(l.id_medicamento)?.nombre ?? "—"}
+                </TableCell>
+                <TableCell className="whitespace-nowrap font-mono text-xs">{l.numero_lote}</TableCell>
+                <TableCell className="whitespace-nowrap">{l.fecha_vencimiento}</TableCell>
+                <TableCell>
+                  <Badge variant={dias < 0 ? "destructive" : "warning"}>
+                    {dias < 0 ? `Venció hace ${Math.abs(dias)} d.` : `${dias} d.`}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">{l.cantidad_actual}</TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -285,8 +377,8 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
           <TableRow>
             <TableHead>Tipo</TableHead>
             <TableHead>N° Lote</TableHead>
-            <TableHead>Cantidad</TableHead>
-            <TableHead>Saldo</TableHead>
+            <TableHead className="text-right">Cantidad</TableHead>
+            <TableHead className="text-right">Saldo</TableHead>
             <TableHead>Motivo</TableHead>
             <TableHead>Fecha</TableHead>
           </TableRow>
@@ -304,11 +396,11 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
                   </span>
                 </TableCell>
                 <TableCell className="whitespace-nowrap font-mono text-xs">{k.numero_lote}</TableCell>
-                <TableCell className={`whitespace-nowrap font-medium ${meta.className}`}>
+                <TableCell className={`whitespace-nowrap text-right font-medium ${meta.className}`}>
                   {k.cantidad > 0 ? "+" : ""}
                   {k.cantidad}
                 </TableCell>
-                <TableCell>{k.saldo}</TableCell>
+                <TableCell className="text-right">{k.saldo}</TableCell>
                 <TableCell className="max-w-48 truncate" title={k.motivo}>
                   {k.motivo}
                 </TableCell>

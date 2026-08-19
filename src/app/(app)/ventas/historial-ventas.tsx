@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
 import { Ban, Eye, MoreHorizontal, Receipt, Search, SearchX } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -21,14 +20,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
 import { TablePagination } from "@/components/layout/table-pagination";
 import { usePagination } from "@/hooks/use-pagination";
-import { anularVenta } from "@/lib/api/ventas";
-import { ApiError } from "@/lib/api/client";
 import { formatCurrency } from "@/lib/format";
 import type { Cliente, Medicamento, Venta } from "@/lib/types";
 import { FacturaSheet } from "@/app/(app)/ventas/factura-sheet";
+import { AnularVentaDialog } from "@/app/(app)/ventas/anular-venta-dialog";
 
 interface HistorialVentasProps {
   ventas: Venta[];
@@ -96,7 +93,7 @@ export function HistorialVentas({ ventas, clientes, medicamentos, onVentaAnulada
                 <TableHead>Fecha</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Forma de pago</TableHead>
-                <TableHead>Total</TableHead>
+                <TableHead className="text-right">Total</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="w-10">
                   <span className="sr-only">Acciones</span>
@@ -111,7 +108,7 @@ export function HistorialVentas({ ventas, clientes, medicamentos, onVentaAnulada
                     {clienteById.get(v.id_cliente) ?? "—"}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">{v.forma_pago}</TableCell>
-                  <TableCell className="whitespace-nowrap font-medium">{formatCurrency(v.total)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right font-medium">{formatCurrency(v.total)}</TableCell>
                   <TableCell>
                     <Badge variant={v.estado === "activa" ? "success" : "secondary"}>
                       {v.estado === "activa" ? "Activa" : "Anulada"}
@@ -161,22 +158,11 @@ export function HistorialVentas({ ventas, clientes, medicamentos, onVentaAnulada
         onOpenChange={(open) => !open && setFacturaTarget(null)}
       />
 
-      <ConfirmDeleteDialog
-        open={Boolean(anularTarget)}
+      <AnularVentaDialog
+        venta={anularTarget}
+        medicamentos={medicamentos}
         onOpenChange={(open) => !open && setAnularTarget(null)}
-        title="¿Anular venta?"
-        description="Se devolverá el stock a su lote de origen y se registrará el movimiento en el kardex. Esta acción no se puede deshacer."
-        onConfirm={async () => {
-          if (!anularTarget) return;
-          try {
-            const actualizada = await anularVenta(anularTarget.id_venta);
-            onVentaAnulada(actualizada);
-            toast.success("Venta anulada.");
-          } catch (err) {
-            if (err instanceof ApiError) throw err;
-            throw new ApiError("No se pudo anular la venta.", 500);
-          }
-        }}
+        onAnulada={onVentaAnulada}
       />
     </div>
   );

@@ -119,7 +119,7 @@ export default function ComprasPage() {
                 <TableHead>N° Factura</TableHead>
                 <TableHead>Proveedor</TableHead>
                 <TableHead>Fecha</TableHead>
-                <TableHead>Total</TableHead>
+                <TableHead className="text-right">Total</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -182,7 +182,7 @@ export default function ComprasPage() {
                 <TableHead>N° Factura</TableHead>
                 <TableHead>Proveedor</TableHead>
                 <TableHead>Fecha</TableHead>
-                <TableHead>Total</TableHead>
+                <TableHead className="text-right">Total</TableHead>
                 <TableHead className="w-10">
                   <span className="sr-only">Acciones</span>
                 </TableHead>
@@ -198,7 +198,7 @@ export default function ComprasPage() {
                       {proveedorById.get(c.id_proveedor) ?? "—"}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">{c.fecha}</TableCell>
-                    <TableCell className="whitespace-nowrap font-medium">{formatCurrency(c.total)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right font-medium">{formatCurrency(c.total)}</TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"

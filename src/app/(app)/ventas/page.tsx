@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Lock, Wallet } from "lucide-react";
+import { Lock, Wallet, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -77,14 +77,29 @@ export default function VentasPage() {
                     Necesitas abrir la caja antes de registrar ventas.
                   </p>
                 </div>
-                <Button render={<Link href="/caja" />} className="mt-2 gap-1.5">
+                <Button nativeButton={false} render={<Link href="/caja" />} className="mt-2 gap-1.5">
                   <Wallet className="size-4" aria-hidden />
                   Ir a Caja
                 </Button>
               </CardContent>
             </Card>
           ) : (
-            <PosPanel idUsuario={sesion!.id_usuario} idCaja={caja.id_caja} onVentaRegistrada={handleVentaRegistrada} />
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm">
+                <span className="flex items-center gap-1.5 text-success">
+                  <Clock className="size-4" aria-hidden />
+                  Turno abierto desde{" "}
+                  {new Date(caja.fecha_apertura).toLocaleTimeString("es-BO", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </span>
+                <Link href="/caja" className="text-muted-foreground underline-offset-2 hover:underline">
+                  Cerrar turno
+                </Link>
+              </div>
+              <PosPanel idUsuario={sesion!.id_usuario} idCaja={caja.id_caja} onVentaRegistrada={handleVentaRegistrada} />
+            </div>
           )}
         </TabsContent>
 

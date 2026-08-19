@@ -151,23 +151,61 @@
 }
 
 /**
- * Impresión de recibo: oculta todo excepto el nodo #factura-print (que vive
- * dentro del Sheet, portado a <body>) y lo expande a toda la hoja. Funciona
- * sin importar el anidamiento del DOM/portal.
+ * Impresión de recibos/reportes: `visibility:hidden` NO saca elementos del
+ * flujo del documento — todo el resto de la app (sidebar, grilla de
+ * productos, etc.) seguía ocupando su alto normal aunque invisible, así que
+ * antes de llegar al contenido a imprimir (portado a <body>, después de
+ * #app-shell en el DOM) la paginación ya había consumido una hoja entera en
+ * blanco. La solución real es `display:none` sobre TODO #app-shell (ver
+ * layout.tsx) — así no aporta ningún alto — dejando visible solo lo que está
+ * fuera de ese árbol: el contenido del Dialog abierto, específicamente el
+ * nodo con clase `.print-area` (usado tanto por el recibo de venta como por
+ * los reportes imprimibles).
  */
 @media print {
-  body * {
-    visibility: hidden;
+  #app-shell {
+    display: none !important;
   }
-  #factura-print,
-  #factura-print * {
-    visibility: visible;
+  [data-sonner-toaster] {
+    display: none !important;
   }
-  #factura-print {
-    position: fixed;
-    inset: 0;
-    margin: 0;
-    padding: 1.5rem;
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-close"] {
+    display: none !important;
+  }
+  /* El Dialog normalmente flota centrado en pantalla con `fixed` +
+     `translate` (Tailwind v4 usa la propiedad CSS `translate`, no
+     `transform`, para -translate-x/y). Sin resetear `translate` acá, el
+     bloque queda corrido hacia arriba-izquierda la mitad de su propio
+     tamaño aunque ya esté en `position:static` — translate desplaza
+     visualmente sin importar el position. IMPORTANTE: no declarar también
+     `transform` en esta regla — Lightning CSS (el optimizador de build)
+     fusiona `transform:none` + `translate:none` en un solo
+     `transform:translate3d(0,0,0)`, que no toca la propiedad `translate`
+     real y deja el bug intacto en producción aunque se vea bien en el
+     código fuente. Al imprimir se convierte en un bloque normal a todo el
+     ancho de la hoja para que `.print-area` (mx-auto + su propio max-w-*)
+     se centre dentro. */
+  [data-slot="dialog-content"] {
+    display: block !important;
+    position: static !important;
+    translate: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+  body {
+    display: flex !important;
+    min-height: 100vh;
+    align-items: center;
+    justify-content: center;
+  }
+  .print-area {
+    margin: 0 auto !important;
   }
   .no-print {
     display: none !important;

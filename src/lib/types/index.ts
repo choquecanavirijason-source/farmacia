@@ -26,6 +26,7 @@ export interface Sesion {
   nombre: string;
   usuario: string;
   rol: RolNombre;
+  token: string;
 }
 
 // Modelo conceptual — Inventario y Catálogo

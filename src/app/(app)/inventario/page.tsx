@@ -89,8 +89,8 @@ export default function InventarioPage() {
               <TableRow>
                 <TableHead>Medicamento</TableHead>
                 <TableHead>Categoría</TableHead>
-                <TableHead>Stock actual</TableHead>
-                <TableHead>Stock mínimo</TableHead>
+                <TableHead className="text-right">Stock actual</TableHead>
+                <TableHead className="text-right">Stock mínimo</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
@@ -128,8 +128,8 @@ export default function InventarioPage() {
               <TableRow>
                 <TableHead>Medicamento</TableHead>
                 <TableHead>Categoría</TableHead>
-                <TableHead>Stock actual</TableHead>
-                <TableHead>Stock mínimo</TableHead>
+                <TableHead className="text-right">Stock actual</TableHead>
+                <TableHead className="text-right">Stock mínimo</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="w-10">
                   <span className="sr-only">Acciones</span>
@@ -151,8 +151,8 @@ export default function InventarioPage() {
                     <TableCell className="max-w-32 truncate text-muted-foreground">
                       {categoriaById.get(m.id_categoria) ?? "—"}
                     </TableCell>
-                    <TableCell className="font-medium">{stock}</TableCell>
-                    <TableCell className="text-muted-foreground">{m.stock_minimo}</TableCell>
+                    <TableCell className="text-right font-medium">{stock}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{m.stock_minimo}</TableCell>
                     <TableCell>
                       <Badge variant={bajo ? "destructive" : "success"}>{bajo ? "Bajo" : "OK"}</Badge>
                     </TableCell>

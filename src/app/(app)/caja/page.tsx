@@ -187,7 +187,7 @@ export default function CajaPage() {
                     <TableRow>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Concepto</TableHead>
-                      <TableHead>Monto</TableHead>
+                      <TableHead className="text-right">Monto</TableHead>
                       <TableHead>Fecha</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -202,7 +202,7 @@ export default function CajaPage() {
                         <TableCell className="max-w-56 truncate" title={m.concepto}>
                           {m.concepto}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap font-medium">
+                        <TableCell className="whitespace-nowrap text-right font-medium">
                           {m.tipo === "ingreso" ? "+" : "-"}
                           {formatCurrency(m.monto)}
                         </TableCell>
@@ -232,9 +232,9 @@ export default function CajaPage() {
                 <TableRow>
                   <TableHead>Apertura</TableHead>
                   <TableHead>Cierre</TableHead>
-                  <TableHead>Monto inicial</TableHead>
-                  <TableHead>Monto contado</TableHead>
-                  <TableHead>Diferencia</TableHead>
+                  <TableHead className="text-right">Monto inicial</TableHead>
+                  <TableHead className="text-right">Monto contado</TableHead>
+                  <TableHead className="text-right">Diferencia</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -248,9 +248,11 @@ export default function CajaPage() {
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {c.fecha_cierre ? formatFecha(c.fecha_cierre) : "—"}
                       </TableCell>
-                      <TableCell>{formatCurrency(c.monto_apertura)}</TableCell>
-                      <TableCell>{c.monto_cierre !== null ? formatCurrency(c.monto_cierre) : "—"}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-right">{formatCurrency(c.monto_apertura)}</TableCell>
+                      <TableCell className="text-right">
+                        {c.monto_cierre !== null ? formatCurrency(c.monto_cierre) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
                         <Badge variant={diferencia === 0 ? "secondary" : diferencia > 0 ? "warning" : "destructive"}>
                           {diferencia === 0 ? "Exacto" : formatCurrency(diferencia)}
                         </Badge>

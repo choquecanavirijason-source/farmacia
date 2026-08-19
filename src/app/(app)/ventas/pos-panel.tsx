@@ -63,6 +63,12 @@ interface PosPanelProps {
 interface CartLine {
   id_medicamento: number;
   cantidad: number;
+  /** Descuento por línea, 0-100. Se aplica sobre el precio de catálogo del medicamento. */
+  descuentoPct: number;
+}
+
+function precioConDescuento(precioVenta: number, descuentoPct: number): number {
+  return Math.round(precioVenta * (1 - descuentoPct / 100) * 100) / 100;
 }
 
 export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps) {
@@ -127,7 +133,7 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
 
   const total = cart.reduce((sum, line) => {
     const m = medicamentoById.get(line.id_medicamento);
-    return sum + (m ? m.precio_venta * line.cantidad : 0);
+    return sum + (m ? precioConDescuento(m.precio_venta, line.descuentoPct) * line.cantidad : 0);
   }, 0);
 
   function addToCart(medicamento: Medicamento) {
@@ -147,7 +153,7 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
           l.id_medicamento === medicamento.id_medicamento ? { ...l, cantidad: l.cantidad + 1 } : l
         );
       }
-      return [...prev, { id_medicamento: medicamento.id_medicamento, cantidad: 1 }];
+      return [...prev, { id_medicamento: medicamento.id_medicamento, cantidad: 1, descuentoPct: 0 }];
     });
   }
 
@@ -165,6 +171,24 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
           return { ...l, cantidad: next };
         })
         .filter((l) => l.cantidad > 0)
+    );
+  }
+
+  /** Cantidad tecleada directamente (además de los botones +/-) — para cargar cantidades altas rápido. */
+  function setCantidad(id_medicamento: number, cantidad: number) {
+    const disponible = stockPorMedicamento.get(id_medicamento) ?? 0;
+    if (!Number.isFinite(cantidad) || cantidad < 1) return;
+    if (cantidad > disponible) {
+      toast.error(`Solo hay ${disponible} unidades disponibles.`);
+      cantidad = disponible;
+    }
+    setCart((prev) => prev.map((l) => (l.id_medicamento === id_medicamento ? { ...l, cantidad } : l)));
+  }
+
+  function setDescuento(id_medicamento: number, descuentoPct: number) {
+    const clamped = Math.min(100, Math.max(0, Number.isFinite(descuentoPct) ? descuentoPct : 0));
+    setCart((prev) =>
+      prev.map((l) => (l.id_medicamento === id_medicamento ? { ...l, descuentoPct: clamped } : l))
     );
   }
 
@@ -286,6 +310,7 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
               variant="ghost"
               size="icon"
               aria-label="Ir a Gestión de Clientes"
+              nativeButton={false}
               render={<a href="/clientes" />}
             >
               <UserPlus className="size-4" aria-hidden />
@@ -304,44 +329,81 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
               cart.map((line) => {
                 const m = medicamentoById.get(line.id_medicamento);
                 if (!m) return null;
+                const precioFinal = precioConDescuento(m.precio_venta, line.descuentoPct);
+                const disponible = stockPorMedicamento.get(line.id_medicamento) ?? 0;
                 return (
-                  <div key={line.id_medicamento} className="flex items-center gap-2 rounded-lg border border-border/60 p-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium" title={m.nombre}>
-                        {m.nombre}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{formatCurrency(m.precio_venta)} c/u</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                  <div key={line.id_medicamento} className="flex flex-col gap-2 rounded-lg border border-border/60 p-2">
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium" title={m.nombre}>
+                          {m.nombre}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatCurrency(m.precio_venta)} c/u
+                          {line.descuentoPct > 0 ? (
+                            <span className="text-warning"> · -{line.descuentoPct}% = {formatCurrency(precioFinal)}</span>
+                          ) : null}
+                        </p>
+                      </div>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="icon-sm"
-                        onClick={() => updateCantidad(line.id_medicamento, -1)}
-                        aria-label="Quitar una unidad"
+                        onClick={() => removeLine(line.id_medicamento)}
+                        aria-label={`Quitar ${m.nombre} de la venta`}
                       >
-                        <Minus className="size-3.5" aria-hidden />
-                      </Button>
-                      <span className="w-6 text-center text-sm tabular-nums">{line.cantidad}</span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        onClick={() => updateCantidad(line.id_medicamento, 1)}
-                        aria-label="Agregar una unidad"
-                      >
-                        <Plus className="size-3.5" aria-hidden />
+                        <Trash2 className="size-3.5" aria-hidden />
                       </Button>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => removeLine(line.id_medicamento)}
-                      aria-label={`Quitar ${m.nombre} de la venta`}
-                    >
-                      <Trash2 className="size-3.5" aria-hidden />
-                    </Button>
+
+                    <div className="flex items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => updateCantidad(line.id_medicamento, -1)}
+                          aria-label="Quitar una unidad"
+                        >
+                          <Minus className="size-3.5" aria-hidden />
+                        </Button>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={disponible}
+                          value={line.cantidad}
+                          onChange={(e) => setCantidad(line.id_medicamento, Number(e.target.value))}
+                          className="h-7 w-14 px-1 text-center"
+                          aria-label={`Cantidad de ${m.nombre}`}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => updateCantidad(line.id_medicamento, 1)}
+                          aria-label="Agregar una unidad"
+                        >
+                          <Plus className="size-3.5" aria-hidden />
+                        </Button>
+                      </div>
+
+                      <div className="flex min-w-0 flex-1 items-center gap-1">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={line.descuentoPct}
+                          onChange={(e) => setDescuento(line.id_medicamento, Number(e.target.value))}
+                          className="h-7 w-14 px-1 text-center"
+                          aria-label={`Descuento de ${m.nombre}`}
+                        />
+                        <span className="text-xs text-muted-foreground">% desc.</span>
+                      </div>
+
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">
+                        {formatCurrency(precioFinal * line.cantidad)}
+                      </span>
+                    </div>
                   </div>
                 );
               })
@@ -413,20 +475,36 @@ interface CheckoutDialogProps {
 
 function CheckoutBody({
   onOpenChange,
+  onDirtyChange,
   cart,
   total,
   cliente,
   idUsuario,
   idCaja,
   onSold,
-}: Omit<CheckoutDialogProps, "open">) {
+}: Omit<CheckoutDialogProps, "open"> & { onDirtyChange: (dirty: boolean) => void }) {
   const [formaPago, setFormaPago] = useState<FormaPagoNombre>("Efectivo");
+  const [montoRecibido, setMontoRecibido] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    onDirtyChange(montoRecibido !== "");
+  }, [montoRecibido, onDirtyChange]);
+
+  const valorRecibido = Number(montoRecibido);
+  const vuelto =
+    formaPago === "Efectivo" && montoRecibido !== "" && Number.isFinite(valorRecibido)
+      ? valorRecibido - total
+      : null;
 
   async function handleConfirm() {
     if (!cliente) {
       setError("Selecciona un cliente.");
+      return;
+    }
+    if (formaPago === "Efectivo" && (!Number.isFinite(valorRecibido) || valorRecibido < total)) {
+      setError("El monto recibido debe cubrir el total de la venta.");
       return;
     }
     setError(null);
@@ -444,7 +522,7 @@ function CheckoutBody({
         items: cart.map((l) => ({
           id_medicamento: l.id_medicamento,
           cantidad: l.cantidad,
-          precio_unitario: precioById.get(l.id_medicamento) ?? 0,
+          precio_unitario: precioConDescuento(precioById.get(l.id_medicamento) ?? 0, l.descuentoPct),
         })),
       });
       onSold(venta);
@@ -483,6 +561,30 @@ function CheckoutBody({
           </Select>
         </div>
 
+        {formaPago === "Efectivo" ? (
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="monto_recibido">Monto recibido (Bs)</Label>
+            <Input
+              id="monto_recibido"
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={montoRecibido}
+              onChange={(e) => setMontoRecibido(e.target.value)}
+              disabled={saving}
+              autoFocus
+            />
+            {vuelto !== null ? (
+              <p className={`text-sm font-medium ${vuelto < 0 ? "text-destructive" : "text-success"}`}>
+                {vuelto < 0
+                  ? `Falta ${formatCurrency(Math.abs(vuelto))}.`
+                  : `Cambio a devolver: ${formatCurrency(vuelto)}`}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         {error ? (
           <p role="alert" className="text-sm wrap-break-word text-destructive">
             {error}
@@ -507,10 +609,23 @@ function CheckoutBody({
 }
 
 function CheckoutDialog({ open, onOpenChange, ...bodyProps }: CheckoutDialogProps) {
+  const [dirty, setDirty] = useState(false);
+
+  function handleDialogOpenChange(next: boolean) {
+    if (!next && dirty) {
+      if (!window.confirm("Vas a perder el monto recibido que escribiste. ¿Cerrar de todas formas?")) {
+        return;
+      }
+    }
+    onOpenChange(next);
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="sm:max-w-sm">
-        {open ? <CheckoutBody key="checkout" onOpenChange={onOpenChange} {...bodyProps} /> : null}
+        {open ? (
+          <CheckoutBody key="checkout" onOpenChange={onOpenChange} onDirtyChange={setDirty} {...bodyProps} />
+        ) : null}
       </DialogContent>
     </Dialog>
   );

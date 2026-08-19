@@ -216,8 +216,8 @@ export default function LotesPage() {
                 <TableHead>Medicamento</TableHead>
                 <TableHead>N° Lote</TableHead>
                 <TableHead>Vencimiento</TableHead>
-                <TableHead>Cantidad</TableHead>
-                <TableHead>Precio compra</TableHead>
+                <TableHead className="text-right">Cantidad</TableHead>
+                <TableHead className="text-right">Precio compra</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -278,8 +278,8 @@ export default function LotesPage() {
                 <TableHead>Medicamento</TableHead>
                 <TableHead>N° Lote</TableHead>
                 <TableHead>Vencimiento</TableHead>
-                <TableHead>Cantidad</TableHead>
-                <TableHead>Precio compra</TableHead>
+                <TableHead className="text-right">Cantidad</TableHead>
+                <TableHead className="text-right">Precio compra</TableHead>
                 <TableHead className="w-10">
                   <span className="sr-only">Acciones</span>
                 </TableHead>
@@ -309,8 +309,8 @@ export default function LotesPage() {
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell>{l.cantidad_actual}</TableCell>
-                    <TableCell className="whitespace-nowrap">Bs {l.precio_compra.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{l.cantidad_actual}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right">Bs {l.precio_compra.toFixed(2)}</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger

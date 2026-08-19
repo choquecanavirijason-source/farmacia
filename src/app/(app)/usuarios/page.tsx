@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
 import { deleteUsuario, fetchUsuarios } from "@/lib/api/usuarios";
+import { setAuthToken } from "@/lib/api/http";
 import type { Sesion, Usuario } from "@/lib/types";
 import { UsuarioFormDialog } from "@/app/(app)/usuarios/usuario-form-dialog";
 
@@ -37,10 +38,14 @@ export default function UsuariosPage() {
   const [deleteTarget, setDeleteTarget] = useState<Usuario | null>(null);
 
   useEffect(() => {
-    fetchUsuarios().then(setUsuarios);
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setSesion(data?.sesion ?? null));
+      .then((data) => {
+        const sesionData: Sesion | null = data?.sesion ?? null;
+        setSesion(sesionData);
+        setAuthToken(sesionData?.token ?? null);
+        fetchUsuarios().then(setUsuarios);
+      });
   }, []);
 
   const filtered = useMemo(() => {
@@ -84,10 +89,6 @@ export default function UsuariosPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-balance">Gestión de Usuarios</h1>
         <p className="text-sm text-muted-foreground">
           Cuentas de acceso al sistema y su rol (Administrador o Vendedor).
-        </p>
-        <p className="text-xs text-balance text-muted-foreground/80">
-          Nota: mientras no haya backend, el inicio de sesión real sigue usando las cuentas de
-          demostración (admin / vendedor); esta pantalla ya modela el CRUD completo del módulo.
         </p>
       </div>
 
