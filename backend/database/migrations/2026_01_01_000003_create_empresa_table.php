@@ -10,12 +10,12 @@ return new class extends Migration
     {
         // Registro único (fila con id=1) — datos de la empresa para los comprobantes.
         Schema::create('empresa', function (Blueprint $table) {
-            $table->id();
+            $table->id('id_empresa');
             $table->string('nombre', 150);
             $table->string('nit', 30)->nullable();
             $table->string('direccion')->nullable();
             $table->string('telefono', 30)->nullable();
-            $table->string('logo_path')->nullable();
+            $table->longText('logo_path')->nullable();
             $table->timestamps();
         });
     }
