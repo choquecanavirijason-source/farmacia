@@ -2,9 +2,10 @@ import { cpSync, existsSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const src = path.join(root, "out");
-const dest = path.join(root, "backend", "public");
+const clientRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const repoRoot = path.dirname(clientRoot);
+const src = path.join(clientRoot, "out");
+const dest = path.join(repoRoot, "backend", "public");
 
 if (!existsSync(src)) {
   console.error('No existe "out/". Corre "npm run build" antes de copiar.');
