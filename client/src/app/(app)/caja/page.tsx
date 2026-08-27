@@ -7,14 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable, type DataTableColumn } from "@/components/ui/table";
 import {
   fetchCajaAbierta,
   fetchCajas,
@@ -81,6 +74,84 @@ export default function CajaPage() {
   }
 
   const isLoading = cajaAbierta === undefined;
+
+  const movimientoColumns: DataTableColumn<MovimientoCaja>[] = [
+    {
+      key: "tipo",
+      header: "Tipo",
+      accessor: (m) => m.tipo,
+      render: (_, m) => (
+        <Badge variant={m.tipo === "ingreso" ? "success" : "warning"}>
+          {m.tipo === "ingreso" ? "Ingreso" : "Egreso"}
+        </Badge>
+      ),
+    },
+    {
+      key: "concepto",
+      header: "Concepto",
+      accessor: (m) => m.concepto,
+      className: "max-w-56 truncate",
+    },
+    {
+      key: "monto",
+      header: "Monto",
+      accessor: (m) => m.monto,
+      className: "whitespace-nowrap text-right font-medium",
+      render: (_, m) => `${m.tipo === "ingreso" ? "+" : "-"}${formatCurrency(m.monto)}`,
+    },
+    {
+      key: "fecha",
+      header: "Fecha",
+      accessor: (m) => m.fecha,
+      className: "whitespace-nowrap text-muted-foreground",
+      render: (_, m) => formatFecha(m.fecha),
+    },
+  ];
+
+  const historialColumns: DataTableColumn<Caja>[] = [
+    {
+      key: "fecha_apertura",
+      header: "Apertura",
+      accessor: (c) => c.fecha_apertura,
+      className: "whitespace-nowrap text-muted-foreground",
+      render: (_, c) => formatFecha(c.fecha_apertura),
+    },
+    {
+      key: "fecha_cierre",
+      header: "Cierre",
+      accessor: (c) => c.fecha_cierre,
+      className: "whitespace-nowrap text-muted-foreground",
+      render: (_, c) => (c.fecha_cierre ? formatFecha(c.fecha_cierre) : "—"),
+    },
+    {
+      key: "monto_apertura",
+      header: "Monto inicial",
+      accessor: (c) => c.monto_apertura,
+      className: "text-right",
+      render: (_, c) => formatCurrency(c.monto_apertura),
+    },
+    {
+      key: "monto_cierre",
+      header: "Monto contado",
+      accessor: (c) => c.monto_cierre,
+      className: "text-right",
+      render: (_, c) => (c.monto_cierre !== null ? formatCurrency(c.monto_cierre) : "—"),
+    },
+    {
+      key: "diferencia",
+      header: "Diferencia",
+      accessor: (c) => (c.monto_cierre ?? 0) - (c.monto_esperado_cierre ?? c.monto_apertura),
+      className: "text-right",
+      render: (_, c) => {
+        const diferencia = (c.monto_cierre ?? 0) - (c.monto_esperado_cierre ?? c.monto_apertura);
+        return (
+          <Badge variant={diferencia === 0 ? "secondary" : diferencia > 0 ? "warning" : "destructive"}>
+            {diferencia === 0 ? "Exacto" : formatCurrency(diferencia)}
+          </Badge>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -181,39 +252,12 @@ export default function CajaPage() {
             {movimientos.length === 0 ? (
               <p className="text-sm text-muted-foreground">Todavía no hay movimientos registrados.</p>
             ) : (
-              <div className="overflow-x-auto rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Concepto</TableHead>
-                      <TableHead className="text-right">Monto</TableHead>
-                      <TableHead>Fecha</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {movimientos.map((m) => (
-                      <TableRow key={m.id_movimiento}>
-                        <TableCell>
-                          <Badge variant={m.tipo === "ingreso" ? "success" : "warning"}>
-                            {m.tipo === "ingreso" ? "Ingreso" : "Egreso"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="max-w-56 truncate" title={m.concepto}>
-                          {m.concepto}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-right font-medium">
-                          {m.tipo === "ingreso" ? "+" : "-"}
-                          {formatCurrency(m.monto)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {formatFecha(m.fecha)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              <DataTable
+                data={movimientos}
+                columns={movimientoColumns}
+                searchPlaceholder="Buscar por concepto…"
+                emptyMessage="No se encontraron movimientos."
+              />
             )}
           </div>
         </>
@@ -226,43 +270,12 @@ export default function CajaPage() {
         ) : historial.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aún no se cerró ninguna caja.</p>
         ) : (
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Apertura</TableHead>
-                  <TableHead>Cierre</TableHead>
-                  <TableHead className="text-right">Monto inicial</TableHead>
-                  <TableHead className="text-right">Monto contado</TableHead>
-                  <TableHead className="text-right">Diferencia</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {historial.map((c) => {
-                  const diferencia = (c.monto_cierre ?? 0) - (c.monto_esperado_cierre ?? c.monto_apertura);
-                  return (
-                    <TableRow key={c.id_caja}>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {formatFecha(c.fecha_apertura)}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {c.fecha_cierre ? formatFecha(c.fecha_cierre) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">{formatCurrency(c.monto_apertura)}</TableCell>
-                      <TableCell className="text-right">
-                        {c.monto_cierre !== null ? formatCurrency(c.monto_cierre) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge variant={diferencia === 0 ? "secondary" : diferencia > 0 ? "warning" : "destructive"}>
-                          {diferencia === 0 ? "Exacto" : formatCurrency(diferencia)}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable
+            data={historial}
+            columns={historialColumns}
+            searchPlaceholder="Buscar en el historial…"
+            emptyMessage="No se encontraron cajas."
+          />
         )}
       </div>
 

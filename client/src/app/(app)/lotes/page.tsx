@@ -10,22 +10,21 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
-  Search,
-  SearchX,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  DataTable,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  type DataTableColumn,
 } from "@/components/ui/table";
 import {
   DropdownMenu,
@@ -34,14 +33,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
-import { TablePagination } from "@/components/layout/table-pagination";
-import { usePagination } from "@/hooks/use-pagination";
 import {
   computeProximosAVencer,
   computeStockBajo,
   deleteLote,
   diasHasta,
   fetchLotes,
+  updateLote,
   DIAS_ALERTA_VENCIMIENTO,
 } from "@/lib/api/lotes";
 import { fetchMedicamentos } from "@/lib/api/medicamentos";
@@ -53,7 +51,6 @@ import { KardexSheet } from "@/app/(app)/lotes/kardex-sheet";
 export default function LotesPage() {
   const [lotes, setLotes] = useState<Lote[] | null>(null);
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
-  const [search, setSearch] = useState("");
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Lote | null>(null);
@@ -72,20 +69,6 @@ export default function LotesPage() {
     () => new Map(medicamentos.map((m) => [m.id_medicamento, m])),
     [medicamentos]
   );
-
-  const filtered = useMemo(() => {
-    if (!lotes) return null;
-    const query = search.trim().toLowerCase();
-    if (!query) return lotes;
-    return lotes.filter((l) => {
-      const medicamento = medicamentoById.get(l.id_medicamento);
-      return (
-        l.numero_lote.toLowerCase().includes(query) ||
-        medicamento?.nombre.toLowerCase().includes(query) ||
-        medicamento?.codigo.toLowerCase().includes(query)
-      );
-    });
-  }, [lotes, search, medicamentoById]);
 
   const alertaVencimiento = useMemo(() => (lotes ? computeProximosAVencer(lotes) : []), [lotes]);
 
@@ -123,18 +106,127 @@ export default function LotesPage() {
     toast.success("Stock dado de baja.");
   }
 
+  async function saveField(l: Lote, field: "numero_lote" | "precio_compra", value: string | number) {
+    const updated = await updateLote(l.id_lote, {
+      numero_lote: field === "numero_lote" ? String(value) : l.numero_lote,
+      fecha_vencimiento: l.fecha_vencimiento,
+      precio_compra: field === "precio_compra" ? Number(value) : l.precio_compra,
+      id_medicamento: l.id_medicamento,
+    });
+    upsertLote(updated);
+  }
+
   const isLoading = lotes === null;
   const hasAnyLote = (lotes?.length ?? 0) > 0;
-  const hasResults = (filtered?.length ?? 0) > 0;
-  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(filtered, 10);
+
+  const columns: DataTableColumn<Lote>[] = [
+    {
+      key: "medicamento",
+      header: "Medicamento",
+      accessor: (l) => medicamentoById.get(l.id_medicamento)?.nombre ?? null,
+      className: "max-w-52 truncate font-medium",
+    },
+    {
+      key: "numero_lote",
+      header: "N° Lote",
+      accessor: (l) => l.numero_lote,
+      className: "max-w-32 truncate font-mono text-xs",
+      edit: { onSave: (l, value) => saveField(l, "numero_lote", value) },
+    },
+    {
+      key: "fecha_vencimiento",
+      header: "Vencimiento",
+      accessor: (l) => l.fecha_vencimiento,
+      render: (_, l) => {
+        const dias = diasHasta(l.fecha_vencimiento);
+        const vencido = dias < 0;
+        const porVencer = !vencido && dias <= DIAS_ALERTA_VENCIMIENTO;
+        return (
+          <div className="flex items-center gap-2">
+            <span className="whitespace-nowrap">{l.fecha_vencimiento}</span>
+            {vencido ? (
+              <Badge variant="destructive">Vencido</Badge>
+            ) : porVencer ? (
+              <Badge variant="warning">Por vencer</Badge>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    {
+      key: "cantidad_actual",
+      header: "Cantidad",
+      accessor: (l) => l.cantidad_actual,
+      className: "text-right",
+    },
+    {
+      key: "precio_compra",
+      header: "Precio compra",
+      accessor: (l) => l.precio_compra,
+      className: "whitespace-nowrap text-right",
+      render: (_, l) => `Bs ${l.precio_compra.toFixed(2)}`,
+      edit: { type: "number", onSave: (l, value) => saveField(l, "precio_compra", value) },
+    },
+    {
+      key: "acciones",
+      header: <span className="sr-only">Acciones</span>,
+      accessor: () => null,
+      sortable: false,
+      filterable: false,
+      className: "w-10",
+      render: (_, l) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button variant="ghost" size="icon-sm" aria-label={`Acciones para el lote ${l.numero_lote}`} />
+            }
+          >
+            <MoreHorizontal className="size-4" aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => openEdit(l)}>
+              <Pencil className="size-4" aria-hidden />
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setKardexTarget(l)}>
+              <History className="size-4" aria-hidden />
+              Ver kardex
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={l.cantidad_actual === 0}
+              onSelect={() => setBajaTarget(l)}
+            >
+              <AlertTriangle className="size-4" aria-hidden />
+              Dar de baja
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={l.cantidad_actual > 0}
+              onSelect={() => setDeleteTarget(l)}
+            >
+              <Trash2 className="size-4" aria-hidden />
+              Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-balance">Gestión de Lotes</h1>
-        <p className="text-sm text-muted-foreground">
-          Stock por lote, trazabilidad de kardex y alertas de vencimiento.
-        </p>
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-balance">Gestión de Lotes</h1>
+          <p className="text-sm text-muted-foreground">
+            Stock por lote, trazabilidad de kardex y alertas de vencimiento.
+          </p>
+        </div>
+        <Button type="button" onClick={openCreate} className="shrink-0 gap-1.5">
+          <Plus className="size-4" aria-hidden />
+          Nuevo Lote
+        </Button>
       </div>
 
       {!isLoading && (alertaVencimiento.length > 0 || alertaStockBajo.length > 0) ? (
@@ -188,26 +280,6 @@ export default function LotesPage() {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative min-w-0 flex-1">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por medicamento o N° de lote…"
-            className="pl-8"
-            aria-label="Buscar lotes"
-          />
-        </div>
-        <Button type="button" onClick={openCreate} className="shrink-0 gap-1.5">
-          <Plus className="size-4" aria-hidden />
-          Nuevo Lote
-        </Button>
-      </div>
-
       {isLoading ? (
         <div className="overflow-x-auto rounded-md border">
           <Table>
@@ -252,120 +324,13 @@ export default function LotesPage() {
             </Button>
           </CardContent>
         </Card>
-      ) : !hasResults ? (
-        <Card className="border-dashed border-border/60 bg-background/60">
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <span className="flex size-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <SearchX className="size-6" aria-hidden />
-            </span>
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium">Sin resultados</p>
-              <p className="max-w-sm text-xs text-balance text-muted-foreground">
-                No encontramos lotes para “{search}”.
-              </p>
-            </div>
-            <Button type="button" variant="outline" onClick={() => setSearch("")} className="mt-2">
-              Limpiar búsqueda
-            </Button>
-          </CardContent>
-        </Card>
       ) : (
-        <>
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Medicamento</TableHead>
-                <TableHead>N° Lote</TableHead>
-                <TableHead>Vencimiento</TableHead>
-                <TableHead className="text-right">Cantidad</TableHead>
-                <TableHead className="text-right">Precio compra</TableHead>
-                <TableHead className="w-10">
-                  <span className="sr-only">Acciones</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageItems?.map((l) => {
-                const medicamento = medicamentoById.get(l.id_medicamento);
-                const dias = diasHasta(l.fecha_vencimiento);
-                const vencido = dias < 0;
-                const porVencer = !vencido && dias <= DIAS_ALERTA_VENCIMIENTO;
-                return (
-                  <TableRow key={l.id_lote}>
-                    <TableCell className="max-w-52 truncate font-medium" title={medicamento?.nombre}>
-                      {medicamento?.nombre ?? "—"}
-                    </TableCell>
-                    <TableCell className="max-w-32 truncate font-mono text-xs" title={l.numero_lote}>
-                      {l.numero_lote}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="whitespace-nowrap">{l.fecha_vencimiento}</span>
-                        {vencido ? (
-                          <Badge variant="destructive">Vencido</Badge>
-                        ) : porVencer ? (
-                          <Badge variant="warning">Por vencer</Badge>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">{l.cantidad_actual}</TableCell>
-                    <TableCell className="whitespace-nowrap text-right">Bs {l.precio_compra.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`Acciones para el lote ${l.numero_lote}`}
-                            />
-                          }
-                        >
-                          <MoreHorizontal className="size-4" aria-hidden />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onSelect={() => openEdit(l)}>
-                            <Pencil className="size-4" aria-hidden />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => setKardexTarget(l)}>
-                            <History className="size-4" aria-hidden />
-                            Ver kardex
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            disabled={l.cantidad_actual === 0}
-                            onSelect={() => setBajaTarget(l)}
-                          >
-                            <AlertTriangle className="size-4" aria-hidden />
-                            Dar de baja
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            disabled={l.cantidad_actual > 0}
-                            onSelect={() => setDeleteTarget(l)}
-                          >
-                            <Trash2 className="size-4" aria-hidden />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-        <TablePagination
-          page={page}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          totalItems={totalItems}
-          onPageChange={setPage}
+        <DataTable
+          data={lotes ?? []}
+          columns={columns}
+          searchPlaceholder="Buscar por medicamento o N° de lote…"
+          emptyMessage="No se encontraron lotes."
         />
-        </>
       )}
 
       <LoteFormDialog

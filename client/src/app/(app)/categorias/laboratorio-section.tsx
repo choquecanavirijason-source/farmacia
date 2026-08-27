@@ -6,7 +6,7 @@ import { MoreHorizontal, Pencil, Plus, Trash2, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable, type DataTableColumn } from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
-import { deleteLaboratorio, fetchLaboratorios } from "@/lib/api/catalogos";
+import { deleteLaboratorio, fetchLaboratorios, updateLaboratorio } from "@/lib/api/catalogos";
 import type { Laboratorio } from "@/lib/types";
 import { LaboratorioFormDialog } from "@/app/(app)/categorias/laboratorio-form-dialog";
 
@@ -38,8 +38,7 @@ export function LaboratorioSection() {
     setFormOpen(true);
   }
 
-  function handleSaved(saved: Laboratorio) {
-    const wasEditing = Boolean(editing);
+  function upsertLaboratorio(saved: Laboratorio) {
     setLaboratorios((prev) => {
       if (!prev) return [saved];
       const exists = prev.some((l) => l.id_laboratorio === saved.id_laboratorio);
@@ -47,11 +46,77 @@ export function LaboratorioSection() {
         ? prev.map((l) => (l.id_laboratorio === saved.id_laboratorio ? saved : l))
         : [...prev, saved];
     });
+  }
+
+  function handleSaved(saved: Laboratorio) {
+    const wasEditing = Boolean(editing);
+    upsertLaboratorio(saved);
     toast.success(wasEditing ? "Laboratorio actualizado." : "Laboratorio creado.");
+  }
+
+  async function saveField(l: Laboratorio, field: "nombre" | "pais" | "telefono", value: string) {
+    const updated = await updateLaboratorio(l.id_laboratorio, {
+      nombre: field === "nombre" ? value : l.nombre,
+      pais: field === "pais" ? value : l.pais,
+      telefono: field === "telefono" ? value : l.telefono,
+    });
+    upsertLaboratorio(updated);
   }
 
   const isLoading = laboratorios === null;
   const hasItems = (laboratorios?.length ?? 0) > 0;
+
+  const columns: DataTableColumn<Laboratorio>[] = [
+    {
+      key: "nombre",
+      header: "Nombre",
+      accessor: (l) => l.nombre,
+      className: "max-w-40 truncate font-medium",
+      edit: { onSave: (l, value) => saveField(l, "nombre", String(value)) },
+    },
+    {
+      key: "pais",
+      header: "País",
+      accessor: (l) => l.pais,
+      className: "max-w-32 truncate text-muted-foreground",
+      edit: { onSave: (l, value) => saveField(l, "pais", String(value)) },
+    },
+    {
+      key: "telefono",
+      header: "Teléfono",
+      accessor: (l) => l.telefono,
+      className: "whitespace-nowrap text-muted-foreground",
+      render: (_, l) => l.telefono || "—",
+      edit: { onSave: (l, value) => saveField(l, "telefono", String(value)) },
+    },
+    {
+      key: "acciones",
+      header: <span className="sr-only">Acciones</span>,
+      accessor: () => null,
+      sortable: false,
+      filterable: false,
+      className: "w-10",
+      render: (_, l) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${l.nombre}`} />}
+          >
+            <MoreHorizontal className="size-4" aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => openEdit(l)}>
+              <Pencil className="size-4" aria-hidden />
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(l)}>
+              <Trash2 className="size-4" aria-hidden />
+              Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-4">
@@ -82,56 +147,12 @@ export function LaboratorioSection() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>País</TableHead>
-                <TableHead>Teléfono</TableHead>
-                <TableHead className="w-10">
-                  <span className="sr-only">Acciones</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {laboratorios?.map((l) => (
-                <TableRow key={l.id_laboratorio}>
-                  <TableCell className="max-w-40 truncate font-medium" title={l.nombre}>
-                    {l.nombre}
-                  </TableCell>
-                  <TableCell className="max-w-32 truncate text-muted-foreground" title={l.pais}>
-                    {l.pais}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {l.telefono || "—"}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${l.nombre}`} />
-                        }
-                      >
-                        <MoreHorizontal className="size-4" aria-hidden />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => openEdit(l)}>
-                          <Pencil className="size-4" aria-hidden />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(l)}>
-                          <Trash2 className="size-4" aria-hidden />
-                          Eliminar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          data={laboratorios ?? []}
+          columns={columns}
+          searchPlaceholder="Buscar laboratorio…"
+          emptyMessage="No se encontraron laboratorios."
+        />
       )}
 
       <LaboratorioFormDialog

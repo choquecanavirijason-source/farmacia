@@ -6,7 +6,7 @@ import { MoreHorizontal, Pencil, Plus, Tags, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable, type DataTableColumn } from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
-import { deleteCategoria, fetchCategorias } from "@/lib/api/catalogos";
+import { deleteCategoria, fetchCategorias, updateCategoria } from "@/lib/api/catalogos";
 import type { Categoria } from "@/lib/types";
 import { CategoriaFormDialog } from "@/app/(app)/categorias/categoria-form-dialog";
 
@@ -38,8 +38,7 @@ export function CategoriaSection() {
     setFormOpen(true);
   }
 
-  function handleSaved(saved: Categoria) {
-    const wasEditing = Boolean(editing);
+  function upsertCategoria(saved: Categoria) {
     setCategorias((prev) => {
       if (!prev) return [saved];
       const exists = prev.some((c) => c.id_categoria === saved.id_categoria);
@@ -47,11 +46,69 @@ export function CategoriaSection() {
         ? prev.map((c) => (c.id_categoria === saved.id_categoria ? saved : c))
         : [...prev, saved];
     });
+  }
+
+  function handleSaved(saved: Categoria) {
+    const wasEditing = Boolean(editing);
+    upsertCategoria(saved);
     toast.success(wasEditing ? "Categoría actualizada." : "Categoría creada.");
+  }
+
+  async function saveField(c: Categoria, field: "nombre" | "descripcion", value: string) {
+    const updated = await updateCategoria(c.id_categoria, {
+      nombre: field === "nombre" ? value : c.nombre,
+      descripcion: field === "descripcion" ? value : c.descripcion,
+    });
+    upsertCategoria(updated);
   }
 
   const isLoading = categorias === null;
   const hasItems = (categorias?.length ?? 0) > 0;
+
+  const columns: DataTableColumn<Categoria>[] = [
+    {
+      key: "nombre",
+      header: "Nombre",
+      accessor: (c) => c.nombre,
+      className: "max-w-40 truncate font-medium",
+      edit: { onSave: (c, value) => saveField(c, "nombre", String(value)) },
+    },
+    {
+      key: "descripcion",
+      header: "Descripción",
+      accessor: (c) => c.descripcion,
+      className: "max-w-80 truncate text-muted-foreground",
+      render: (_, c) => c.descripcion || "—",
+      edit: { onSave: (c, value) => saveField(c, "descripcion", String(value)) },
+    },
+    {
+      key: "acciones",
+      header: <span className="sr-only">Acciones</span>,
+      accessor: () => null,
+      sortable: false,
+      filterable: false,
+      className: "w-10",
+      render: (_, c) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${c.nombre}`} />}
+          >
+            <MoreHorizontal className="size-4" aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => openEdit(c)}>
+              <Pencil className="size-4" aria-hidden />
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(c)}>
+              <Trash2 className="size-4" aria-hidden />
+              Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-4">
@@ -82,52 +139,12 @@ export function CategoriaSection() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Descripción</TableHead>
-                <TableHead className="w-10">
-                  <span className="sr-only">Acciones</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {categorias?.map((c) => (
-                <TableRow key={c.id_categoria}>
-                  <TableCell className="max-w-40 truncate font-medium" title={c.nombre}>
-                    {c.nombre}
-                  </TableCell>
-                  <TableCell className="max-w-80 truncate text-muted-foreground" title={c.descripcion}>
-                    {c.descripcion || "—"}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${c.nombre}`} />
-                        }
-                      >
-                        <MoreHorizontal className="size-4" aria-hidden />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => openEdit(c)}>
-                          <Pencil className="size-4" aria-hidden />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(c)}>
-                          <Trash2 className="size-4" aria-hidden />
-                          Eliminar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          data={categorias ?? []}
+          columns={columns}
+          searchPlaceholder="Buscar categoría…"
+          emptyMessage="No se encontraron categorías."
+        />
       )}
 
       <CategoriaFormDialog

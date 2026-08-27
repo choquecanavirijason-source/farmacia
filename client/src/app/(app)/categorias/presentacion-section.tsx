@@ -6,7 +6,7 @@ import { Boxes, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable, type DataTableColumn } from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
-import { deletePresentacion, fetchPresentaciones } from "@/lib/api/catalogos";
+import { deletePresentacion, fetchPresentaciones, updatePresentacion } from "@/lib/api/catalogos";
 import type { Presentacion } from "@/lib/types";
 import { PresentacionFormDialog } from "@/app/(app)/categorias/presentacion-form-dialog";
 
@@ -38,8 +38,7 @@ export function PresentacionSection() {
     setFormOpen(true);
   }
 
-  function handleSaved(saved: Presentacion) {
-    const wasEditing = Boolean(editing);
+  function upsertPresentacion(saved: Presentacion) {
     setPresentaciones((prev) => {
       if (!prev) return [saved];
       const exists = prev.some((p) => p.id_presentacion === saved.id_presentacion);
@@ -47,11 +46,69 @@ export function PresentacionSection() {
         ? prev.map((p) => (p.id_presentacion === saved.id_presentacion ? saved : p))
         : [...prev, saved];
     });
+  }
+
+  function handleSaved(saved: Presentacion) {
+    const wasEditing = Boolean(editing);
+    upsertPresentacion(saved);
     toast.success(wasEditing ? "Presentación actualizada." : "Presentación creada.");
+  }
+
+  async function saveField(p: Presentacion, field: "nombre" | "descripcion", value: string) {
+    const updated = await updatePresentacion(p.id_presentacion, {
+      nombre: field === "nombre" ? value : p.nombre,
+      descripcion: field === "descripcion" ? value : p.descripcion,
+    });
+    upsertPresentacion(updated);
   }
 
   const isLoading = presentaciones === null;
   const hasItems = (presentaciones?.length ?? 0) > 0;
+
+  const columns: DataTableColumn<Presentacion>[] = [
+    {
+      key: "nombre",
+      header: "Nombre",
+      accessor: (p) => p.nombre,
+      className: "max-w-40 truncate font-medium",
+      edit: { onSave: (p, value) => saveField(p, "nombre", String(value)) },
+    },
+    {
+      key: "descripcion",
+      header: "Descripción",
+      accessor: (p) => p.descripcion,
+      className: "max-w-80 truncate text-muted-foreground",
+      render: (_, p) => p.descripcion || "—",
+      edit: { onSave: (p, value) => saveField(p, "descripcion", String(value)) },
+    },
+    {
+      key: "acciones",
+      header: <span className="sr-only">Acciones</span>,
+      accessor: () => null,
+      sortable: false,
+      filterable: false,
+      className: "w-10",
+      render: (_, p) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${p.nombre}`} />}
+          >
+            <MoreHorizontal className="size-4" aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => openEdit(p)}>
+              <Pencil className="size-4" aria-hidden />
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(p)}>
+              <Trash2 className="size-4" aria-hidden />
+              Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-4">
@@ -82,52 +139,12 @@ export function PresentacionSection() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Descripción</TableHead>
-                <TableHead className="w-10">
-                  <span className="sr-only">Acciones</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {presentaciones?.map((p) => (
-                <TableRow key={p.id_presentacion}>
-                  <TableCell className="max-w-40 truncate font-medium" title={p.nombre}>
-                    {p.nombre}
-                  </TableCell>
-                  <TableCell className="max-w-80 truncate text-muted-foreground" title={p.descripcion}>
-                    {p.descripcion || "—"}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${p.nombre}`} />
-                        }
-                      >
-                        <MoreHorizontal className="size-4" aria-hidden />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => openEdit(p)}>
-                          <Pencil className="size-4" aria-hidden />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(p)}>
-                          <Trash2 className="size-4" aria-hidden />
-                          Eliminar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          data={presentaciones ?? []}
+          columns={columns}
+          searchPlaceholder="Buscar presentación…"
+          emptyMessage="No se encontraron presentaciones."
+        />
       )}
 
       <PresentacionFormDialog

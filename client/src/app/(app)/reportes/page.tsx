@@ -16,14 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable, type DataTableColumn } from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -358,35 +351,47 @@ export default function ReportesPage() {
 }
 
 function StockBajoTable({ items }: { items: StockBajoItem[] }) {
+  const columns: DataTableColumn<StockBajoItem>[] = [
+    {
+      key: "medicamento",
+      header: "Medicamento",
+      accessor: (i) => i.medicamento.nombre,
+      className: "max-w-56 truncate font-medium",
+    },
+    {
+      key: "codigo",
+      header: "Código",
+      accessor: (i) => i.medicamento.codigo,
+      className: "whitespace-nowrap font-mono text-xs",
+    },
+    {
+      key: "stock",
+      header: "Stock actual",
+      accessor: (i) => i.stock,
+      className: "text-right",
+    },
+    {
+      key: "stock_minimo",
+      header: "Stock mínimo",
+      accessor: (i) => i.medicamento.stock_minimo,
+      className: "text-right",
+    },
+    {
+      key: "deficit",
+      header: "Déficit",
+      accessor: (i) => i.medicamento.stock_minimo - i.stock,
+      className: "text-right",
+      render: (_, i) => <Badge variant="destructive">{i.medicamento.stock_minimo - i.stock}</Badge>,
+    },
+  ];
+
   return (
-    <div className="overflow-x-auto rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Medicamento</TableHead>
-            <TableHead>Código</TableHead>
-            <TableHead className="text-right">Stock actual</TableHead>
-            <TableHead className="text-right">Stock mínimo</TableHead>
-            <TableHead className="text-right">Déficit</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map(({ medicamento, stock }) => (
-            <TableRow key={medicamento.id_medicamento}>
-              <TableCell className="max-w-56 truncate font-medium" title={medicamento.nombre}>
-                {medicamento.nombre}
-              </TableCell>
-              <TableCell className="whitespace-nowrap font-mono text-xs">{medicamento.codigo}</TableCell>
-              <TableCell className="text-right">{stock}</TableCell>
-              <TableCell className="text-right">{medicamento.stock_minimo}</TableCell>
-              <TableCell className="text-right">
-                <Badge variant="destructive">{medicamento.stock_minimo - stock}</Badge>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+    <DataTable
+      data={items}
+      columns={columns}
+      searchPlaceholder="Buscar medicamento…"
+      emptyMessage="No se encontraron medicamentos."
+    />
   );
 }
 
@@ -397,43 +402,53 @@ function ProximosAVencerTable({
   items: Lote[];
   medicamentoById: Map<number, Medicamento>;
 }) {
+  const columns: DataTableColumn<Lote>[] = [
+    {
+      key: "medicamento",
+      header: "Medicamento",
+      accessor: (l) => medicamentoById.get(l.id_medicamento)?.nombre ?? null,
+      className: "max-w-56 truncate font-medium",
+    },
+    {
+      key: "numero_lote",
+      header: "N° Lote",
+      accessor: (l) => l.numero_lote,
+      className: "whitespace-nowrap font-mono text-xs",
+    },
+    {
+      key: "fecha_vencimiento",
+      header: "Vencimiento",
+      accessor: (l) => l.fecha_vencimiento,
+      className: "whitespace-nowrap",
+    },
+    {
+      key: "dias",
+      header: "Días",
+      accessor: (l) => diasHasta(l.fecha_vencimiento),
+      render: (_, l) => {
+        const dias = diasHasta(l.fecha_vencimiento);
+        return (
+          <Badge variant={dias < 0 ? "destructive" : "warning"}>
+            {dias < 0 ? `Venció hace ${Math.abs(dias)} d.` : `${dias} d.`}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "cantidad_actual",
+      header: "Cantidad",
+      accessor: (l) => l.cantidad_actual,
+      className: "text-right",
+    },
+  ];
+
   return (
-    <div className="overflow-x-auto rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Medicamento</TableHead>
-            <TableHead>N° Lote</TableHead>
-            <TableHead>Vencimiento</TableHead>
-            <TableHead>Días</TableHead>
-            <TableHead className="text-right">Cantidad</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((l) => {
-            const dias = diasHasta(l.fecha_vencimiento);
-            return (
-              <TableRow key={l.id_lote}>
-                <TableCell
-                  className="max-w-56 truncate font-medium"
-                  title={medicamentoById.get(l.id_medicamento)?.nombre}
-                >
-                  {medicamentoById.get(l.id_medicamento)?.nombre ?? "—"}
-                </TableCell>
-                <TableCell className="whitespace-nowrap font-mono text-xs">{l.numero_lote}</TableCell>
-                <TableCell className="whitespace-nowrap">{l.fecha_vencimiento}</TableCell>
-                <TableCell>
-                  <Badge variant={dias < 0 ? "destructive" : "warning"}>
-                    {dias < 0 ? `Venció hace ${Math.abs(dias)} d.` : `${dias} d.`}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">{l.cantidad_actual}</TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+    <DataTable
+      data={items}
+      columns={columns}
+      searchPlaceholder="Buscar por medicamento o N° de lote…"
+      emptyMessage="No se encontraron lotes."
+    />
   );
 }
 
@@ -458,46 +473,67 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
     return <p className="text-sm text-muted-foreground">Sin movimientos registrados para este medicamento.</p>;
   }
 
+  const columns: DataTableColumn<KardexMovimientoConLote>[] = [
+    {
+      key: "tipo",
+      header: "Tipo",
+      accessor: (k) => TIPO_META[k.tipo].label,
+      render: (_, k) => {
+        const meta = TIPO_META[k.tipo];
+        const Icon = meta.icon;
+        return (
+          <span className={`flex items-center gap-1.5 whitespace-nowrap ${meta.className}`}>
+            <Icon className="size-4" aria-hidden />
+            {meta.label}
+          </span>
+        );
+      },
+    },
+    {
+      key: "numero_lote",
+      header: "N° Lote",
+      accessor: (k) => k.numero_lote,
+      className: "whitespace-nowrap font-mono text-xs",
+    },
+    {
+      key: "cantidad",
+      header: "Cantidad",
+      accessor: (k) => k.cantidad,
+      render: (_, k) => (
+        <span className={`whitespace-nowrap font-medium ${TIPO_META[k.tipo].className}`}>
+          {k.cantidad > 0 ? "+" : ""}
+          {k.cantidad}
+        </span>
+      ),
+      className: "text-right",
+    },
+    {
+      key: "saldo",
+      header: "Saldo",
+      accessor: (k) => k.saldo,
+      className: "text-right",
+    },
+    {
+      key: "motivo",
+      header: "Motivo",
+      accessor: (k) => k.motivo,
+      className: "max-w-48 truncate",
+    },
+    {
+      key: "fecha",
+      header: "Fecha",
+      accessor: (k) => k.fecha,
+      className: "whitespace-nowrap text-muted-foreground",
+      render: (_, k) => formatFecha(k.fecha),
+    },
+  ];
+
   return (
-    <div className="overflow-x-auto rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Tipo</TableHead>
-            <TableHead>N° Lote</TableHead>
-            <TableHead className="text-right">Cantidad</TableHead>
-            <TableHead className="text-right">Saldo</TableHead>
-            <TableHead>Motivo</TableHead>
-            <TableHead>Fecha</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {kardex.map((k) => {
-            const meta = TIPO_META[k.tipo];
-            const Icon = meta.icon;
-            return (
-              <TableRow key={k.id_movimiento}>
-                <TableCell>
-                  <span className={`flex items-center gap-1.5 whitespace-nowrap ${meta.className}`}>
-                    <Icon className="size-4" aria-hidden />
-                    {meta.label}
-                  </span>
-                </TableCell>
-                <TableCell className="whitespace-nowrap font-mono text-xs">{k.numero_lote}</TableCell>
-                <TableCell className={`whitespace-nowrap text-right font-medium ${meta.className}`}>
-                  {k.cantidad > 0 ? "+" : ""}
-                  {k.cantidad}
-                </TableCell>
-                <TableCell className="text-right">{k.saldo}</TableCell>
-                <TableCell className="max-w-48 truncate" title={k.motivo}>
-                  {k.motivo}
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{formatFecha(k.fecha)}</TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+    <DataTable
+      data={kardex}
+      columns={columns}
+      searchPlaceholder="Buscar por N° de lote o motivo…"
+      emptyMessage="No se encontraron movimientos."
+    />
   );
 }
