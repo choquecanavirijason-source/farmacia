@@ -1,16 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { MoreHorizontal, Pencil, Plus, Trash2, Phone, Mail, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  DataTable,
-  type DataTableColumn,
-  type ServerFetchParams,
-  type ServerFetchResult,
-} from "@/components/ui/table";
+import { DataTable, type DataTableColumn, type ServerFetchParams } from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,22 +13,60 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
-import { deleteCliente, deleteClientes, fetchClientesPage, updateCliente } from "@/lib/api/clientes";
+import { deleteCliente, deleteClientes, fetchClientesPage } from "@/lib/api/clientes";
+import { ApiError } from "@/lib/api/client";
 import type { Cliente } from "@/lib/types";
 import { ClienteFormDialog } from "@/app/(app)/clientes/cliente-form-dialog";
 
-const EMPTY_CLIENTES: Cliente[] = [];
+const DEFAULT_PARAMS: ServerFetchParams = { page: 1, pageSize: 10, search: "", sort: null };
 
 export default function ClientesPage() {
+  const [params, setParams] = useState<ServerFetchParams>(DEFAULT_PARAMS);
+  const [query, setQuery] = useState<{ items: Cliente[]; total: number }>({ items: [], total: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Cliente | null>(null);
   const [selectedRows, setSelectedRows] = useState<Cliente[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [selectionClearKey, setSelectionClearKey] = useState(0);
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  const refresh = () => setRefreshKey((k) => k + 1);
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+
+      fetchClientesPage(params, controller.signal)
+        .then((result) => {
+          setQuery(result);
+          setError(null);
+        })
+        .catch((err) => {
+          if (controller.signal.aborted) return;
+          setError(err instanceof ApiError ? err.message : "Error al cargar los clientes.");
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    }, params.search ? 350 : 0);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [params, refreshKey]);
+
+  // Tras borrar la última fila de la última página, retrocede una página.
+  useEffect(() => {
+    if (!loading && !error && query.items.length === 0 && query.total > 0 && params.page > 1) {
+      setParams((p) => ({ ...p, page: p.page - 1 }));
+    }
+  }, [loading, error, query, params.page]);
 
   function openCreate() {
     setEditing(null);
@@ -51,35 +84,12 @@ export default function ClientesPage() {
     refresh();
   }
 
-  // ✅ CORREGIDO: ahora devuelve Promise<void> como espera edit.onSave
-  async function saveField(u: Cliente, field: keyof Cliente, value: string | number): Promise<void> {
-    const updateData: Partial<Omit<Cliente, "id_cliente" | "fecha_registro">> = {
-      nombre: field === "nombre" ? String(value) : u.nombre,
-      telefono: field === "telefono" ? String(value) : u.telefono,
-      email: field === "email" ? String(value) : u.email,
-      direccion: field === "direccion" ? String(value) : u.direccion,
-      estado: u.estado,
-    };
-
-    await updateCliente(u.id_cliente, updateData);
-    refresh();
-  }
-
-  const fetchData = async (
-    params: ServerFetchParams,
-    signal: AbortSignal
-  ): Promise<ServerFetchResult<Cliente>> => {
-    const result = await fetchClientesPage(params, signal);
-    return result;
-  };
-
   const columns: DataTableColumn<Cliente>[] = [
     {
       key: "nombre",
       header: "Nombre",
       accessor: (u) => u.nombre,
       className: "min-w-32 max-w-48",
-      edit: { onSave: (u, value) => saveField(u, "nombre", String(value)) },
       render: (_, u) => (
         <span className="block truncate font-medium" title={u.nombre}>
           {u.nombre}
@@ -91,7 +101,6 @@ export default function ClientesPage() {
       header: "Teléfono",
       accessor: (u) => u.telefono,
       className: "max-w-32",
-      edit: { onSave: (u, value) => saveField(u, "telefono", String(value)) },
       render: (_, u) => (
         <span className="flex items-center gap-1.5 text-muted-foreground">
           <Phone className="size-3.5" aria-hidden />
@@ -100,24 +109,10 @@ export default function ClientesPage() {
       ),
     },
     {
-      key: "email",
-      header: "Email",
-      accessor: (u) => u.email,
-      className: "max-w-40",
-      edit: { onSave: (u, value) => saveField(u, "email", String(value)) },
-      render: (_, u) => (
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          <Mail className="size-3.5" aria-hidden />
-          <span className="truncate text-xs">{u.email || "-"}</span>
-        </span>
-      ),
-    },
-    {
       key: "direccion",
       header: "Dirección",
       accessor: (u) => u.direccion,
       className: "max-w-48",
-      edit: { onSave: (u, value) => saveField(u, "direccion", String(value)) },
       render: (_, u) => (
         <span className="flex items-center gap-1.5 text-muted-foreground">
           <MapPin className="size-3.5" aria-hidden />
@@ -179,32 +174,40 @@ export default function ClientesPage() {
             Administra la información de tus clientes y su estado.
           </p>
         </div>
-        {selectedRows.length > 0 && (
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => setBulkDeleteOpen(true)}
-            className="shrink-0 gap-1.5"
-          >
-            <Trash2 className="size-4" aria-hidden />
-            Eliminar seleccionados ({selectedRows.length})
+        <div className="flex flex-wrap items-center gap-2">
+          {selectedRows.length > 0 && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setBulkDeleteOpen(true)}
+              className="shrink-0 gap-1.5"
+            >
+              <Trash2 className="size-4" aria-hidden />
+              Eliminar seleccionados ({selectedRows.length})
+            </Button>
+          )}
+          <Button type="button" onClick={openCreate} className="shrink-0 gap-1.5">
+            <Plus className="size-4" aria-hidden />
+            Nuevo Cliente
           </Button>
-        )}
-        <Button type="button" onClick={openCreate} className="shrink-0 gap-1.5">
-          <Plus className="size-4" aria-hidden />
-          Nuevo Cliente
-        </Button>
+        </div>
       </div>
 
       <DataTable
-        data={EMPTY_CLIENTES}
+        data={query.items}
         columns={columns}
-        fetchData={fetchData}
-        refreshKey={refreshKey}
+        server={{
+          params,
+          onParamsChange: setParams,
+          total: query.total,
+          loading,
+          error,
+          onRetry: refresh,
+        }}
         searchPlaceholder="Buscar por nombre, teléfono o email…"
         emptyMessage="No se encontraron clientes."
-        pageSize={10}
         pageSizeOptions={[10, 20, 50, 100]}
+        exportFilename="clientes.csv"
         getRowId={(u) => u.id_cliente}
         onSelectionChange={setSelectedRows}
         clearSelectionKey={selectionClearKey}
@@ -249,8 +252,8 @@ export default function ClientesPage() {
           if (selectedRows.length === 0) return;
           const result = await deleteClientes(selectedRows.map((u) => u.id_cliente));
           toast.success(result.message);
-          refresh();
           setSelectionClearKey((k) => k + 1);
+          refresh();
         }}
       />
     </div>

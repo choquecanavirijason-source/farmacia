@@ -19,7 +19,7 @@ export interface DataTableColumn<T> {
   accessor: keyof T | ((row: T) => DataTableValue)
   render?: (value: DataTableValue, row: T) => React.ReactNode
   sortable?: boolean
-  /** Muestra un buscador propio de esta columna debajo del encabezado. Por defecto: true. */
+  /** Muestra un buscador propio de esta columna debajo del encabezado (solo modo local). Por defecto: true. */
   filterable?: boolean
   className?: string
   /** Habilita edición rápida: doble clic en la celda la convierte en input y guarda al confirmar. */
@@ -29,6 +29,7 @@ export interface DataTableColumn<T> {
   }
 }
 
+/** Parámetros de consulta del lado servidor. La página es dueña de este estado. */
 export interface ServerFetchParams {
   page: number
   pageSize: number
@@ -36,14 +37,30 @@ export interface ServerFetchParams {
   sort: { key: string; direction: "asc" | "desc" } | null
 }
 
+/** Resultado paginado del servidor. */
 export interface ServerFetchResult<T> {
   items: T[]
   total: number
 }
 
+interface ServerTableState {
+  params: ServerFetchParams
+  onParamsChange: (params: ServerFetchParams) => void
+  total: number
+  loading?: boolean
+  error?: string | null
+  onRetry?: () => void
+}
+
 interface DataTableProps<T> {
   data: T[]
   columns: DataTableColumn<T>[]
+  /**
+   * Modo servidor: búsqueda, orden, paginación y tamaño de página son controlados
+   * desde afuera. La tabla NO filtra ni ordena en memoria: cada cambio emite
+   * `onParamsChange` y la página es responsable de llamar al backend.
+   */
+  server?: ServerTableState
   pageSize?: number
   pageSizeOptions?: number[]
   searchPlaceholder?: string
@@ -52,20 +69,13 @@ interface DataTableProps<T> {
   /** Habilita la columna de checkboxes y la selección de filas. */
   getRowId?: (row: T) => string | number
   onSelectionChange?: (rows: T[]) => void
-  /** Nombre del archivo al exportar a CSV. */
-  exportFilename?: string
-  /**
-   * Activa el modo servidor: cada cambio de página, de pageSize o de búsqueda
-   * (con debounce) llama a la API. El request anterior se cancela (AbortSignal).
-   */
-  fetchData?: (params: ServerFetchParams, signal: AbortSignal) => Promise<ServerFetchResult<T>>
-  /** Al cambiar, fuerza un re-fetch (ej. tras crear/editar/eliminar un registro). */
-  refreshKey?: unknown
-  /** Al cambiar, limpia la selección de filas desde afuera (ej. tras eliminar en lote). */
+  /** Al cambiar, limpia la selección desde afuera (ej. tras eliminar en lote). */
   clearSelectionKey?: unknown
+  /** Nombre del archivo al exportar a CSV (exporta las filas visibles). */
+  exportFilename?: string
 }
 
-/** Columnas de solo-acciones (sin orden ni filtro): se fijan a la derecha y quedan fuera de reordenar/redimensionar/exportar. */
+/** Columnas de solo-acciones (sin orden ni filtro): se fijan a la derecha y quedan fuera de exportar. */
 function isPinnedColumn<T>(column: DataTableColumn<T>) {
   return column.sortable === false && column.filterable === false
 }
@@ -104,6 +114,7 @@ function csvCell(value: DataTableValue) {
 function DataTable<T>({
   data,
   columns,
+  server,
   pageSize = 10,
   pageSizeOptions = [10, 20, 50, 100],
   searchPlaceholder = "Buscar en la tabla...",
@@ -111,57 +122,47 @@ function DataTable<T>({
   className,
   getRowId,
   onSelectionChange,
-  exportFilename = "tabla.csv",
-  fetchData,
-  refreshKey,
   clearSelectionKey,
+  exportFilename = "tabla.csv",
 }: DataTableProps<T>) {
+  const isServerMode = Boolean(server)
+
+  // --- Estado del modo local (filtrado y orden en memoria) ---
   const [search, setSearch] = React.useState("")
   const [columnFilters, setColumnFilters] = React.useState<Record<string, string>>({})
   const [sort, setSort] = React.useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [currentPageSize, setCurrentPageSize] = React.useState(pageSize)
-  const [colWidths, setColWidths] = React.useState<Record<string, number>>({})
-  const [layoutFixed, setLayoutFixed] = React.useState(false)
-  const [order, setOrder] = React.useState<string[]>(() => columns.map((c) => c.key))
-  const [draggedKey, setDraggedKey] = React.useState<string | null>(null)
+
+  // --- Selección y edición inline (ambos modos) ---
   const [selectedIds, setSelectedIds] = React.useState<Set<string | number>>(new Set())
   const [editing, setEditing] = React.useState<{ index: number; key: string; value: string; saving: boolean } | null>(
     null
   )
-  const theadRefs = React.useRef<Record<string, HTMLTableCellElement | null>>({})
-
-  // --- Modo servidor: debounce del search + estado de la página traída de la API ---
-  const isServerSide = Boolean(fetchData)
-  const [debouncedSearch, setDebouncedSearch] = React.useState("")
-  const [serverState, setServerState] = React.useState<ServerFetchResult<T>>({
-    items: data,
-    total: data.length
-  })
-  const [serverLoading, setServerLoading] = React.useState(false)
-  const [serverError, setServerError] = React.useState<string | null>(null)
-  const [retryKey, setRetryKey] = React.useState(0)
-  const abortRef = React.useRef<AbortController | null>(null)
-  const isFirstRender = React.useRef(true)
-  const lastFetchKey = React.useRef("")
   const lastSelectionSignature = React.useRef<string | null>(null)
-  // `fetchData` se recrea en cada render del padre; se guarda en un ref para que
-  // su cambio de identidad NO dispare (ni aborte) el fetch en vuelo.
-  const fetchDataRef = React.useRef(fetchData)
-  fetchDataRef.current = fetchData
 
-  // Debounce del search
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search), 400)
-    return () => window.clearTimeout(timer)
-  }, [search])
+  // --- Reordenar y redimensionar columnas ---
+  const [colWidths, setColWidths] = React.useState<Record<string, number>>({})
+  const [layoutFixed, setLayoutFixed] = React.useState(false)
+  const [order, setOrder] = React.useState<string[]>(() => columns.map((c) => c.key))
+  const [draggedKey, setDraggedKey] = React.useState<string | null>(null)
+  const theadRefs = React.useRef<Record<string, HTMLTableCellElement | null>>({})
 
   const selectable = Boolean(getRowId)
 
-  // Resetear orden cuando cambian las columnas
+  // Valores activos según el modo (controlado vs local).
+  const activeSearch = isServerMode && server ? server.params.search : search
+  const activeSort = isServerMode && server ? server.params.sort : sort
+
+  // Resetear orden cuando cambian las columnas.
   React.useEffect(() => {
     const keys = columns.map((c) => c.key)
     setOrder((prev) => (prev.length === keys.length && prev.every((k) => keys.includes(k)) ? prev : keys))
   }, [columns])
+
+  // Limpiar la selección desde afuera (ej. tras eliminar en lote).
+  React.useEffect(() => {
+    setSelectedIds(new Set())
+  }, [clearSelectionKey])
 
   const orderedColumns = React.useMemo(() => {
     const byKey = new Map(columns.map((c) => [c.key, c]))
@@ -169,34 +170,16 @@ function DataTable<T>({
     return result.length === columns.length ? result : columns
   }, [order, columns])
 
-  const hasActiveFilters =
-    search.trim().length > 0 || Object.values(columnFilters).some((value) => value.trim().length > 0)
-
-  function clearFilters() {
-    setSearch("")
-    setColumnFilters({})
-  }
-
+  // --- Modo local: filtrado + orden en memoria ---
   const filteredData = React.useMemo(() => {
+    if (isServerMode) return data
+
     const activeColumnFilters = columns
       .map((column) => ({ column, query: (columnFilters[column.key] ?? "").trim().toLocaleLowerCase() }))
       .filter((entry) => entry.query.length > 0)
 
-    const rows = isServerSide ? serverState.items : data
-
-    // En modo servidor la búsqueda global ya la hace la API; solo quedan los filtros de columna.
-    if (isServerSide) {
-      return activeColumnFilters.length === 0
-        ? rows
-        : rows.filter((row) =>
-          activeColumnFilters.every(({ column, query: columnQuery }) =>
-            normalizeSearchValue(getColumnValue(row, column)).includes(columnQuery)
-          )
-        )
-    }
-
     const query = search.trim().toLocaleLowerCase()
-    return rows.filter((row) => {
+    return data.filter((row) => {
       if (query && !columns.some((column) => normalizeSearchValue(getColumnValue(row, column)).includes(query))) {
         return false
       }
@@ -204,11 +187,10 @@ function DataTable<T>({
         normalizeSearchValue(getColumnValue(row, column)).includes(columnQuery)
       )
     })
-  }, [columns, data, search, columnFilters, isServerSide, serverState.items])
+  }, [isServerMode, data, columns, search, columnFilters])
 
   const sortedData = React.useMemo(() => {
-    // En modo servidor el orden lo aplica la API; aquí la página ya llega ordenada.
-    if (isServerSide || !sort) return filteredData
+    if (isServerMode || !sort) return filteredData
 
     const column = columns.find((item) => item.key === sort.key)
     if (!column) return filteredData
@@ -217,102 +199,56 @@ function DataTable<T>({
       const result = compareValues(getColumnValue(left, column), getColumnValue(right, column))
       return sort.direction === "asc" ? result : -result
     })
-  }, [columns, filteredData, sort, isServerSide])
+  }, [isServerMode, columns, filteredData, sort])
 
-  const pagination = usePagination(
-    sortedData,
-    currentPageSize,
-    isServerSide ? serverState.total : undefined,
-    isServerSide
-  )
-  const { setPage } = pagination
+  const localPagination = usePagination(sortedData, currentPageSize)
 
-  // Fetch con debounce (solo cuando se deja de escribir) y cancelación del request previo.
-  React.useEffect(() => {
-    if (!fetchDataRef.current) return
-
-    const key = JSON.stringify({
-      page: pagination.page,
-      pageSize: currentPageSize,
-      search: debouncedSearch,
-      sort,
-      refreshKey,
-      retryKey,
-    })
-
-    // Primera renderización con datos ya presentes: no repetir el fetch inicial.
-    if (isFirstRender.current) {
-      isFirstRender.current = false
-      if (serverState.items.length > 0) {
-        lastFetchKey.current = key
-        return
-      }
+  // --- Modo servidor: paginación derivada del total real + params controlados ---
+  const serverPagination = React.useMemo(() => {
+    if (!isServerMode || !server) return null
+    const pageCount = Math.max(1, Math.ceil(server.total / server.params.pageSize))
+    return {
+      page: Math.min(server.params.page, pageCount),
+      pageCount,
+      pageItems: data,
+      totalItems: server.total,
+      pageSize: server.params.pageSize,
     }
+  }, [isServerMode, server, data])
 
-    // Mismos parámetros que el último fetch → no repetir.
-    if (lastFetchKey.current === key) return
-    lastFetchKey.current = key
+  const pagination = isServerMode && serverPagination ? serverPagination : localPagination
 
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
+  const hasActiveFilters = isServerMode
+    ? activeSearch.trim().length > 0
+    : search.trim().length > 0 || Object.values(columnFilters).some((value) => value.trim().length > 0)
 
-    setServerLoading(true)
+  // --- Handlers (emiten al servidor en modo controlado) ---
+  function handleSearchChange(value: string) {
+    if (isServerMode && server) server.onParamsChange({ ...server.params, search: value, page: 1 })
+    else setSearch(value)
+  }
 
-    fetchDataRef.current(
-      { page: pagination.page, pageSize: currentPageSize, search: debouncedSearch, sort },
-      controller.signal
-    )
-      .then((result) => {
-        if (controller.signal.aborted) return
-        setServerState(result)
-        setServerError(null)
-      })
-      .catch((error) => {
-        if (controller.signal.aborted) return
-        setServerError(error instanceof Error ? error.message : "Error al cargar los datos.")
-      })
-      .finally(() => {
-        // Solo el request vigente apaga el loading; los abortados no tocan el estado.
-        if (abortRef.current !== controller) return
-        setServerLoading(false)
-      })
-
-    return () => {
-      controller.abort()
-      // Si este fetch era el último registrado, se invalida para que la próxima
-      // corrida del efecto (StrictMode, cambio de deps) lo vuelva a disparar.
-      if (lastFetchKey.current === key) lastFetchKey.current = ""
+  function clearFilters() {
+    if (isServerMode && server) {
+      server.onParamsChange({ ...server.params, search: "", page: 1 })
+    } else {
+      setSearch("")
+      setColumnFilters({})
     }
-    // `fetchData` va por ref a propósito: su identidad no debe retriggerar el efecto.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.page, currentPageSize, debouncedSearch, sort, refreshKey, retryKey])
-
-  // Al cambiar cualquier filtro u orden, la página vuelve a 1 (evita quedar en una página vacía).
-  React.useEffect(() => {
-    setPage(1)
-  }, [search, columnFilters, sort, setPage])
-
-  React.useEffect(() => {
-    setSelectedIds(new Set())
-  }, [clearSelectionKey])
-
-  React.useEffect(() => {
-    if (!selectable) return
-    // En modo servidor las filas viven en serverState, no en `data`.
-    const source = isServerSide ? serverState.items : data
-    const rows = source.filter((row) => selectedIds.has(getRowId!(row)))
-    // Firma por ids: no emite (ni re-renderiza al padre) si la selección no cambió,
-    // cortando el bucle con `data={[]}` recreado en cada render del padre.
-    const signature = JSON.stringify(rows.map((row) => getRowId!(row)).sort())
-    if (lastSelectionSignature.current === signature) return
-    lastSelectionSignature.current = signature
-    onSelectionChange?.(rows)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds, data, serverState.items, selectable])
+  }
 
   function toggleSort(column: DataTableColumn<T>) {
     if (column.sortable === false) return
+
+    if (isServerMode && server) {
+      const current = server.params.sort
+      const next: ServerFetchParams["sort"] =
+        !current || current.key !== column.key
+          ? { key: column.key, direction: "asc" }
+          : { key: column.key, direction: current.direction === "asc" ? "desc" : "asc" }
+      server.onParamsChange({ ...server.params, sort: next, page: 1 })
+      return
+    }
 
     setSort((current) => {
       if (!current || current.key !== column.key) {
@@ -320,6 +256,19 @@ function DataTable<T>({
       }
       return { key: column.key, direction: current.direction === "asc" ? "desc" : "asc" }
     })
+  }
+
+  function handlePageChange(page: number) {
+    if (isServerMode && server) server.onParamsChange({ ...server.params, page })
+    else localPagination.setPage(page)
+  }
+
+  function handlePageSizeChange(size: number) {
+    if (isServerMode && server) server.onParamsChange({ ...server.params, pageSize: size, page: 1 })
+    else {
+      setCurrentPageSize(size)
+      localPagination.setPage(1)
+    }
   }
 
   function startResize(event: React.PointerEvent, key: string) {
@@ -391,11 +340,23 @@ function DataTable<T>({
     })
   }
 
+  // Emite la selección al padre solo cuando cambia (firma por ids: evita loops de render).
+  React.useEffect(() => {
+    if (!selectable) return
+    const selected = data.filter((row) => selectedIds.has(getRowId!(row)))
+    const signature = JSON.stringify(selected.map((row) => getRowId!(row)).sort())
+    if (lastSelectionSignature.current === signature) return
+    lastSelectionSignature.current = signature
+    onSelectionChange?.(selected)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds, data, selectable])
+
   function exportCsv() {
     const exportableColumns = orderedColumns.filter((c) => !isPinnedColumn(c))
     const header = exportableColumns.map((c) => csvCell(typeof c.header === "string" ? c.header : c.key))
-    const rows = sortedData.map((row) => exportableColumns.map((c) => csvCell(getColumnValue(row, c))))
-    const csv = "﻿" + [header, ...rows].map((r) => r.join(",")).join("\r\n")
+    const rowsForExport = isServerMode ? data : sortedData
+    const csvRows = rowsForExport.map((row) => exportableColumns.map((c) => csvCell(getColumnValue(row, c))))
+    const csv = "﻿" + [header, ...csvRows].map((r) => r.join(",")).join("\r\n")
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
@@ -445,14 +406,19 @@ function DataTable<T>({
     }
   }
 
+  const serverLoading = isServerMode && server?.loading
+  const serverError = isServerMode ? (server?.error ?? null) : null
+  const showSkeleton = Boolean(serverLoading && data.length === 0)
+  const showErrorRow = Boolean(serverError && data.length === 0)
+
   return (
     <div className={cn("space-y-4", className)}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative max-w-sm min-w-48 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            value={activeSearch}
+            onChange={(event) => handleSearchChange(event.target.value)}
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
             className="h-10 rounded-xl pl-9 bg-background/60 backdrop-blur-sm border-muted/60 focus-visible:ring-2 focus-visible:ring-primary/30"
@@ -475,9 +441,25 @@ function DataTable<T>({
         </Button>
       </div>
 
+      {isServerMode && serverError && data.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5">
+          <p className="text-sm text-destructive">{serverError}</p>
+          <Button type="button" variant="outline" size="sm" onClick={server?.onRetry}>
+            Reintentar
+          </Button>
+        </div>
+      )}
+
       <div className="relative rounded-2xl border bg-card shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full caption-bottom text-sm" style={layoutFixed ? { tableLayout: "fixed" } : undefined}>
+          <table
+            className={cn(
+              "w-full caption-bottom text-sm",
+              serverLoading && data.length > 0 && "pointer-events-none opacity-60 transition-opacity"
+            )}
+            style={layoutFixed ? { tableLayout: "fixed" } : undefined}
+            aria-busy={Boolean(serverLoading)}
+          >
             <colgroup>
               {selectable && <col className="w-10" />}
               <col className="w-12" />
@@ -505,8 +487,8 @@ function DataTable<T>({
                   N°
                 </th>
                 {orderedColumns.map((column) => {
-                  const isSorted = sort?.key === column.key
-                  const SortIcon = isSorted ? (sort.direction === "asc" ? ArrowUp : ArrowDown) : ChevronsUpDown
+                  const isSorted = activeSort?.key === column.key
+                  const SortIcon = isSorted ? (activeSort!.direction === "asc" ? ArrowUp : ArrowDown) : ChevronsUpDown
                   const pinned = isPinnedColumn(column)
 
                   return (
@@ -552,29 +534,31 @@ function DataTable<T>({
                   )
                 })}
               </tr>
-              <tr className="hover:bg-transparent">
-                {selectable && <th className="py-1 px-2" />}
-                <th className="py-1 px-2 w-12" />
-                {orderedColumns.map((column) => (
-                  <th key={`filter-${column.key}`} className={cn("py-1 px-2", column.className)}>
-                    {column.filterable !== false && (
-                      <Input
-                        value={columnFilters[column.key] ?? ""}
-                        onChange={(event) =>
-                          setColumnFilters((current) => ({ ...current, [column.key]: event.target.value }))
-                        }
-                        placeholder="Filtrar..."
-                        aria-label={`Filtrar por ${String(column.header)}`}
-                        className="h-7 text-xs font-normal bg-transparent border-muted/50 focus-visible:ring-1 focus-visible:ring-primary/30"
-                      />
-                    )}
-                  </th>
-                ))}
-              </tr>
+              {!isServerMode && (
+                <tr className="hover:bg-transparent">
+                  {selectable && <th className="py-1 px-2" />}
+                  <th className="py-1 px-2 w-12" />
+                  {orderedColumns.map((column) => (
+                    <th key={`filter-${column.key}`} className={cn("py-1 px-2", column.className)}>
+                      {column.filterable !== false && (
+                        <Input
+                          value={columnFilters[column.key] ?? ""}
+                          onChange={(event) =>
+                            setColumnFilters((current) => ({ ...current, [column.key]: event.target.value }))
+                          }
+                          placeholder="Filtrar..."
+                          aria-label={`Filtrar por ${String(column.header)}`}
+                          className="h-7 text-xs font-normal bg-transparent border-muted/50 focus-visible:ring-1 focus-visible:ring-primary/30"
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              )}
             </thead>
             <tbody className="[&_tr:last-child]:border-0">
-              {isServerSide && serverLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
+              {showSkeleton ? (
+                Array.from({ length: Math.min(pagination.pageSize, 5) }).map((_, i) => (
                   <tr key={i} className="border-b transition-colors even:bg-muted/30">
                     {selectable && (
                       <td className="p-2 align-middle whitespace-nowrap">
@@ -591,7 +575,7 @@ function DataTable<T>({
                     ))}
                   </tr>
                 ))
-              ) : isServerSide && serverError ? (
+              ) : showErrorRow ? (
                 <tr>
                   <td
                     colSpan={orderedColumns.length + 1 + (selectable ? 1 : 0)}
@@ -599,98 +583,100 @@ function DataTable<T>({
                   >
                     <div className="flex flex-col items-center gap-3">
                       <p className="text-sm text-muted-foreground">{serverError}</p>
-                      <Button type="button" variant="outline" size="sm" onClick={() => setRetryKey((k) => k + 1)}>
+                      <Button type="button" variant="outline" size="sm" onClick={server?.onRetry}>
                         Reintentar
                       </Button>
                     </div>
                   </td>
                 </tr>
               ) : (
-                pagination.pageItems?.map((row, index) => {
-                  const id = selectable ? getRowId!(row) : null
-                  return (
-                    <tr
-                      key={id ?? index}
-                      className={cn(
-                        "border-b transition-colors hover:bg-muted/40 even:bg-muted/20 data-[state=selected]:bg-muted/60",
-                        id !== null && selectedIds.has(id) && "bg-muted/50"
-                      )}
-                      data-state={id !== null && selectedIds.has(id) ? "selected" : undefined}
-                    >
-                      {selectable && (
-                        <td className="p-2 align-middle whitespace-nowrap">
-                          <input
-                            type="checkbox"
-                            className="size-4 accent-primary rounded border-muted-foreground/30"
-                            checked={selectedIds.has(id!)}
-                            onChange={() => toggleRow(id!)}
-                            aria-label="Seleccionar fila"
-                          />
+                <>
+                  {pagination.pageItems?.map((row, index) => {
+                    const id = selectable ? getRowId!(row) : null
+                    return (
+                      <tr
+                        key={id ?? index}
+                        className={cn(
+                          "border-b transition-colors hover:bg-muted/40 even:bg-muted/20 data-[state=selected]:bg-muted/60",
+                          id !== null && selectedIds.has(id) && "bg-muted/50"
+                        )}
+                        data-state={id !== null && selectedIds.has(id) ? "selected" : undefined}
+                      >
+                        {selectable && (
+                          <td className="p-2 align-middle whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              className="size-4 accent-primary rounded border-muted-foreground/30"
+                              checked={selectedIds.has(id!)}
+                              onChange={() => toggleRow(id!)}
+                              aria-label="Seleccionar fila"
+                            />
+                          </td>
+                        )}
+                        <td className="p-2 align-middle whitespace-nowrap text-right tabular-nums text-muted-foreground/70 text-xs">
+                          {(pagination.page - 1) * pagination.pageSize + index + 1}
                         </td>
-                      )}
-                      <td className="p-2 align-middle whitespace-nowrap text-right tabular-nums text-muted-foreground/70 text-xs">
-                        {(pagination.page - 1) * currentPageSize + index + 1}
-                      </td>
-                      {orderedColumns.map((column) => {
-                        const value = getColumnValue(row, column)
-                        const isEditing = editing?.index === index && editing.key === column.key
+                        {orderedColumns.map((column) => {
+                          const value = getColumnValue(row, column)
+                          const isEditing = editing?.index === index && editing.key === column.key
 
-                        if (isEditing) {
+                          if (isEditing) {
+                            return (
+                              <td key={column.key} className={cn("p-2 align-middle whitespace-nowrap", column.className)}>
+                                <input
+                                  autoFocus
+                                  type={column.edit?.type === "number" ? "number" : "text"}
+                                  value={editing.value}
+                                  disabled={editing.saving}
+                                  onChange={(event) =>
+                                    setEditing((current) => (current ? { ...current, value: event.target.value } : current))
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") commitEdit(row)
+                                    if (event.key === "Escape") setEditing(null)
+                                  }}
+                                  onBlur={() => commitEdit(row)}
+                                  className="h-7 w-full min-w-0 rounded-md border border-primary/30 bg-background px-2 text-sm outline-none ring-2 ring-primary/20 focus:ring-primary/40 disabled:opacity-50 transition-all"
+                                />
+                              </td>
+                            )
+                          }
+
                           return (
-                            <td key={column.key} className={cn("p-2 align-middle whitespace-nowrap", column.className)}>
-                              <input
-                                autoFocus
-                                type={column.edit?.type === "number" ? "number" : "text"}
-                                value={editing.value}
-                                disabled={editing.saving}
-                                onChange={(event) =>
-                                  setEditing((current) => (current ? { ...current, value: event.target.value } : current))
-                                }
-                                onKeyDown={(event) => {
-                                  if (event.key === "Enter") commitEdit(row)
-                                  if (event.key === "Escape") setEditing(null)
-                                }}
-                                onBlur={() => commitEdit(row)}
-                                className="h-7 w-full min-w-0 rounded-md border border-primary/30 bg-background px-2 text-sm outline-none ring-2 ring-primary/20 focus:ring-primary/40 disabled:opacity-50 transition-all"
-                              />
+                            <td
+                              key={column.key}
+                              className={cn(
+                                "p-2 align-middle whitespace-nowrap",
+                                column.className,
+                                column.edit && "cursor-text hover:bg-muted/30 rounded transition-colors"
+                              )}
+                              onDoubleClick={() => startEdit(index, column, row)}
+                              title={column.edit ? "Doble clic para editar" : undefined}
+                            >
+                              {column.render ? column.render(value, row) : (
+                                <span className="block truncate max-w-full">
+                                  {String(value ?? "-")}
+                                </span>
+                              )}
                             </td>
                           )
-                        }
-
-                        return (
-                          <td
-                            key={column.key}
-                            className={cn(
-                              "p-2 align-middle whitespace-nowrap",
-                              column.className,
-                              column.edit && "cursor-text hover:bg-muted/30 rounded transition-colors"
-                            )}
-                            onDoubleClick={() => startEdit(index, column, row)}
-                            title={column.edit ? "Doble clic para editar" : undefined}
-                          >
-                            {column.render ? column.render(value, row) : (
-                              <span className="block truncate max-w-full">
-                                {String(value ?? "-")}
-                              </span>
-                            )}
-                          </td>
-                        )
-                      })}
+                        })}
+                      </tr>
+                    )
+                  })}
+                  {pagination.totalItems === 0 && (
+                    <tr>
+                      <td
+                        colSpan={orderedColumns.length + 1 + (selectable ? 1 : 0)}
+                        className="h-32 text-center"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+                        </div>
+                      </td>
                     </tr>
-                  )
-                })
-              )}
-              {!serverLoading && !serverError && pagination.totalItems === 0 && (
-                <tr>
-                  <td
-                    colSpan={orderedColumns.length + 1 + (selectable ? 1 : 0)}
-                    className="h-32 text-center"
-                  >
-                    <div className="flex flex-col items-center gap-2">
-                      <p className="text-sm text-muted-foreground">{emptyMessage}</p>
-                    </div>
-                  </td>
-                </tr>
+                  )}
+                </>
               )}
             </tbody>
           </table>
@@ -698,13 +684,13 @@ function DataTable<T>({
       </div>
 
       <TablePagination
-        {...pagination}
-        onPageChange={pagination.setPage}
+        page={pagination.page}
+        pageCount={pagination.pageCount}
+        pageSize={pagination.pageSize}
+        totalItems={pagination.totalItems}
+        onPageChange={handlePageChange}
         pageSizeOptions={pageSizeOptions}
-        onPageSizeChange={(size: number) => {
-          setCurrentPageSize(size)
-          setPage(1)
-        }}
+        onPageSizeChange={handlePageSizeChange}
         siblingCount={1}
       />
     </div>

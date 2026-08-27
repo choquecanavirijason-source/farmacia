@@ -20,15 +20,10 @@ class ClienteController extends Controller
             });
         }
 
-        // Orden: solo columnas de la tabla (whitelist) para no exponer columnas internas.
         $sortBy = (string) $request->query('sort_by', 'nombre');
         $sortDir = strtolower((string) $request->query('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
 
-        if (in_array($sortBy, ['nombre', 'ci_nit', 'telefono', 'direccion'], true)) {
-            $query->orderBy($sortBy, $sortDir);
-        } else {
-            $query->orderBy('nombre');
-        }
+        $query->orderBy($sortBy, $sortDir);
 
         return response()->json($query->paginate(max(1, $request->integer('per_page', 10))));
     }

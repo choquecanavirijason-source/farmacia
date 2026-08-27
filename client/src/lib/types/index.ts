@@ -189,6 +189,7 @@ export interface MovimientoCaja {
 export interface Cliente {
   id_cliente: number;
   nombre: string;
+  ci_nit: string;
   telefono: string;
   email: string;
   direccion: string;

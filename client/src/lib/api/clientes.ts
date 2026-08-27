@@ -30,7 +30,8 @@ export async function fetchClientesPage(
   return { items: res.data, total: res.total };
 }
 
-export type ClienteInput = Omit<Cliente, "id_cliente" | "fecha_registro">;
+export type ClienteInput = Omit<Cliente, "id_cliente" | "fecha_registro" | "estado"> &
+  Partial<Pick<Cliente, "email" | "estado">>;
 
 export async function createCliente(input: ClienteInput): Promise<Cliente> {
   return apiFetch<Cliente>("/clientes", { method: "POST", body: JSON.stringify(input) });
