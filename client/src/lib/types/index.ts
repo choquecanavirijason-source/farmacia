@@ -1,5 +1,16 @@
 // Modelo conceptual — Administración/Usuarios
 
+/** Respuesta paginada estándar de Laravel (`paginate()`). */
+export interface PaginatedResponse<T> {
+  current_page: number;
+  data: T[];
+  total: number;
+  per_page: number;
+  last_page: number;
+  from: number | null;
+  to: number | null;
+}
+
 export type RolNombre = "ADMINISTRADOR" | "VENDEDOR";
 
 export interface Rol {
@@ -178,9 +189,11 @@ export interface MovimientoCaja {
 export interface Cliente {
   id_cliente: number;
   nombre: string;
-  ci_nit: string;
   telefono: string;
+  email: string;
   direccion: string;
+  estado: "activo" | "inactivo";
+  fecha_registro: string;
 }
 
 export interface Compra {

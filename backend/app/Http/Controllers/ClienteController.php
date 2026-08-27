@@ -8,9 +8,29 @@ use Illuminate\Validation\Rule;
 
 class ClienteController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Cliente::orderBy('nombre')->get());
+        $query = Cliente::query();
+
+        if ($search = trim((string) $request->query('search'))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('nombre', 'like', "%{$search}%")
+                    ->orWhere('ci_nit', 'like', "%{$search}%")
+                    ->orWhere('telefono', 'like', "%{$search}%");
+            });
+        }
+
+        // Orden: solo columnas de la tabla (whitelist) para no exponer columnas internas.
+        $sortBy = (string) $request->query('sort_by', 'nombre');
+        $sortDir = strtolower((string) $request->query('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        if (in_array($sortBy, ['nombre', 'ci_nit', 'telefono', 'direccion'], true)) {
+            $query->orderBy($sortBy, $sortDir);
+        } else {
+            $query->orderBy('nombre');
+        }
+
+        return response()->json($query->paginate(max(1, $request->integer('per_page', 10))));
     }
 
     public function store(Request $request)
@@ -27,6 +47,24 @@ class ClienteController extends Controller
         $cliente->update($data);
 
         return response()->json($cliente);
+    }
+
+    public function bulkDestroy(Request $request)
+    {
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'distinct'],
+        ])['ids'];
+
+        // "Consumidor Final" es protegido: se omite y el resto se elimina igual.
+        $deleted = Cliente::whereIn('id_cliente', $ids)
+            ->where('nombre', '!=', 'Consumidor Final')
+            ->delete();
+
+        return response()->json([
+            'message' => "{$deleted} cliente(s) eliminado(s).",
+            'deleted' => $deleted,
+        ]);
     }
 
     public function destroy(Cliente $cliente)

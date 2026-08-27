@@ -2,19 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Contact, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, Trash2, Phone, Mail, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   DataTable,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   type DataTableColumn,
+  type ServerFetchParams,
+  type ServerFetchResult,
 } from "@/components/ui/table";
 import {
   DropdownMenu,
@@ -23,20 +18,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
-import { deleteCliente, fetchClientes, updateCliente } from "@/lib/api/clientes";
+import { deleteCliente, deleteClientes, fetchClientesPage, updateCliente } from "@/lib/api/clientes";
 import type { Cliente } from "@/lib/types";
 import { ClienteFormDialog } from "@/app/(app)/clientes/cliente-form-dialog";
 
-export default function ClientesPage() {
-  const [clientes, setClientes] = useState<Cliente[] | null>(null);
+const EMPTY_CLIENTES: Cliente[] = [];
 
+export default function ClientesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Cliente | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Cliente[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [selectionClearKey, setSelectionClearKey] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  useEffect(() => {
-    fetchClientes().then(setClientes);
-  }, []);
+  const refresh = () => setRefreshKey((k) => k + 1);
 
   function openCreate() {
     setEditing(null);
@@ -48,65 +45,101 @@ export default function ClientesPage() {
     setFormOpen(true);
   }
 
-  function upsertCliente(saved: Cliente) {
-    setClientes((prev) => {
-      if (!prev) return [saved];
-      const exists = prev.some((c) => c.id_cliente === saved.id_cliente);
-      return exists
-        ? prev.map((c) => (c.id_cliente === saved.id_cliente ? saved : c))
-        : [...prev, saved];
-    });
-  }
-
   function handleSaved(saved: Cliente) {
     const wasEditing = Boolean(editing);
-    upsertCliente(saved);
     toast.success(wasEditing ? "Cliente actualizado." : "Cliente creado.");
+    refresh();
   }
 
-  async function saveField(c: Cliente, field: "nombre" | "ci_nit" | "telefono" | "direccion", value: string) {
-    const updated = await updateCliente(c.id_cliente, {
-      nombre: field === "nombre" ? value : c.nombre,
-      ci_nit: field === "ci_nit" ? value : c.ci_nit,
-      telefono: field === "telefono" ? value : c.telefono,
-      direccion: field === "direccion" ? value : c.direccion,
-    });
-    upsertCliente(updated);
+  // ✅ CORREGIDO: ahora devuelve Promise<void> como espera edit.onSave
+  async function saveField(u: Cliente, field: keyof Cliente, value: string | number): Promise<void> {
+    const updateData: Partial<Omit<Cliente, "id_cliente" | "fecha_registro">> = {
+      nombre: field === "nombre" ? String(value) : u.nombre,
+      telefono: field === "telefono" ? String(value) : u.telefono,
+      email: field === "email" ? String(value) : u.email,
+      direccion: field === "direccion" ? String(value) : u.direccion,
+      estado: u.estado,
+    };
+
+    await updateCliente(u.id_cliente, updateData);
+    refresh();
   }
 
-  const isLoading = clientes === null;
-  const hasAny = (clientes?.length ?? 0) > 0;
+  const fetchData = async (
+    params: ServerFetchParams,
+    signal: AbortSignal
+  ): Promise<ServerFetchResult<Cliente>> => {
+    const result = await fetchClientesPage(params, signal);
+    return result;
+  };
 
   const columns: DataTableColumn<Cliente>[] = [
     {
       key: "nombre",
       header: "Nombre",
-      accessor: (c) => c.nombre,
-      className: "max-w-56 truncate font-medium",
-      edit: { onSave: (c, value) => saveField(c, "nombre", String(value)) },
-    },
-    {
-      key: "ci_nit",
-      header: "CI/NIT",
-      accessor: (c) => c.ci_nit,
-      className: "whitespace-nowrap font-mono text-xs",
-      edit: { onSave: (c, value) => saveField(c, "ci_nit", String(value)) },
+      accessor: (u) => u.nombre,
+      className: "min-w-32 max-w-48",
+      edit: { onSave: (u, value) => saveField(u, "nombre", String(value)) },
+      render: (_, u) => (
+        <span className="block truncate font-medium" title={u.nombre}>
+          {u.nombre}
+        </span>
+      ),
     },
     {
       key: "telefono",
       header: "Teléfono",
-      accessor: (c) => c.telefono,
-      className: "whitespace-nowrap text-muted-foreground",
-      render: (_, c) => c.telefono || "—",
-      edit: { onSave: (c, value) => saveField(c, "telefono", String(value)) },
+      accessor: (u) => u.telefono,
+      className: "max-w-32",
+      edit: { onSave: (u, value) => saveField(u, "telefono", String(value)) },
+      render: (_, u) => (
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <Phone className="size-3.5" aria-hidden />
+          <span className="font-mono text-xs">{u.telefono || "-"}</span>
+        </span>
+      ),
+    },
+    {
+      key: "email",
+      header: "Email",
+      accessor: (u) => u.email,
+      className: "max-w-40",
+      edit: { onSave: (u, value) => saveField(u, "email", String(value)) },
+      render: (_, u) => (
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <Mail className="size-3.5" aria-hidden />
+          <span className="truncate text-xs">{u.email || "-"}</span>
+        </span>
+      ),
     },
     {
       key: "direccion",
       header: "Dirección",
-      accessor: (c) => c.direccion,
-      className: "max-w-56 truncate text-muted-foreground",
-      render: (_, c) => c.direccion || "—",
-      edit: { onSave: (c, value) => saveField(c, "direccion", String(value)) },
+      accessor: (u) => u.direccion,
+      className: "max-w-48",
+      edit: { onSave: (u, value) => saveField(u, "direccion", String(value)) },
+      render: (_, u) => (
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <MapPin className="size-3.5" aria-hidden />
+          <span className="truncate text-xs">{u.direccion || "-"}</span>
+        </span>
+      ),
+    },
+    {
+      key: "estado",
+      header: "Estado",
+      accessor: (u) => u.estado,
+      render: (_, u) => (
+        <Badge variant={u.estado === "activo" ? "success" : "secondary"}>
+          {u.estado === "activo" ? "Activo" : "Inactivo"}
+        </Badge>
+      ),
+    },
+    {
+      key: "fecha_registro",
+      header: "Registro",
+      accessor: (u) => u.fecha_registro,
+      className: "whitespace-nowrap text-muted-foreground text-xs",
     },
     {
       key: "acciones",
@@ -115,90 +148,67 @@ export default function ClientesPage() {
       sortable: false,
       filterable: false,
       className: "w-10",
-      render: (_, c) => {
-        const esGenerico = c.id_cliente === 1;
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${c.nombre}`} />}
-            >
+      render: (_, u) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            <Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${u.nombre}`}>
               <MoreHorizontal className="size-4" aria-hidden />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => openEdit(c)}>
-                <Pencil className="size-4" aria-hidden />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" disabled={esGenerico} onSelect={() => setDeleteTarget(c)}>
-                <Trash2 className="size-4" aria-hidden />
-                Eliminar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
-      },
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => openEdit(u)}>
+              <Pencil className="size-4" aria-hidden />
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(u)}>
+              <Trash2 className="size-4" aria-hidden />
+              Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
     },
   ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 p-4 md:p-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-balance">Gestión de Clientes</h1>
-          <p className="text-sm text-muted-foreground">Clientes disponibles para asociar a una venta.</p>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Gestión de Clientes</h1>
+          <p className="text-sm text-muted-foreground">
+            Administra la información de tus clientes y su estado.
+          </p>
         </div>
+        {selectedRows.length > 0 && (
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => setBulkDeleteOpen(true)}
+            className="shrink-0 gap-1.5"
+          >
+            <Trash2 className="size-4" aria-hidden />
+            Eliminar seleccionados ({selectedRows.length})
+          </Button>
+        )}
         <Button type="button" onClick={openCreate} className="shrink-0 gap-1.5">
           <Plus className="size-4" aria-hidden />
           Nuevo Cliente
         </Button>
       </div>
 
-      {isLoading ? (
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>CI/NIT</TableHead>
-                <TableHead>Teléfono</TableHead>
-                <TableHead>Dirección</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: 3 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((__, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full max-w-24" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : !hasAny ? (
-        <Card className="border-dashed border-border/60 bg-background/60">
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Contact className="size-6" aria-hidden />
-            </span>
-            <p className="text-sm font-medium">Aún no hay clientes registrados</p>
-            <Button type="button" onClick={openCreate} className="mt-2 gap-1.5">
-              <Plus className="size-4" aria-hidden />
-              Nuevo Cliente
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <DataTable
-          data={clientes ?? []}
-          columns={columns}
-          searchPlaceholder="Buscar por nombre o CI/NIT…"
-          emptyMessage="No se encontraron clientes."
-        />
-      )}
+      <DataTable
+        data={EMPTY_CLIENTES}
+        columns={columns}
+        fetchData={fetchData}
+        refreshKey={refreshKey}
+        searchPlaceholder="Buscar por nombre, teléfono o email…"
+        emptyMessage="No se encontraron clientes."
+        pageSize={10}
+        pageSizeOptions={[10, 20, 50, 100]}
+        getRowId={(u) => u.id_cliente}
+        onSelectionChange={setSelectedRows}
+        clearSelectionKey={selectionClearKey}
+      />
 
       <ClienteFormDialog
         open={formOpen}
@@ -213,17 +223,34 @@ export default function ClientesPage() {
         title="¿Eliminar cliente?"
         description={
           <>
-            Se eliminará <strong>{deleteTarget?.nombre}</strong> del catálogo. Esta acción no se puede
-            deshacer.
+            Se eliminará el cliente <strong>{deleteTarget?.nombre}</strong> y todos sus datos asociados.
+            Esta acción no se puede deshacer.
           </>
         }
         onConfirm={async () => {
           if (!deleteTarget) return;
           await deleteCliente(deleteTarget.id_cliente);
-          setClientes((prev) =>
-            prev ? prev.filter((c) => c.id_cliente !== deleteTarget.id_cliente) : prev
-          );
           toast.success("Cliente eliminado.");
+          refresh();
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`¿Eliminar ${selectedRows.length} cliente(s)?`}
+        description={
+          <>
+            Se eliminarán <strong>{selectedRows.length} cliente(s) seleccionado(s)</strong> y todos sus datos
+            asociados. Esta acción no se puede deshacer.
+          </>
+        }
+        onConfirm={async () => {
+          if (selectedRows.length === 0) return;
+          const result = await deleteClientes(selectedRows.map((u) => u.id_cliente));
+          toast.success(result.message);
+          refresh();
+          setSelectionClearKey((k) => k + 1);
         }}
       />
     </div>

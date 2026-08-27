@@ -9,14 +9,28 @@ class ClienteSeeder extends Seeder
 {
     public function run(): void
     {
-        $clientes = [
-            ['nombre' => 'Consumidor Final', 'ci_nit' => '0', 'telefono' => null, 'direccion' => null],
-            ['nombre' => 'María Condori Quispe', 'ci_nit' => '5487621', 'telefono' => '71234567', 'direccion' => 'Calle Chuquisaca #212, Potosí'],
-            ['nombre' => 'Juan Pérez Mamani', 'ci_nit' => '6123890', 'telefono' => '76543210', 'direccion' => 'Av. Universitaria #88, Potosí'],
-        ];
+        // Cliente genérico usado por el POS: nunca se debe duplicar.
+        Cliente::firstOrCreate(
+            ['nombre' => 'Consumidor Final'],
+            ['ci_nit' => '0']
+        );
 
-        foreach ($clientes as $cliente) {
-            Cliente::create($cliente);
+        $faker = fake('es_ES');
+        $now = now();
+
+        $clientes = [];
+        for ($i = 0; $i < 1000; $i++) {
+            $clientes[] = [
+                'nombre' => $faker->firstName() . ' ' . $faker->lastName() . ' ' . $faker->lastName(),
+                'ci_nit' => $faker->unique()->numerify('#######'),
+                'telefono' => $faker->optional(0.85)->numerify('7#######'),
+                'direccion' => $faker->optional(0.75)->streetAddress(),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
         }
+
+        // Insert en lote: 1000 filas en una sola consulta.
+        Cliente::insert($clientes);
     }
 }
