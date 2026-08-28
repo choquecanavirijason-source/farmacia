@@ -2,9 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { MoreHorizontal, Pencil, Plus, Trash2, Phone, MapPin } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+  Phone,
+  MapPin,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DataTable, type DataTableColumn, type ServerFetchParams } from "@/components/ui/table";
+import {
+  DataTable,
+  type DataTableColumn,
+  type ServerFetchParams,
+} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,16 +23,30 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
-import { deleteCliente, deleteClientes, exportClientes, fetchClientesPage, updateCliente } from "@/lib/api/clientes";
+import {
+  deleteCliente,
+  deleteClientes,
+  exportClientes,
+  fetchClientesPage,
+  updateCliente,
+} from "@/lib/api/clientes";
 import { ApiError } from "@/lib/api/client";
 import type { Cliente } from "@/lib/types";
 import { ClienteFormDialog } from "@/app/(app)/clientes/cliente-form-dialog";
 
-const DEFAULT_PARAMS: ServerFetchParams = { page: 1, pageSize: 10, search: "", sort: null };
+const DEFAULT_PARAMS: ServerFetchParams = {
+  page: 1,
+  pageSize: 10,
+  search: "",
+  sort: null,
+};
 
 export default function ClientesPage() {
   const [params, setParams] = useState<ServerFetchParams>(DEFAULT_PARAMS);
-  const [query, setQuery] = useState<{ items: Cliente[]; total: number }>({ items: [], total: 0 });
+  const [query, setQuery] = useState<{ items: Cliente[]; total: number }>({
+    items: [],
+    total: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -58,7 +83,11 @@ export default function ClientesPage() {
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
-        setError(err instanceof ApiError ? err.message : "Error al cargar los clientes.");
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : "Error al cargar los clientes.",
+        );
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -93,9 +122,14 @@ export default function ClientesPage() {
   async function saveField(
     cliente: Cliente,
     field: "nombre" | "ci_nit" | "telefono" | "direccion",
-    value: string
+    value: string,
   ) {
-    await updateCliente(cliente.id_cliente, { [field]: value });
+    await updateCliente(cliente.id_cliente, {
+      nombre: field === "nombre" ? value : cliente.nombre,
+      ci_nit: field === "ci_nit" ? value : cliente.ci_nit,
+      telefono: field === "telefono" ? value : cliente.telefono,
+      direccion: field === "direccion" ? value : cliente.direccion,
+    });
     refresh();
   }
 
@@ -108,9 +142,7 @@ export default function ClientesPage() {
       resizable: true,
       width: 130,
       edit: { onSave: (c, v) => saveField(c, "ci_nit", String(v)) },
-      render: (_, u) => (
-        <span className="font-mono text-xs">{u.ci_nit}</span>
-      ),
+      render: (_, u) => <span className="font-mono text-xs">{u.ci_nit}</span>,
     },
     {
       key: "nombre",
@@ -168,7 +200,13 @@ export default function ClientesPage() {
         <div className="flex justify-center">
           <DropdownMenu>
             <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${u.nombre}`} />}
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Acciones para ${u.nombre}`}
+                />
+              }
             >
               <MoreHorizontal className="size-4" aria-hidden />
             </DropdownMenuTrigger>
@@ -177,7 +215,10 @@ export default function ClientesPage() {
                 <Pencil className="size-4" aria-hidden />
                 Editar
               </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(u)}>
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => setDeleteTarget(u)}
+              >
                 <Trash2 className="size-4" aria-hidden />
                 Eliminar
               </DropdownMenuItem>
@@ -192,7 +233,9 @@ export default function ClientesPage() {
     <div className="flex flex-col gap-6 p-4 md:p-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Gestión de Clientes</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Gestión de Clientes
+          </h1>
           <p className="text-sm text-muted-foreground">
             Administra la información de tus clientes y su estado.
           </p>
@@ -209,7 +252,11 @@ export default function ClientesPage() {
               Eliminar seleccionados ({selectedRows.length})
             </Button>
           )}
-          <Button type="button" onClick={openCreate} className="shrink-0 gap-1.5">
+          <Button
+            type="button"
+            onClick={openCreate}
+            className="shrink-0 gap-1.5"
+          >
             <Plus className="size-4" aria-hidden />
             Nuevo Cliente
           </Button>
@@ -256,8 +303,8 @@ export default function ClientesPage() {
         title="¿Eliminar cliente?"
         description={
           <>
-            Se eliminará el cliente <strong>{deleteTarget?.nombre}</strong> y todos sus datos asociados.
-            Esta acción no se puede deshacer.
+            Se eliminará el cliente <strong>{deleteTarget?.nombre}</strong> y
+            todos sus datos asociados. Esta acción no se puede deshacer.
           </>
         }
         onConfirm={async () => {
@@ -274,13 +321,16 @@ export default function ClientesPage() {
         title={`¿Eliminar ${selectedRows.length} cliente(s)?`}
         description={
           <>
-            Se eliminarán <strong>{selectedRows.length} cliente(s) seleccionado(s)</strong> y todos sus datos
-            asociados. Esta acción no se puede deshacer.
+            Se eliminarán{" "}
+            <strong>{selectedRows.length} cliente(s) seleccionado(s)</strong> y
+            todos sus datos asociados. Esta acción no se puede deshacer.
           </>
         }
         onConfirm={async () => {
           if (selectedRows.length === 0) return;
-          const result = await deleteClientes(selectedRows.map((u) => u.id_cliente));
+          const result = await deleteClientes(
+            selectedRows.map((u) => u.id_cliente),
+          );
           toast.success(result.message);
           setSelectionClearKey((k) => k + 1);
           refresh();

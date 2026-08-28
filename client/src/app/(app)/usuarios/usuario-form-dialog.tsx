@@ -89,7 +89,7 @@ function UsuarioFormBody({
     setSaving(true);
     try {
       const saved = usuario
-        ? await updateUsuario(usuario.id_usuario, input, currentUserId)
+        ? await updateUsuario(usuario.id_usuario, input)
         : await createUsuario(input);
       onSaved(saved);
       onOpenChange(false);

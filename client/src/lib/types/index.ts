@@ -88,7 +88,12 @@ export interface Lote {
 
 export type KardexTipo = "entrada" | "salida" | "ajuste";
 
-export const MOTIVOS_AJUSTE = ["Vencimiento", "Daño", "Extravío", "Otro"] as const;
+export const MOTIVOS_AJUSTE = [
+  "Vencimiento",
+  "Daño",
+  "Extravío",
+  "Otro",
+] as const;
 export type MotivoAjuste = (typeof MOTIVOS_AJUSTE)[number];
 
 /** Movimiento de kardex: `cantidad` es el delta con signo (+entrada, -salida/ajuste), `saldo` es el resultante. */
@@ -104,7 +109,12 @@ export interface KardexMovimiento {
 
 // Modelo conceptual — Ventas, Facturación y Caja
 
-export const FORMAS_PAGO = ["Efectivo", "Tarjeta", "QR", "Transferencia"] as const;
+export const FORMAS_PAGO = [
+  "Efectivo",
+  "Tarjeta",
+  "QR",
+  "Transferencia",
+] as const;
 export type FormaPagoNombre = (typeof FORMAS_PAGO)[number];
 
 export type VentaEstado = "activa" | "anulada";

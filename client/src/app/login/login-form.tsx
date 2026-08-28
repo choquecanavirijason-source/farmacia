@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2, Lock, Pill, User } from "lucide-react";
 import { setClientSession } from "@/lib/auth/client-session";
 import { apiFetch, setAuthToken } from "@/lib/api/http";
-import type { RolNombre, Sesion } from "@/lib/types";
+import type { Sesion } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,8 +22,8 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/dashboard";
 
-  const [usuario, setUsuario] = useState("");
-  const [contrasena, setContrasena] = useState("");
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
   const [verContrasena, setVerContrasena] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,23 +35,33 @@ export function LoginForm() {
     try {
       const data = await apiFetch<{
         token: string;
-        usuario: { id_usuario: number; nombre: string; usuario: string; rol: { nombre: RolNombre } };
+        user: {
+          id: number;
+          name: string;
+          email: string;
+          roles: { name: string }[];
+        };
       }>("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ usuario, contrasena }),
+        body: JSON.stringify({ login, password }),
       });
       const sesion: Sesion = {
-        id_usuario: data.usuario.id_usuario,
-        nombre: data.usuario.nombre,
-        usuario: data.usuario.usuario,
-        rol: data.usuario.rol.nombre,
+        id_usuario: data.user.id,
+        nombre: data.user.name,
+        usuario: data.user.email,
+        rol:
+          data.user.roles[0]?.name === "administrator"
+            ? "ADMINISTRADOR"
+            : "VENDEDOR",
         token: data.token,
       };
       setClientSession(sesion);
       setAuthToken(sesion.token);
       router.push(next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo iniciar sesión.");
+      setError(
+        err instanceof Error ? err.message : "No se pudo iniciar sesión.",
+      );
     } finally {
       setLoading(false);
     }
@@ -63,7 +73,10 @@ export function LoginForm() {
       <div className="relative w-full rounded-4xl bg-gradient-to-br from-white/80 via-white/25 to-transparent p-px shadow-[0_35px_90px_-25px_rgba(15,23,42,0.4)]">
         {/* Panel de cristal: fondo translúcido + blur, con textura de ruido y sombra interior para dar grosor. */}
         <div className="relative overflow-hidden rounded-[calc(var(--radius-4xl)-1px)] bg-background/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] backdrop-blur-2xl">
-          <div aria-hidden className="pointer-events-none absolute inset-0 bg-noise opacity-[0.035] mix-blend-overlay" />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-noise opacity-[0.035] mix-blend-overlay"
+          />
 
           <div className="relative flex flex-col gap-6">
             <CardHeader className="items-center gap-3 pt-10 text-center">
@@ -84,8 +97,11 @@ export function LoginForm() {
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
               <CardContent className="flex flex-col gap-4 px-8 sm:px-10">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="usuario" className="text-sm font-medium text-foreground">
-                    Usuario
+                  <Label
+                    htmlFor="login"
+                    className="text-sm font-medium text-foreground"
+                  >
+                    Usuario o correo electrónico
                   </Label>
                   <div className="relative">
                     <User
@@ -93,20 +109,23 @@ export function LoginForm() {
                       aria-hidden
                     />
                     <Input
-                      id="usuario"
-                      name="usuario"
+                      id="login"
+                      name="login"
                       autoComplete="username"
                       autoFocus
                       required
-                      value={usuario}
-                      onChange={(e) => setUsuario(e.target.value)}
+                      value={login}
+                      onChange={(e) => setLogin(e.target.value)}
                       disabled={loading}
                       className="h-12 rounded-xl bg-background/90 pl-11 text-base"
                     />
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="contrasena" className="text-sm font-medium text-foreground">
+                  <Label
+                    htmlFor="password"
+                    className="text-sm font-medium text-foreground"
+                  >
                     Contraseña
                   </Label>
                   <div className="relative">
@@ -115,13 +134,13 @@ export function LoginForm() {
                       aria-hidden
                     />
                     <Input
-                      id="contrasena"
-                      name="contrasena"
+                      id="password"
+                      name="password"
                       type={verContrasena ? "text" : "password"}
                       autoComplete="current-password"
                       required
-                      value={contrasena}
-                      onChange={(e) => setContrasena(e.target.value)}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
                       className="h-12 rounded-xl bg-background/90 pr-11 pl-11 text-base"
                     />
@@ -129,7 +148,11 @@ export function LoginForm() {
                       type="button"
                       onClick={() => setVerContrasena((v) => !v)}
                       disabled={loading}
-                      aria-label={verContrasena ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      aria-label={
+                        verContrasena
+                          ? "Ocultar contraseña"
+                          : "Mostrar contraseña"
+                      }
                       className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {verContrasena ? (
@@ -167,7 +190,8 @@ export function LoginForm() {
                   )}
                 </Button>
                 <p className="text-center text-xs text-balance text-muted-foreground">
-                  Acceso restringido al personal autorizado de la farmacia.
+                  El acceso está restringido al personal autorizado de la
+                  farmacia.
                 </p>
               </CardFooter>
             </form>
@@ -175,7 +199,9 @@ export function LoginForm() {
         </div>
       </div>
 
-      <p className="text-xs text-foreground/40">Sistema de Gestión Farmacéutica</p>
+      <p className="text-xs text-foreground/40">
+        Sistema de Gestión Farmacéutica
+      </p>
     </div>
   );
 }

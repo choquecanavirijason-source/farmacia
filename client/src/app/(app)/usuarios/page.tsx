@@ -71,8 +71,7 @@ export default function UsuariosPage() {
   async function saveField(u: Usuario, field: "nombre" | "usuario", value: string) {
     const updated = await updateUsuario(
       u.id_usuario,
-      { nombre: field === "nombre" ? value : u.nombre, usuario: field === "usuario" ? value : u.usuario, rol: u.rol, estado: u.estado },
-      sesion?.id_usuario ?? null
+      { nombre: field === "nombre" ? value : u.nombre, usuario: field === "usuario" ? value : u.usuario, rol: u.rol, estado: u.estado }
     );
     upsertUsuario(updated);
   }
@@ -244,7 +243,7 @@ export default function UsuariosPage() {
         }
         onConfirm={async () => {
           if (!deleteTarget) return;
-          await deleteUsuario(deleteTarget.id_usuario, sesion?.id_usuario ?? null);
+          await deleteUsuario(deleteTarget.id_usuario);
           setUsuarios((prev) =>
             prev ? prev.filter((u) => u.id_usuario !== deleteTarget.id_usuario) : prev
           );

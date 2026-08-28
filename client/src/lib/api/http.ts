@@ -14,7 +14,10 @@ export function setAuthToken(token: string | null): void {
  * Mantiene la firma `(path, init?)` para no tocar los módulos que la usan,
  * y acepta `signal` (AbortSignal) para cancelar peticiones en vuelo.
  */
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
   try {
     const response = await axios.request<T>({
       baseURL: API_URL,
@@ -38,18 +41,38 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     if (axios.isCancel(error)) {
       throw error;
     }
-    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-    const body = axios.isAxiosError(error) ? (error.response?.data as Record<string, unknown> | undefined) : undefined;
-    const firstFieldError = Object.values((body?.errors ?? {}) as Record<string, string[]>)[0] as
-      | string[]
-      | undefined;
-    const message = (body?.message as string | undefined) ?? firstFieldError?.[0] ?? "Error al comunicarse con el servidor.";
+    const status = axios.isAxiosError(error)
+      ? error.response?.status
+      : undefined;
+    const body = axios.isAxiosError(error)
+      ? (error.response?.data as Record<string, unknown> | undefined)
+      : undefined;
+    const firstFieldError = Object.values(
+      (body?.errors ?? {}) as Record<string, string[]>,
+    )[0] as string[] | undefined;
+    const message =
+      (body?.message as string | undefined) ??
+      firstFieldError?.[0] ??
+      "Error al comunicarse con el servidor.";
     throw new ApiError(message, status ?? 0);
   }
 }
 
+export function unwrapApiData<T>(response: T | { data: T }): T {
+  return response !== null && typeof response === "object" && "data" in response
+    ? (response as { data: T }).data
+    : (response as T);
+}
+
+export function unwrapCollection<T>(response: T[] | { data: T[] }): T[] {
+  return Array.isArray(response) ? response : response.data;
+}
+
 /** Descarga un archivo binario (Excel/PDF) generado por el backend. */
-export async function downloadFile(path: string, filename: string): Promise<void> {
+export async function downloadFile(
+  path: string,
+  filename: string,
+): Promise<void> {
   const response = await axios.request<Blob>({
     baseURL: API_URL,
     url: path,

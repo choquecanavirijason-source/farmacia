@@ -1,31 +1,34 @@
 import { apiFetch } from "@/lib/api/http";
 import type { RolNombre, Usuario, UsuarioEstado } from "@/lib/types";
 
-interface UsuarioApi {
-  id_usuario: number;
-  nombre: string;
-  usuario: string;
-  estado: UsuarioEstado;
-  fecha_registro: string;
-  id_rol: number;
-  rol: { id_rol: number; nombre: RolNombre };
+interface ServerUser {
+  id: number;
+  name: string;
+  email: string;
+  firstname: string;
+  lastname: string;
+  state: "active" | "inactive";
+  roles?: { name: string }[];
+  created_at?: string;
 }
 
-function toUsuario(u: UsuarioApi): Usuario {
+function toUsuario(u: ServerUser): Usuario {
   return {
-    id_usuario: u.id_usuario,
-    nombre: u.nombre,
-    usuario: u.usuario,
-    estado: u.estado,
-    fecha_registro: u.fecha_registro,
-    id_rol: u.id_rol,
-    rol: u.rol.nombre,
+    id_usuario: u.id,
+    nombre: u.name,
+    usuario: u.email,
+    estado: u.state === "active" ? "activo" : "inactivo",
+    fecha_registro: u.created_at ?? "",
+    id_rol: u.roles?.[0]?.name === "administrator" ? 1 : 2,
+    rol: u.roles?.[0]?.name === "administrator" ? "ADMINISTRADOR" : "VENDEDOR",
   };
 }
 
 export async function fetchUsuarios(): Promise<Usuario[]> {
-  const data = await apiFetch<UsuarioApi[]>("/usuarios");
-  return data.map(toUsuario);
+  const response = await apiFetch<{ data: ServerUser[] }>(
+    "/users?per_page=100",
+  );
+  return response.data.map(toUsuario);
 }
 
 export interface UsuarioInput {
@@ -37,41 +40,41 @@ export interface UsuarioInput {
   contrasena?: string;
 }
 
-function rolToId(rol: RolNombre): number {
-  return rol === "ADMINISTRADOR" ? 1 : 2;
-}
-
 export async function createUsuario(input: UsuarioInput): Promise<Usuario> {
-  const data = await apiFetch<UsuarioApi>("/usuarios", {
+  const response = await apiFetch<{ data: ServerUser }>("/users", {
     method: "POST",
     body: JSON.stringify({
-      nombre: input.nombre,
-      usuario: input.usuario,
-      contrasena: input.contrasena,
-      estado: input.estado,
-      id_rol: rolToId(input.rol),
+      name: input.nombre,
+      firstname: input.nombre.split(" ")[0],
+      lastname: input.nombre.split(" ").slice(1).join(" ") || input.nombre,
+      email: input.usuario,
+      password: input.contrasena,
+      state: input.estado === "activo" ? "active" : "inactive",
+      role: input.rol === "ADMINISTRADOR" ? "administrator" : "seller",
     }),
   });
-  return toUsuario(data);
+  return toUsuario(response.data);
 }
 
 export async function updateUsuario(
   id: number,
-  input: UsuarioInput
+  input: UsuarioInput,
 ): Promise<Usuario> {
-  const data = await apiFetch<UsuarioApi>(`/usuarios/${id}`, {
+  const response = await apiFetch<{ data: ServerUser }>(`/users/${id}`, {
     method: "PUT",
     body: JSON.stringify({
-      nombre: input.nombre,
-      usuario: input.usuario,
-      contrasena: input.contrasena || undefined,
-      estado: input.estado,
-      id_rol: rolToId(input.rol),
+      name: input.nombre,
+      firstname: input.nombre.split(" ")[0],
+      lastname: input.nombre.split(" ").slice(1).join(" ") || input.nombre,
+      email: input.usuario,
+      password: input.contrasena || undefined,
+      state: input.estado === "activo" ? "active" : "inactive",
+      role: input.rol === "ADMINISTRADOR" ? "administrator" : "seller",
     }),
   });
-  return toUsuario(data);
+  return toUsuario(response.data);
 }
 
 export async function deleteUsuario(id: number): Promise<void> {
-  await apiFetch<void>(`/usuarios/${id}`, { method: "DELETE" });
+  await apiFetch<void>(`/users/${id}`, { method: "DELETE" });
 }

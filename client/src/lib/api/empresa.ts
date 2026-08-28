@@ -2,38 +2,40 @@ import { apiFetch } from "@/lib/api/http";
 import type { Empresa } from "@/lib/types";
 
 interface EmpresaApi {
-  nombre: string;
-  nit: string | null;
-  direccion: string | null;
-  telefono: string | null;
+  id: number;
+  name: string;
+  nit: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
   logo_path: string | null;
 }
 
 function toEmpresa(e: EmpresaApi): Empresa {
   return {
-    nombre: e.nombre,
-    nit: e.nit ?? "",
-    direccion: e.direccion ?? "",
-    telefono: e.telefono ?? "",
+    nombre: e.name,
+    nit: e.nit,
+    direccion: e.address ?? "",
+    telefono: e.phone ?? "",
     logo: e.logo_path,
   };
 }
 
 export async function fetchEmpresa(): Promise<Empresa> {
-  const data = await apiFetch<EmpresaApi>("/empresa");
-  return toEmpresa(data);
+  const response = await apiFetch<{ data: EmpresaApi }>("/companies/1");
+  return toEmpresa(response.data);
 }
 
 export async function updateEmpresa(input: Empresa): Promise<Empresa> {
-  const data = await apiFetch<EmpresaApi>("/empresa", {
+  const response = await apiFetch<{ data: EmpresaApi }>("/companies/1", {
     method: "PUT",
     body: JSON.stringify({
-      nombre: input.nombre,
+      name: input.nombre,
       nit: input.nit,
-      direccion: input.direccion,
-      telefono: input.telefono,
-      logo: input.logo,
+      address: input.direccion,
+      phone: input.telefono,
+      logo_path: input.logo,
     }),
   });
-  return toEmpresa(data);
+  return toEmpresa(response.data);
 }

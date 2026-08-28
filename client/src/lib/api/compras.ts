@@ -1,31 +1,59 @@
 import { apiFetch } from "@/lib/api/http";
 import type { Compra, DetalleCompra } from "@/lib/types";
 
-interface CompraApi extends Omit<Compra, "total" | "fecha"> {
-  total: string;
-  fecha: string;
+interface CompraApi {
+  id: number;
+  invoice_number: string;
+  purchase_date: string;
+  total: string | number;
+  supplier_id: number;
 }
 
 function toCompra(c: CompraApi): Compra {
-  return { ...c, total: Number(c.total), fecha: c.fecha.slice(0, 10) };
+  return {
+    id_compra: c.id,
+    numero_factura: c.invoice_number,
+    fecha: c.purchase_date.slice(0, 10),
+    total: Number(c.total),
+    id_proveedor: c.supplier_id,
+  };
 }
 
-interface DetalleCompraApi extends Omit<DetalleCompra, "precio_unitario" | "subtotal"> {
-  precio_unitario: string;
-  subtotal: string;
+interface DetalleCompraApi {
+  id: number;
+  purchase_id: number;
+  medicament_id: number;
+  batch_id: number;
+  quantity: number;
+  unit_price: string | number;
+  subtotal: string | number;
 }
 
 function toDetalle(d: DetalleCompraApi): DetalleCompra {
-  return { ...d, precio_unitario: Number(d.precio_unitario), subtotal: Number(d.subtotal) };
+  return {
+    id_detalle_compra: d.id,
+    id_compra: d.purchase_id,
+    id_medicamento: d.medicament_id,
+    id_lote: d.batch_id,
+    cantidad: d.quantity,
+    precio_unitario: Number(d.unit_price),
+    subtotal: Number(d.subtotal),
+  };
 }
 
 export async function fetchCompras(): Promise<Compra[]> {
-  const data = await apiFetch<CompraApi[]>("/compras");
-  return data.map(toCompra);
+  const response = await apiFetch<{ data: CompraApi[] }>(
+    "/purchases?per_page=100",
+  );
+  return response.data.map(toCompra);
 }
 
-export async function fetchDetallesByCompra(id_compra: number): Promise<DetalleCompra[]> {
-  const data = await apiFetch<DetalleCompraApi[]>(`/compras/${id_compra}/detalles`);
+export async function fetchDetallesByCompra(
+  id_compra: number,
+): Promise<DetalleCompra[]> {
+  const data = await apiFetch<DetalleCompraApi[]>(
+    `/purchases/${id_compra}/details`,
+  );
   return data.map(toDetalle);
 }
 
@@ -55,6 +83,20 @@ export async function createCompra(input: CompraInput): Promise<Compra> {
   if (input.items.length === 0) {
     throw new Error("Agrega al menos un medicamento a la compra.");
   }
-  const data = await apiFetch<CompraApi>("/compras", { method: "POST", body: JSON.stringify(input) });
-  return toCompra(data);
+  const response = await apiFetch<CompraApi>("/purchases", {
+    method: "POST",
+    body: JSON.stringify({
+      supplier_id: input.id_proveedor,
+      invoice_number: input.numero_factura,
+      purchase_date: input.fecha,
+      items: input.items.map((item) => ({
+        medicament_id: item.id_medicamento,
+        batch_number: item.numero_lote,
+        expiration_date: item.fecha_vencimiento,
+        quantity: item.cantidad,
+        unit_price: item.precio_unitario,
+      })),
+    }),
+  });
+  return toCompra(response);
 }
