@@ -36,11 +36,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/lotes/{lote}/restaurar', [LoteController::class, 'restaurar']);
 
     // Clientes, Caja y Ventas: ambos roles operan el POS.
-    Route::get('/clientes', [ClienteController::class, 'index']);
-    Route::post('/clientes', [ClienteController::class, 'store']);
-    Route::put('/clientes/{cliente}', [ClienteController::class, 'update']);
+    Route::get('/clientes/exportar', [ClienteController::class, 'exportar']);
     Route::delete('/clientes', [ClienteController::class, 'bulkDestroy']);
-    Route::delete('/clientes/{cliente}', [ClienteController::class, 'destroy']);
+    Route::apiResource('clientes', ClienteController::class);
 
     Route::get('/cajas', [CajaController::class, 'index']);
     Route::get('/cajas/abierta', [CajaController::class, 'abierta']);

@@ -57,8 +57,7 @@ export async function createUsuario(input: UsuarioInput): Promise<Usuario> {
 
 export async function updateUsuario(
   id: number,
-  input: UsuarioInput,
-  _currentUserId: number | null
+  input: UsuarioInput
 ): Promise<Usuario> {
   const data = await apiFetch<UsuarioApi>(`/usuarios/${id}`, {
     method: "PUT",
@@ -73,6 +72,6 @@ export async function updateUsuario(
   return toUsuario(data);
 }
 
-export async function deleteUsuario(id: number, _currentUserId: number | null): Promise<void> {
+export async function deleteUsuario(id: number): Promise<void> {
   await apiFetch<void>(`/usuarios/${id}`, { method: "DELETE" });
 }

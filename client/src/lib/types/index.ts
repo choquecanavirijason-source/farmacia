@@ -191,10 +191,8 @@ export interface Cliente {
   nombre: string;
   ci_nit: string;
   telefono: string;
-  email: string;
   direccion: string;
-  estado: "activo" | "inactivo";
-  fecha_registro: string;
+  created_at: string;
 }
 
 export interface Compra {

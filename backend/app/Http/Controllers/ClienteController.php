@@ -2,57 +2,67 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreClienteRequest;
+use App\Http\Requests\UpdateClienteRequest;
+use App\Http\Resources\ClienteResource;
 use App\Models\Cliente;
+use Dompdf\Dompdf;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class ClienteController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Cliente::query();
+        $search = trim((string) $request->query('search'));
 
-        if ($search = trim((string) $request->query('search'))) {
-            $query->where(function ($q) use ($search) {
-                $q->where('nombre', 'like', "%{$search}%")
-                    ->orWhere('ci_nit', 'like', "%{$search}%")
-                    ->orWhere('telefono', 'like', "%{$search}%");
-            });
-        }
+        $clientes = Cliente::query()
+            ->when($search !== '', fn (Builder $query) => $query->search($search))
+            ->sort((string) $request->query('sort_by', 'nombre'), (string) $request->query('sort_dir', 'asc'))
+            ->paginate(max(1, $request->integer('per_page', 10)));
 
-        $sortBy = (string) $request->query('sort_by', 'nombre');
-        $sortDir = strtolower((string) $request->query('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
-
-        $query->orderBy($sortBy, $sortDir);
-
-        return response()->json($query->paginate(max(1, $request->integer('per_page', 10))));
+        return ClienteResource::collection($clientes);
     }
 
-    public function store(Request $request)
+    public function store(StoreClienteRequest $request)
     {
-        $data = $this->validated($request);
-
-        return response()->json(Cliente::create($data), 201);
+        return (new ClienteResource(Cliente::create($request->validated())))->response()->setStatusCode(201);
     }
 
-    public function update(Request $request, Cliente $cliente)
+    public function update(UpdateClienteRequest $request, Cliente $cliente)
     {
-        $data = $this->validated($request, $cliente->id_cliente);
+        $cliente->update($request->validated());
 
-        $cliente->update($data);
+        return new ClienteResource($cliente);
+    }
 
-        return response()->json($cliente);
+    public function exportar(Request $request)
+    {
+        $search = trim((string) $request->query('search'));
+
+        $clientes = Cliente::query()
+            ->when($search !== '', fn (Builder $query) => $query->search($search))
+            ->sort((string) $request->query('sort_by', 'nombre'), (string) $request->query('sort_dir', 'asc'))
+            ->get();
+
+        return strtolower((string) $request->query('formato', 'excel')) === 'pdf'
+            ? $this->exportarPdf($clientes)
+            : $this->exportarExcel($clientes);
     }
 
     public function bulkDestroy(Request $request)
     {
-        $ids = $request->validate([
+        $ids = collect($request->validate([
             'ids' => ['required', 'array', 'min:1'],
             'ids.*' => ['integer', 'distinct'],
-        ])['ids'];
+        ])['ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique();
 
-        // "Consumidor Final" es protegido: se omite y el resto se elimina igual.
-        $deleted = Cliente::whereIn('id_cliente', $ids)
+        $deleted = Cliente::query()
+            ->whereIn('id_cliente', $ids)
             ->where('nombre', '!=', 'Consumidor Final')
             ->delete();
 
@@ -75,13 +85,48 @@ class ClienteController extends Controller
         return response()->json(['message' => 'Cliente eliminado.']);
     }
 
-    private function validated(Request $request, ?int $ignoreId = null): array
+    private function exportarExcel($clientes)
     {
-        return $request->validate([
-            'nombre' => ['required', 'string', 'max:150'],
-            'ci_nit' => ['required', 'string', 'max:30', Rule::unique('clientes', 'ci_nit')->ignore($ignoreId, 'id_cliente')],
-            'telefono' => ['nullable', 'string', 'max:30'],
-            'direccion' => ['nullable', 'string', 'max:255'],
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Clientes');
+
+        $sheet->fromArray(['CI/NIT', 'Nombre', 'Teléfono', 'Dirección'], null, 'A1');
+        $sheet->getStyle('A1:D1')->getFont()->setBold(true);
+
+        $row = 2;
+        foreach ($clientes as $cliente) {
+            $sheet->fromArray([
+                $cliente->ci_nit,
+                $cliente->nombre,
+                $cliente->telefono,
+                $cliente->direccion,
+            ], null, "A{$row}");
+            $row++;
+        }
+
+        foreach (range('A', 'D') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $temp = tempnam(sys_get_temp_dir(), 'clientes_');
+        (new Xlsx($spreadsheet))->save($temp);
+
+        return response()->download($temp, 'clientes.xlsx')->deleteFileAfterSend(true);
+    }
+
+    private function exportarPdf($clientes)
+    {
+        $html = view('exports.clientes_pdf', ['clientes' => $clientes])->render();
+
+        $dompdf = new Dompdf();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->render();
+
+        return response($dompdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="clientes.pdf"',
         ]);
     }
 }

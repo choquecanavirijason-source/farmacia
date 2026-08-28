@@ -1,8 +1,20 @@
-import { apiFetch } from "@/lib/api/http";
-import type { Cliente, PaginatedResponse } from "@/lib/types";
+import { apiFetch, downloadFile } from "@/lib/api/http";
+import type { Cliente } from "@/lib/types";
+
+/** Respuesta de `ClienteResource::collection($paginator)`: { data, meta: { total } }. */
+export interface ClientePageResponse<T> {
+  data: T[];
+  meta: {
+    current_page: number;
+    per_page: number;
+    total: number;
+    last_page: number;
+  };
+}
 
 export async function fetchClientes(): Promise<Cliente[]> {
-  return apiFetch<Cliente[]>("/clientes");
+  const res = await apiFetch<ClientePageResponse<Cliente>>("/clientes");
+  return res.data;
 }
 
 export interface ClientePageParams {
@@ -26,12 +38,27 @@ export async function fetchClientesPage(
     params.set("sort_dir", sort.direction);
   }
 
-  const res = await apiFetch<PaginatedResponse<Cliente>>(`/clientes?${params}`, { signal });
-  return { items: res.data, total: res.total };
+  const res = await apiFetch<ClientePageResponse<Cliente>>(`/clientes?${params}`, { signal });
+  return { items: res.data, total: res.meta.total };
 }
 
-export type ClienteInput = Omit<Cliente, "id_cliente" | "fecha_registro" | "estado"> &
-  Partial<Pick<Cliente, "email" | "estado">>;
+export type ClienteInput = Omit<Cliente, "id_cliente" | "created_at">;
+export async function updateClientesOrder(orderedIds: number[]): Promise<void> {
+  await apiFetch('/clientes/reorder', { method: 'PATCH', body: JSON.stringify({ orderedIds }) });
+}
+export async function exportClientes(
+  formato: "excel" | "pdf",
+  params: { search: string; sort: { key: string; direction: "asc" | "desc" } | null }
+): Promise<void> {
+  const query = new URLSearchParams({ formato });
+  if (params.search.trim()) query.set("search", params.search.trim());
+  if (params.sort) {
+    query.set("sort_by", params.sort.key);
+    query.set("sort_dir", params.sort.direction);
+  }
+  const extension = formato === "excel" ? "xlsx" : "pdf";
+  await downloadFile(`/clientes/exportar?${query}`, `clientes.${extension}`);
+}
 
 export async function createCliente(input: ClienteInput): Promise<Cliente> {
   return apiFetch<Cliente>("/clientes", { method: "POST", body: JSON.stringify(input) });

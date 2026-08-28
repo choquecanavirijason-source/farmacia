@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { MoreHorizontal, Pencil, Plus, Trash2, Phone, Mail, MapPin } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, Trash2, Phone, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn, type ServerFetchParams } from "@/components/ui/table";
 import {
   DropdownMenu,
@@ -13,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
-import { deleteCliente, deleteClientes, fetchClientesPage } from "@/lib/api/clientes";
+import { deleteCliente, deleteClientes, exportClientes, fetchClientesPage, updateCliente } from "@/lib/api/clientes";
 import { ApiError } from "@/lib/api/client";
 import type { Cliente } from "@/lib/types";
 import { ClienteFormDialog } from "@/app/(app)/clientes/cliente-form-dialog";
@@ -26,7 +25,6 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Cliente | null>(null);
@@ -34,39 +32,47 @@ export default function ClientesPage() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [selectionClearKey, setSelectionClearKey] = useState(0);
 
-  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setRefreshKey((k) => k + 1);
+  }, []);
+
+  const paramsRef = useRef(params);
+  const handleParamsChange = useCallback((next: ServerFetchParams) => {
+    const searchChanged = paramsRef.current.search !== next.search;
+    paramsRef.current = next;
+    if (!searchChanged) setLoading(true);
+    setParams(next);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      setLoading(true);
 
-      fetchClientesPage(params, controller.signal)
-        .then((result) => {
-          setQuery(result);
-          setError(null);
-        })
-        .catch((err) => {
-          if (controller.signal.aborted) return;
-          setError(err instanceof ApiError ? err.message : "Error al cargar los clientes.");
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setLoading(false);
-        });
-    }, params.search ? 350 : 0);
+    fetchClientesPage(params, controller.signal)
+      .then((result) => {
+        setQuery(result);
+        setError(null);
+        if (result.items.length === 0 && result.total > 0 && params.page > 1) {
+          setParams((p) => ({ ...p, page: p.page - 1 }));
+        }
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setError(err instanceof ApiError ? err.message : "Error al cargar los clientes.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
 
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
+    return () => controller.abort();
   }, [params, refreshKey]);
 
-  // Tras borrar la última fila de la última página, retrocede una página.
-  useEffect(() => {
-    if (!loading && !error && query.items.length === 0 && query.total > 0 && params.page > 1) {
-      setParams((p) => ({ ...p, page: p.page - 1 }));
-    }
-  }, [loading, error, query, params.page]);
+  const handleRowReorder = useCallback(async () => {
+    // El orden en clientes es solo visual: se reinicia en search/sort/paginación.
+    // Para modelos que sí persistan el orden, descomentar cuando exista el endpoint:
+    // const ids = reorderedData.map((cliente) => cliente.id_cliente);
+    // await updateClientesOrder(ids);
+  }, []);
 
   function openCreate() {
     setEditing(null);
@@ -78,18 +84,42 @@ export default function ClientesPage() {
     setFormOpen(true);
   }
 
-  function handleSaved(saved: Cliente) {
+  function handleSaved() {
     const wasEditing = Boolean(editing);
     toast.success(wasEditing ? "Cliente actualizado." : "Cliente creado.");
     refresh();
   }
 
+  async function saveField(
+    cliente: Cliente,
+    field: "nombre" | "ci_nit" | "telefono" | "direccion",
+    value: string
+  ) {
+    await updateCliente(cliente.id_cliente, { [field]: value });
+    refresh();
+  }
+
   const columns: DataTableColumn<Cliente>[] = [
+    {
+      key: "ci_nit",
+      header: "CI / NIT",
+      accessor: (u) => u.ci_nit,
+      className: "max-w-32",
+      resizable: true,
+      width: 130,
+      edit: { onSave: (c, v) => saveField(c, "ci_nit", String(v)) },
+      render: (_, u) => (
+        <span className="font-mono text-xs">{u.ci_nit}</span>
+      ),
+    },
     {
       key: "nombre",
       header: "Nombre",
       accessor: (u) => u.nombre,
       className: "min-w-32 max-w-48",
+      resizable: true,
+      width: 200,
+      edit: { onSave: (c, v) => saveField(c, "nombre", String(v)) },
       render: (_, u) => (
         <span className="block truncate font-medium" title={u.nombre}>
           {u.nombre}
@@ -101,6 +131,9 @@ export default function ClientesPage() {
       header: "Teléfono",
       accessor: (u) => u.telefono,
       className: "max-w-32",
+      resizable: true,
+      width: 150,
+      edit: { onSave: (c, v) => saveField(c, "telefono", String(v)) },
       render: (_, u) => (
         <span className="flex items-center gap-1.5 text-muted-foreground">
           <Phone className="size-3.5" aria-hidden />
@@ -113,6 +146,9 @@ export default function ClientesPage() {
       header: "Dirección",
       accessor: (u) => u.direccion,
       className: "max-w-48",
+      resizable: true,
+      width: 200,
+      edit: { onSave: (c, v) => saveField(c, "direccion", String(v)) },
       render: (_, u) => (
         <span className="flex items-center gap-1.5 text-muted-foreground">
           <MapPin className="size-3.5" aria-hidden />
@@ -121,46 +157,33 @@ export default function ClientesPage() {
       ),
     },
     {
-      key: "estado",
-      header: "Estado",
-      accessor: (u) => u.estado,
-      render: (_, u) => (
-        <Badge variant={u.estado === "activo" ? "success" : "secondary"}>
-          {u.estado === "activo" ? "Activo" : "Inactivo"}
-        </Badge>
-      ),
-    },
-    {
-      key: "fecha_registro",
-      header: "Registro",
-      accessor: (u) => u.fecha_registro,
-      className: "whitespace-nowrap text-muted-foreground text-xs",
-    },
-    {
       key: "acciones",
-      header: <span className="sr-only">Acciones</span>,
+      header: "Acciones",
       accessor: () => null,
       sortable: false,
       filterable: false,
-      className: "w-10",
+      resizable: false,
+      className: "w-24",
       render: (_, u) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger>
-            <Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${u.nombre}`}>
+        <div className="flex justify-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${u.nombre}`} />}
+            >
               <MoreHorizontal className="size-4" aria-hidden />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => openEdit(u)}>
-              <Pencil className="size-4" aria-hidden />
-              Editar
-            </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(u)}>
-              <Trash2 className="size-4" aria-hidden />
-              Eliminar
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => openEdit(u)}>
+                <Pencil className="size-4" aria-hidden />
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(u)}>
+                <Trash2 className="size-4" aria-hidden />
+                Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ];
@@ -198,19 +221,26 @@ export default function ClientesPage() {
         columns={columns}
         server={{
           params,
-          onParamsChange: setParams,
+          onParamsChange: handleParamsChange,
           total: query.total,
           loading,
           error,
           onRetry: refresh,
         }}
-        searchPlaceholder="Buscar por nombre, teléfono o email…"
+        searchPlaceholder="Buscar por nombre, CI/NIT o teléfono…"
         emptyMessage="No se encontraron clientes."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="clientes.csv"
+        onExport={(formato) => exportClientes(formato, params)}
         getRowId={(u) => u.id_cliente}
         onSelectionChange={setSelectedRows}
         clearSelectionKey={selectionClearKey}
+        enableColumnDrag={true}
+        enableRowDrag={true}
+        onRowReorder={handleRowReorder}
+        persistPreferences={true}
+        storageKey="clientes-table"
+        minColumnWidth={80}
       />
 
       <ClienteFormDialog

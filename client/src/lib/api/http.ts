@@ -47,3 +47,26 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError(message, status ?? 0);
   }
 }
+
+/** Descarga un archivo binario (Excel/PDF) generado por el backend. */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const response = await axios.request<Blob>({
+    baseURL: API_URL,
+    url: path,
+    method: "GET",
+    headers: {
+      Accept: "application/octet-stream",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    },
+    responseType: "blob",
+  });
+
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
