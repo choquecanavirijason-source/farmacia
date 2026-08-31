@@ -1,69 +1,105 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getClientSession } from "@/lib/auth/client-session";
-import { setAuthToken } from "@/lib/api/http";
-import { MENU_GROUPS, rolesAllowedForPath } from "@/lib/nav/menu-config";
+import Link from "next/link";
+import { ShieldAlert, ArrowLeft } from "lucide-react";
+import { useAuth } from "@/context/auth-context";
+import { LayoutProvider, useLayout } from "@/context/layout-context";
+import { filterMenuByPermissions, canAccessPath } from "@/lib/nav/menu-config";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import type { Sesion } from "@/lib/types";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [sesion, setSesion] = useState<Sesion | null | undefined>(undefined);
+  const { user, rol, isLoading, isAuthenticated, can } = useAuth();
+  const { layoutMode } = useLayout();
 
   useEffect(() => {
-    const current = getClientSession();
-    if (!current) {
+    if (!isLoading && !isAuthenticated) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-      return;
     }
-    const allowedRoles = rolesAllowedForPath(pathname);
-    if (allowedRoles && !allowedRoles.includes(current.rol)) {
-      router.replace("/dashboard");
-      return;
-    }
-    setAuthToken(current.token);
-    setSesion(current);
-  }, [router, pathname]);
+  }, [isLoading, isAuthenticated, router, pathname]);
 
-  if (sesion === undefined) {
+  if (isLoading) {
     return <AppShellSkeleton />;
   }
 
-  if (!sesion) {
+  if (!isAuthenticated || !user) {
     return null;
   }
 
-  const groups = MENU_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => item.roles.includes(sesion.rol)),
-  })).filter((group) => group.items.length > 0);
+  const hasAccess = canAccessPath(pathname, can);
+  const groups = filterMenuByPermissions(can);
+
+  const fullName = user.firstname && user.lastname
+    ? `${user.firstname} ${user.lastname}`.trim()
+    : user.name;
+
+  const sesion: Sesion = {
+    id_usuario: user.id,
+    nombre: fullName || user.name,
+    usuario: user.username || user.email,
+    rol: (rol === "administrator" ? "ADMINISTRADOR" : rol === "seller" ? "VENDEDOR" : rol) as "ADMINISTRADOR" | "VENDEDOR",
+    token: "",
+  };
 
   return (
-    <div className="flex min-h-screen w-full bg-muted/20">
+    <div
+      className={cn(
+        "flex min-h-screen w-full bg-muted/20",
+        layoutMode === "top" ? "flex-col" : "flex-row"
+      )}
+    >
       <Sidebar groups={groups} />
       <div className="flex min-h-screen flex-1 flex-col min-w-0">
         <Topbar sesion={sesion} groups={groups} />
-        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main
+          className={cn(
+            "flex-1 min-w-0 px-4 py-6 sm:px-6 lg:px-8",
+            layoutMode === "top" && "max-w-7xl mx-auto w-full"
+          )}
+        >
+          {hasAccess ? (
+            children
+          ) : (
+            <div className="flex min-h-[60vh] flex-col items-center justify-center text-center p-6">
+              <div className="rounded-full bg-destructive/10 p-4 mb-4 text-destructive">
+                <ShieldAlert className="size-10" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight mb-2">Acceso No Autorizado</h2>
+              <p className="text-sm text-muted-foreground max-w-md mb-6 text-balance">
+                No cuentas con los permisos necesarios para acceder a esta sección. Si consideras que es un error, solicita acceso a un administrador.
+              </p>
+              <Button nativeButton={false} render={<Link href="/dashboard" />} variant="outline" className="gap-2">
+                <ArrowLeft className="size-4" />
+                Volver al Inicio
+              </Button>
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );
 }
 
-/**
- * Silueta del layout final (riel + topbar + bloques de contenido) en vez de
- * un spinner/box centrado — evita el salto de layout mientras se resuelve la
- * sesión guardada en el navegador (inevitable en cada recarga completa, ya
- * que el guard de auth corre en el cliente).
- */
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <LayoutProvider>
+      <AppLayoutContent>{children}</AppLayoutContent>
+    </LayoutProvider>
+  );
+}
+
 function AppShellSkeleton() {
   return (
     <div className="flex min-h-screen w-full bg-muted/20">
-      <div className="sticky top-0 hidden h-screen w-16 shrink-0 flex-col gap-4 border-r border-sidebar-border bg-sidebar p-3 md:flex">
+      <div className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-4 border-r border-sidebar-border bg-sidebar p-3 md:flex">
         <Skeleton className="size-9 rounded-lg" />
         <div className="mt-4 flex flex-col gap-3">
           {Array.from({ length: 5 }).map((_, i) => (

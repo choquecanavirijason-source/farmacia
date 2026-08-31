@@ -1,21 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { MoreHorizontal, Pencil, Pill, Plus, ScanLine, Trash2 } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+  RotateCcw,
+  ScanLine,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   DataTable,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   type DataTableColumn,
+  type ServerFetchParams,
 } from "@/components/ui/table";
 import {
   DropdownMenu,
@@ -23,212 +23,388 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
 import {
+  getPaginated,
+  remove,
+  bulkDestroy,
+  restore,
+  update,
+  exportResource,
   fetchCategorias,
   fetchLaboratorios,
-  fetchMedicamentos,
   fetchPresentaciones,
-  updateMedicamento,
-} from "@/lib/api/medicamentos";
+} from "@/lib/api/medicaments";
 import { formatCurrency } from "@/lib/format";
-import type { Categoria, Laboratorio, Medicamento, Presentacion } from "@/lib/types";
-import { MedicamentoFormDialog } from "@/app/(app)/medicamentos/medicamento-form-dialog";
-import { DeleteMedicamentoDialog } from "@/app/(app)/medicamentos/delete-medicamento-dialog";
+import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
+import type { IMedicament, MedicamentTableEditableField } from "@/lib/types/medicament";
+import type { Categoria, Laboratorio, Presentacion } from "@/lib/types";
+import { MedicamentFormDialog } from "./medicament-form-dialog";
+import { cn } from "@/lib/utils";
+
+// Parámetros por defecto para la consulta paginada
+const DEFAULT_PARAMS: ServerFetchParams = {
+  page: 1,
+  pageSize: 10,
+  search: "",
+  sort: null,
+};
 
 export default function MedicamentosPage() {
-  const [medicamentos, setMedicamentos] = useState<Medicamento[] | null>(null);
+  const { can } = useAuth();
+  // Estados para datos, paginación y carga
+  const [params, setParams] = useState<ServerFetchParams>(DEFAULT_PARAMS);
+  const [items, setItems] = useState<IMedicament[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Catálogos para selectores
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [presentaciones, setPresentaciones] = useState<Presentacion[]>([]);
   const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
 
+  // Estados de formularios y eliminación
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Medicamento | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Medicamento | null>(null);
+  const [editing, setEditing] = useState<IMedicament | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<IMedicament | null>(null);
+  const [selectedRows, setSelectedRows] = useState<IMedicament[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [selectionClearKey, setSelectionClearKey] = useState(0);
 
+  // Carga inicial de catálogos
   useEffect(() => {
-    Promise.all([fetchMedicamentos(), fetchCategorias(), fetchPresentaciones(), fetchLaboratorios()]).then(
-      ([medicamentosData, categoriasData, presentacionesData, laboratoriosData]) => {
-        setMedicamentos(medicamentosData);
-        setCategorias(categoriasData);
-        setPresentaciones(presentacionesData);
-        setLaboratorios(laboratoriosData);
+    Promise.all([fetchCategorias(), fetchPresentaciones(), fetchLaboratorios()]).then(
+      ([c, p, l]) => {
+        setCategorias(c);
+        setPresentaciones(p);
+        setLaboratorios(l);
       }
     );
   }, []);
 
-  const categoriaById = useMemo(
-    () => new Map(categorias.map((c) => [c.id_categoria, c.nombre])),
-    [categorias]
-  );
-  const laboratorioById = useMemo(
-    () => new Map(laboratorios.map((l) => [l.id_laboratorio, l.nombre])),
-    [laboratorios]
-  );
+  // Función para recargar la tabla
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setRefreshKey((k) => k + 1);
+  }, []);
 
+  // Manejador de cambio de parámetros de tabla
+  const paramsRef = useRef(params);
+  const handleParamsChange = useCallback((next: ServerFetchParams) => {
+    const searchChanged = paramsRef.current.search !== next.search;
+    paramsRef.current = next;
+    if (!searchChanged) setLoading(true);
+    setParams(next);
+  }, []);
+
+  // Consulta de medicamentos desde la API
+  useEffect(() => {
+    const controller = new AbortController();
+
+    getPaginated(
+      {
+        page: params.page,
+        pageSize: params.pageSize,
+        search: params.search,
+        sort_by: params.sort?.key || "name",
+        sort_dir: params.sort?.direction || "asc",
+      },
+      controller.signal
+    )
+      .then((result) => {
+        setItems(result.data);
+        setTotal(result.meta?.total ?? result.data.length);
+        setError(null);
+        if (result.data.length === 0 && result.meta?.total > 0 && params.page > 1) {
+          setParams((p) => ({ ...p, page: p.page - 1 }));
+        }
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setError(err?.response?.data?.message || err?.message || "Error al cargar los medicamentos.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [params, refreshKey]);
+
+  // Apertura de modal de creación
   function openCreate() {
     setEditing(null);
     setFormOpen(true);
   }
 
-  function openEdit(medicamento: Medicamento) {
+  // Apertura de modal de edición
+  function openEdit(medicamento: IMedicament) {
+    if (medicamento.deleted_at) return;
     setEditing(medicamento);
     setFormOpen(true);
   }
 
-  function upsertMedicamento(saved: Medicamento) {
-    setMedicamentos((prev) => {
-      if (!prev) return [saved];
-      const exists = prev.some((m) => m.id_medicamento === saved.id_medicamento);
-      return exists
-        ? prev.map((m) => (m.id_medicamento === saved.id_medicamento ? saved : m))
-        : [...prev, saved];
-    });
+  // Restauración de un medicamento eliminado lógicamente
+  async function handleRestore(medicamento: IMedicament) {
+    try {
+      await restore(medicamento.id);
+      toast.success("Medicamento restaurado con éxito.");
+      refresh();
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ||
+        err?.message ||
+        "No se pudo restaurar el medicamento."
+      );
+    }
   }
 
-  function handleSaved(saved: Medicamento) {
+  // Notificación y recarga al guardar cambios en formulario
+  function handleSaved() {
     const wasEditing = Boolean(editing);
-    upsertMedicamento(saved);
     toast.success(wasEditing ? "Medicamento actualizado." : "Medicamento creado.");
+    refresh();
   }
 
-  async function saveField(
-    m: Medicamento,
-    field: "codigo" | "nombre" | "precio_venta" | "stock_minimo",
-    value: string | number
-  ) {
-    const updated = await updateMedicamento(m.id_medicamento, {
-      codigo: field === "codigo" ? String(value) : m.codigo,
-      nombre: field === "nombre" ? String(value) : m.nombre,
-      concentracion: m.concentracion,
-      precio_venta: field === "precio_venta" ? Number(value) : m.precio_venta,
-      stock_minimo: field === "stock_minimo" ? Number(value) : m.stock_minimo,
-      requiere_receta: m.requiere_receta,
-      estado: m.estado,
-      id_categoria: m.id_categoria,
-      id_presentacion: m.id_presentacion,
-      id_laboratorio: m.id_laboratorio,
+  // Edición rápida en celda de la tabla
+  async function saveField(medicamento: IMedicament, field: MedicamentTableEditableField, value: string | number) {
+    if (medicamento.deleted_at) return;
+    await update(medicamento.id, {
+      [field]: field === "price" || field === "min_stock" ? Number(value) : value,
     });
-    upsertMedicamento(updated);
-  }
-
-  function handleDeleted(id: number) {
-    setMedicamentos((prev) => (prev ? prev.filter((m) => m.id_medicamento !== id) : prev));
-    setDeleteTarget(null);
-    toast.success("Medicamento eliminado.");
+    refresh();
   }
 
   function handleScanClick() {
-    toast.info("El escaneo por código de barras estará disponible al conectar un lector.");
+    toast.info("El lector de código de barras está listo para capturar datos.");
   }
 
-  const isLoading = medicamentos === null;
-  const hasAnyMedicamento = (medicamentos?.length ?? 0) > 0;
-
-  const columns: DataTableColumn<Medicamento>[] = [
+  // Definición de columnas de la tabla de medicamentos
+  const columns: DataTableColumn<IMedicament>[] = [
     {
-      key: "codigo",
+      key: "code",
       header: "Código",
-      accessor: (m) => m.codigo,
-      className: "max-w-28 truncate font-mono text-xs",
-      edit: { onSave: (m, value) => saveField(m, "codigo", value) },
-    },
-    {
-      key: "nombre",
-      header: "Nombre",
-      accessor: (m) => m.nombre,
-      className: "max-w-56",
-      edit: { onSave: (m, value) => saveField(m, "nombre", value) },
+      accessor: (m) => m.code,
+      resizable: true,
+      width: 120,
+      edit: { onSave: (m, v) => saveField(m, "code", String(v)) },
       render: (_, m) => (
-        <span className="block truncate" title={m.nombre}>
-          {m.nombre}
-          <span className="ml-1.5 text-xs font-normal text-muted-foreground">{m.concentracion}</span>
+        <span className={cn("font-mono text-xs", m.deleted_at && "text-destructive line-through")}>
+          {m.code}
         </span>
       ),
     },
     {
-      key: "categoria",
-      header: "Categoría",
-      accessor: (m) => categoriaById.get(m.id_categoria) ?? null,
-      className: "max-w-32 truncate",
-    },
-    {
-      key: "laboratorio",
-      header: "Laboratorio",
-      accessor: (m) => laboratorioById.get(m.id_laboratorio) ?? null,
-      className: "max-w-32 truncate",
-    },
-    {
-      key: "precio_venta",
-      header: "Precio",
-      accessor: (m) => m.precio_venta,
-      className: "whitespace-nowrap text-right",
-      render: (_, m) => formatCurrency(m.precio_venta),
-      edit: { type: "number", onSave: (m, value) => saveField(m, "precio_venta", value) },
-    },
-    {
-      key: "stock_minimo",
-      header: "Stock mín.",
-      accessor: (m) => m.stock_minimo,
-      className: "text-right",
-      edit: { type: "number", onSave: (m, value) => saveField(m, "stock_minimo", value) },
-    },
-    {
-      key: "requiere_receta",
-      header: "Receta",
-      accessor: (m) => (m.requiere_receta ? "Sí" : "No"),
+      key: "name",
+      header: "Nombre",
+      accessor: (m) => m.name,
+      resizable: true,
+      width: 230,
+      edit: { onSave: (m, v) => saveField(m, "name", String(v)) },
       render: (_, m) => (
-        <Badge variant={m.requiere_receta ? "outline" : "secondary"}>{m.requiere_receta ? "Sí" : "No"}</Badge>
+        <div className="flex items-center gap-2">
+          <div className="flex flex-col min-w-0">
+            <span className={cn("font-medium text-xs truncate", m.deleted_at && "text-destructive line-through")}>
+              {m.name}
+            </span>
+            {m.concentration && (
+              <span className={cn("text-[11px] text-muted-foreground truncate", m.deleted_at && "line-through")}>
+                {m.concentration}
+              </span>
+            )}
+          </div>
+          {m.deleted_at && (
+            <span className="rounded bg-destructive/20 px-1.5 py-0.5 text-[10px] font-semibold text-destructive uppercase tracking-wide shrink-0">
+              Eliminado
+            </span>
+          )}
+        </div>
       ),
     },
     {
-      key: "estado",
-      header: "Estado",
-      accessor: (m) => m.estado,
+      key: "category",
+      header: "Categoría",
+      accessor: (m) => m.category?.name || "-",
+      resizable: true,
+      width: 140,
       render: (_, m) => (
-        <Badge variant={m.estado === "activo" ? "success" : "secondary"}>
-          {m.estado === "activo" ? "Activo" : "Inactivo"}
+        <span className={cn("text-xs", m.deleted_at && "text-destructive/80 line-through")}>
+          {m.category?.name || "-"}
+        </span>
+      ),
+    },
+    {
+      key: "presentation",
+      header: "Presentación",
+      accessor: (m) => m.presentation?.name || "-",
+      resizable: true,
+      width: 130,
+      render: (_, m) => (
+        <span className={cn("text-xs", m.deleted_at && "text-destructive/80 line-through")}>
+          {m.presentation?.name || "-"}
+        </span>
+      ),
+    },
+    {
+      key: "laboratory",
+      header: "Laboratorio",
+      accessor: (m) => m.laboratory?.name || "-",
+      resizable: true,
+      width: 140,
+      render: (_, m) => (
+        <span className={cn("text-xs", m.deleted_at && "text-destructive/80 line-through")}>
+          {m.laboratory?.name || "-"}
+        </span>
+      ),
+    },
+    {
+      key: "price",
+      header: "Precio",
+      accessor: (m) => Number(m.price),
+      resizable: true,
+      width: 110,
+      className: "text-right",
+      edit: { type: "number", onSave: (m, v) => saveField(m, "price", Number(v)) },
+      render: (_, m) => (
+        <span className={cn("font-medium text-xs", m.deleted_at && "text-destructive line-through")}>
+          {formatCurrency(Number(m.price))}
+        </span>
+      ),
+    },
+    {
+      key: "min_stock",
+      header: "Stock Mín.",
+      accessor: (m) => m.min_stock,
+      resizable: true,
+      width: 100,
+      className: "text-right",
+      edit: { type: "number", onSave: (m, v) => saveField(m, "min_stock", Number(v)) },
+      render: (_, m) => (
+        <span className={cn("font-mono text-xs", m.deleted_at && "text-destructive line-through")}>
+          {m.min_stock}
+        </span>
+      ),
+    },
+    {
+      key: "requires_prescription",
+      header: "Receta",
+      accessor: (m) => (m.requires_prescription ? "Sí" : "No"),
+      resizable: true,
+      width: 90,
+      render: (_, m) => (
+        <Badge variant={m.requires_prescription ? "outline" : "secondary"} className="text-[10px]">
+          {m.requires_prescription ? "Sí" : "No"}
+        </Badge>
+      ),
+    },
+    {
+      key: "status",
+      header: "Estado",
+      accessor: (m) => m.status,
+      resizable: true,
+      width: 100,
+      render: (_, m) => (
+        <Badge variant={m.status === "active" ? "success" : "secondary"} className="text-[10px]">
+          {m.status === "active" ? "Activo" : "Inactivo"}
         </Badge>
       ),
     },
     {
       key: "acciones",
-      header: <span className="sr-only">Acciones</span>,
+      header: "Acciones",
       accessor: () => null,
       sortable: false,
       filterable: false,
-      className: "w-10",
-      render: (_, m) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${m.nombre}`} />}
-          >
-            <MoreHorizontal className="size-4" aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => openEdit(m)}>
-              <Pencil className="size-4" aria-hidden />
-              Editar
-            </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(m)}>
-              <Trash2 className="size-4" aria-hidden />
-              Eliminar
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+      resizable: false,
+      className: "w-28",
+      render: (_, m) => {
+        if (m.deleted_at) {
+          if (!can(PERMISSIONS.RESTORE_MEDICAMENTS)) return null;
+          return (
+            <div className="flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive text-xs font-medium"
+                onClick={() => handleRestore(m)}
+                title="Restaurar medicamento"
+              >
+                <RotateCcw className="size-3.5" aria-hidden />
+                Restaurar
+              </Button>
+            </div>
+          );
+        }
+
+        if (!can(PERMISSIONS.EDIT_MEDICAMENTS) && !can(PERMISSIONS.DELETE_MEDICAMENTS)) {
+          return null;
+        }
+
+        return (
+          <div className="flex justify-center">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Acciones para ${m.name}`}
+                  />
+                }
+              >
+                <MoreHorizontal className="size-4" aria-hidden />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {can(PERMISSIONS.EDIT_MEDICAMENTS) && (
+                  <DropdownMenuItem onClick={() => openEdit(m)}>
+                    <Pencil className="size-4" aria-hidden />
+                    Editar
+                  </DropdownMenuItem>
+                )}
+                {can(PERMISSIONS.DELETE_MEDICAMENTS) && (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => setDeleteTarget(m)}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                    Eliminar
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      },
     },
   ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 p-4 md:p-6">
+      {/* Encabezado del módulo */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-balance">Gestión de Medicamentos</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Gestión de Medicamentos
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Catálogo de medicamentos: código, precio, stock mínimo y receta.
+            Catálogo general: código, concentración, precios, categorías y stock de seguridad.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {can(PERMISSIONS.DELETE_MEDICAMENTS) && selectedRows.length > 0 && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setBulkDeleteOpen(true)}
+              className="shrink-0 gap-1.5"
+            >
+              <Trash2 className="size-4" aria-hidden />
+              Eliminar seleccionados ({selectedRows.length})
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -239,83 +415,101 @@ export default function MedicamentosPage() {
           >
             <ScanLine className="size-4" aria-hidden />
           </Button>
-          <Button type="button" onClick={openCreate} className="gap-1.5">
-            <Plus className="size-4" aria-hidden />
-            Nuevo Medicamento
-          </Button>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Código</TableHead>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Categoría</TableHead>
-                <TableHead>Laboratorio</TableHead>
-                <TableHead className="text-right">Precio</TableHead>
-                <TableHead className="text-right">Stock mín.</TableHead>
-                <TableHead>Receta</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 9 }).map((__, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full max-w-24" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : !hasAnyMedicamento ? (
-        <Card className="border-dashed border-border/60 bg-background/60">
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Pill className="size-6" aria-hidden />
-            </span>
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium">Aún no hay medicamentos registrados</p>
-              <p className="max-w-sm text-xs text-balance text-muted-foreground">
-                Registra tu primer medicamento para empezar a controlar el inventario.
-              </p>
-            </div>
-            <Button type="button" onClick={openCreate} className="mt-2 gap-1.5">
+          {can(PERMISSIONS.CREATE_MEDICAMENTS) && (
+            <Button
+              type="button"
+              onClick={openCreate}
+              className="shrink-0 gap-1.5"
+            >
               <Plus className="size-4" aria-hidden />
               Nuevo Medicamento
             </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <DataTable
-          data={medicamentos ?? []}
-          columns={columns}
-          searchPlaceholder="Buscar por nombre o código…"
-          emptyMessage="No se encontraron medicamentos."
-        />
-      )}
+          )}
+        </div>
+      </div>
 
-      <MedicamentoFormDialog
+      {/* Tabla de datos principal */}
+      <DataTable
+        data={items}
+        columns={columns}
+        server={{
+          params,
+          onParamsChange: handleParamsChange,
+          total,
+          loading,
+          error,
+          onRetry: refresh,
+        }}
+        getRowClassName={(m) =>
+          m.deleted_at
+            ? "bg-destructive/10 hover:bg-destructive/15 text-destructive border-destructive/20 dark:bg-destructive/15 dark:hover:bg-destructive/20"
+            : undefined
+        }
+        searchPlaceholder="Buscar por nombre, código o concentración…"
+        emptyMessage="No se encontraron medicamentos."
+        pageSizeOptions={[10, 20, 50, 100]}
+        exportFilename="medicamentos.csv"
+        onExport={can(PERMISSIONS.EXPORT_MEDICAMENTS) ? exportResource : undefined}
+        onRefresh={refresh}
+        getRowId={(m) => m.id}
+        onSelectionChange={can(PERMISSIONS.DELETE_MEDICAMENTS) ? setSelectedRows : undefined}
+        clearSelectionKey={selectionClearKey}
+        enableColumnDrag={true}
+        enableRowDrag={false}
+        persistPreferences={true}
+        storageKey="medicamentos-table"
+        minColumnWidth={80}
+      />
+
+      {/* Modal de formulario para crear/editar */}
+      <MedicamentFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
-        medicamento={editing}
+        medicament={editing}
         categorias={categorias}
         presentaciones={presentaciones}
         laboratorios={laboratorios}
         onSaved={handleSaved}
       />
 
-      <DeleteMedicamentoDialog
-        medicamento={deleteTarget}
+      {/* Diálogo de confirmación para eliminación individual */}
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        onDeleted={handleDeleted}
+        title="¿Eliminar medicamento?"
+        description={
+          <>
+            Se eliminará el medicamento <strong>{deleteTarget?.name}</strong> del catálogo.
+          </>
+        }
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          await remove(deleteTarget.id);
+          toast.success("Medicamento eliminado.");
+          refresh();
+        }}
+      />
+
+      {/* Diálogo de confirmación para eliminación masiva */}
+      <ConfirmDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`¿Eliminar ${selectedRows.length} medicamento(s)?`}
+        description={
+          <>
+            Se eliminarán{" "}
+            <strong>{selectedRows.length} medicamento(s) seleccionado(s)</strong> del catálogo.
+          </>
+        }
+        onConfirm={async () => {
+          if (selectedRows.length === 0) return;
+          const result = await bulkDestroy(
+            selectedRows.map((m) => m.id)
+          );
+          toast.success(result.message || "Medicamentos eliminados.");
+          setSelectionClearKey((k) => k + 1);
+          refresh();
+        }}
       />
     </div>
   );

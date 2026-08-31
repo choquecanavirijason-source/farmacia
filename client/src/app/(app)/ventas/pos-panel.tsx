@@ -13,13 +13,15 @@ import {
   Trash2,
   UserPlus,
 } from "lucide-react";
-import { fetchCategorias, fetchLaboratorios, fetchPresentaciones } from "@/lib/api/catalogos";
-import { MedicamentoFormDialog } from "@/app/(app)/medicamentos/medicamento-form-dialog";
+import { fetchCategorias, fetchLaboratorios, fetchPresentaciones } from "@/lib/api/catalogs";
+import { MedicamentFormDialog } from "@/app/(app)/medicamentos/medicament-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { SearchableSelect } from "@/components/ui/combobox";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -27,17 +29,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { fetchClientes } from "@/lib/api/clientes";
-import { fetchLotes } from "@/lib/api/lotes";
-import { fetchMedicamentos } from "@/lib/api/medicamentos";
-import { crearVenta } from "@/lib/api/ventas";
-import { ApiError } from "@/lib/api/client";
+import { fetchClientes } from "@/lib/api/clients";
+import { fetchLotes } from "@/lib/api/batches";
+import { fetchMedicamentos } from "@/lib/api/medicaments";
+import { crearVenta } from "@/lib/api/sales";
+import { ApiError } from "@/lib/api/api-error";
 import { formatCurrency } from "@/lib/format";
 import {
   FORMAS_PAGO,
   type Categoria,
   type Cliente,
-  type FormaPagoNombre,
+  type PaymentMethodName as FormaPagoNombre,
   type Laboratorio,
   type Lote,
   type Medicamento,
@@ -53,7 +55,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { FacturaSheet } from "@/app/(app)/ventas/factura-sheet";
+import { InvoiceSheet } from "@/app/(app)/ventas/invoice-sheet";
 
 interface PosPanelProps {
   idUsuario: number;
@@ -92,18 +94,26 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
       fetchMedicamentos(),
       fetchLotes(),
       fetchClientes(),
-      fetchCategorias(),
-      fetchPresentaciones(),
-      fetchLaboratorios(),
-    ]).then(([m, l, c, cat, pres, lab]) => {
+    ]).then(([m, l, c]) => {
       setMedicamentos(m);
       setLotes(l);
       setClientes(c);
-      setCategorias(cat);
-      setPresentaciones(pres);
-      setLaboratorios(lab);
     });
   }, []);
+
+  useEffect(() => {
+    if (nuevoProductoOpen && categorias.length === 0) {
+      Promise.all([
+        fetchCategorias(),
+        fetchPresentaciones(),
+        fetchLaboratorios(),
+      ]).then(([cat, pres, lab]) => {
+        setCategorias(cat);
+        setPresentaciones(pres);
+        setLaboratorios(lab);
+      });
+    }
+  }, [nuevoProductoOpen, categorias.length]);
 
   function handleNuevoProducto(medicamento: Medicamento) {
     setMedicamentos((prev) => [...prev, medicamento]);
@@ -297,18 +307,17 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
         <CardContent className="flex flex-col gap-3 pt-4">
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
-              <Select value={idCliente} onValueChange={(v) => setIdCliente(v ?? "1")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientes.map((c) => (
-                    <SelectItem key={c.id_cliente} value={String(c.id_cliente)}>
-                      {c.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={clientes.map((c) => ({
+                  value: String(c.id_cliente),
+                  label: c.nombre,
+                  sublabel: c.nit || c.ci ? `CI/NIT: ${c.nit || c.ci}` : undefined,
+                }))}
+                value={idCliente}
+                onValueChange={(v) => setIdCliente(v || "1")}
+                placeholder="Seleccionar cliente…"
+                searchPlaceholder="Buscar por nombre o CI/NIT…"
+              />
             </div>
             <Button
               variant="ghost"
@@ -444,13 +453,13 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
         onSold={handleSold}
       />
 
-      <FacturaSheet
-        venta={facturaVenta}
-        medicamentos={medicamentos}
+      <InvoiceSheet
+        sale={facturaVenta}
+        open={Boolean(facturaVenta)}
         onOpenChange={(open) => !open && setFacturaVenta(null)}
       />
 
-      <MedicamentoFormDialog
+      <MedicamentFormDialog
         open={nuevoProductoOpen}
         onOpenChange={setNuevoProductoOpen}
         categorias={categorias}
@@ -519,7 +528,7 @@ function CheckoutBody({
         id_usuario: idUsuario,
         id_caja: idCaja,
         forma_pago: formaPago,
-        nit_cliente: cliente.ci_nit,
+        nit_cliente: cliente.nit || cliente.ci || "0",
         razon_social: cliente.nombre,
         items: cart.map((l) => ({
           id_medicamento: l.id_medicamento,
@@ -527,7 +536,7 @@ function CheckoutBody({
           precio_unitario: precioConDescuento(precioById.get(l.id_medicamento) ?? 0, l.descuentoPct),
         })),
       });
-      onSold(venta);
+      onSold(venta as any as Venta);
       onOpenChange(false);
       toast.success("Venta registrada.");
     } catch (err) {
@@ -538,38 +547,57 @@ function CheckoutBody({
   }
 
   return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Confirmar venta</DialogTitle>
-        <DialogDescription>Cliente: {cliente?.nombre ?? "—"}</DialogDescription>
+    <div className="flex flex-col h-full max-h-[85vh]">
+      <DialogHeader className="pb-2 border-b">
+        <DialogTitle className="text-lg font-semibold">Confirmar Venta</DialogTitle>
+        <DialogDescription className="text-xs">
+          Cliente: <span className="font-medium text-foreground">{cliente?.nombre ?? "Cliente General"}</span>
+          {cliente?.ci || cliente?.nit ? ` (NIT/CI: ${cliente.nit || cliente.ci})` : ""}
+        </DialogDescription>
       </DialogHeader>
 
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5 rounded-lg border border-border/60 bg-muted/30 p-2.5">
-          {cart.map((line) => {
-            const m = medicamentos.find((med) => med.id_medicamento === line.id_medicamento);
-            const precioFinal = precioConDescuento(m?.precio_venta ?? 0, line.descuentoPct);
-            return (
-              <div key={line.id_medicamento} className="flex items-center justify-between gap-2 text-sm">
-                <span className="min-w-0 flex-1 truncate" title={m?.nombre}>
-                  {m?.nombre ?? "—"} <span className="text-muted-foreground">× {line.cantidad}</span>
-                </span>
-                <span className="shrink-0 font-medium tabular-nums">
-                  {formatCurrency(precioFinal * line.cantidad)}
-                </span>
-              </div>
-            );
-          })}
-          <div className="mt-1 flex items-center justify-between border-t border-border/60 pt-1.5 text-sm font-semibold">
-            <span>Total</span>
-            <span className="tabular-nums">{formatCurrency(total)}</span>
+      <div className="flex-1 overflow-y-auto py-3 pr-1 flex flex-col gap-4 min-h-0">
+        {/* Resumen de Productos */}
+        <div className="flex flex-col rounded-lg border border-border/60 bg-muted/20 overflow-hidden">
+          <div className="px-3 py-2 bg-muted/40 border-b text-xs font-semibold text-muted-foreground flex justify-between">
+            <span>Productos ({cart.reduce((a, b) => a + b.cantidad, 0)})</span>
+            <span>Subtotal</span>
+          </div>
+          <div className="max-h-36 sm:max-h-44 overflow-y-auto p-2.5 flex flex-col gap-2">
+            {cart.map((line) => {
+              const m = medicamentos.find((med) => med.id_medicamento === line.id_medicamento);
+              const precioFinal = precioConDescuento(m?.precio_venta ?? 0, line.descuentoPct);
+              return (
+                <div key={line.id_medicamento} className="flex items-center justify-between gap-2 text-xs">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-foreground" title={m?.nombre}>
+                      {m?.nombre ?? "—"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {line.cantidad} × {formatCurrency(precioFinal)}
+                      {line.descuentoPct > 0 ? ` (-${line.descuentoPct}%)` : ""}
+                    </p>
+                  </div>
+                  <span className="shrink-0 font-semibold font-mono text-xs tabular-nums">
+                    {formatCurrency(precioFinal * line.cantidad)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="px-3 py-2.5 bg-primary/5 border-t border-border/60 flex items-center justify-between">
+            <span className="text-sm font-bold">Total a Cobrar:</span>
+            <span className="text-base font-bold font-mono text-primary tabular-nums">
+              {formatCurrency(total)}
+            </span>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="forma_pago">Forma de pago</Label>
+        {/* Método de Pago */}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="forma_pago" className="text-xs font-medium">Forma de Pago</Label>
           <Select value={formaPago} onValueChange={(v) => setFormaPago((v as FormaPagoNombre) ?? "Efectivo")} disabled={saving}>
-            <SelectTrigger id="forma_pago" className="w-full">
+            <SelectTrigger id="forma_pago" className="w-full h-9 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -582,47 +610,91 @@ function CheckoutBody({
           </Select>
         </div>
 
+        {/* Pago en Efectivo & Cálculo de Cambio */}
         {formaPago === "Efectivo" ? (
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="monto_recibido">Monto recibido (Bs)</Label>
+          <div className="flex flex-col gap-2 rounded-lg border p-3 bg-background">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="monto_recibido" className="text-xs font-medium">Monto recibido (Bs)</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[11px] px-2 text-primary"
+                onClick={() => setMontoRecibido(String(total))}
+              >
+                Monto Exacto
+              </Button>
+            </div>
             <NumericInput
               id="monto_recibido"
               allowDecimal
               value={montoRecibido}
               onValueChange={setMontoRecibido}
               disabled={saving}
+              className="h-9 font-mono text-sm"
+              placeholder={`Ej. ${total}`}
               autoFocus
             />
+
+            {/* Botones de billetes rápidos */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {[10, 20, 50, 100, 200].filter(b => b >= total || b === 10).map((billete) => (
+                <Button
+                  key={billete}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-[11px] font-mono text-muted-foreground hover:text-foreground"
+                  onClick={() => setMontoRecibido(String(billete))}
+                >
+                  Bs {billete}
+                </Button>
+              ))}
+            </div>
+
             {vuelto !== null ? (
-              <p className={`text-sm font-medium ${vuelto < 0 ? "text-destructive" : "text-success"}`}>
-                {vuelto < 0
-                  ? `Falta ${formatCurrency(Math.abs(vuelto))}.`
-                  : `Cambio a devolver: ${formatCurrency(vuelto)}`}
-              </p>
+              <div className={cn(
+                "mt-1 rounded-md px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between",
+                vuelto < 0 ? "bg-destructive/10 text-destructive border border-destructive/20" : "bg-success/10 text-success border border-success/20"
+              )}>
+                <span>{vuelto < 0 ? "Faltante:" : "Cambio / Vuelto:"}</span>
+                <span className="font-mono text-sm">
+                  {vuelto < 0 ? formatCurrency(Math.abs(vuelto)) : formatCurrency(vuelto)}
+                </span>
+              </div>
             ) : null}
           </div>
         ) : null}
 
         {error ? (
-          <p role="alert" className="text-sm wrap-break-word text-destructive">
+          <p role="alert" className="text-xs text-destructive bg-destructive/10 p-2 rounded border border-destructive/20">
             {error}
           </p>
         ) : null}
       </div>
 
-      <DialogFooter>
-        <Button type="button" disabled={saving} onClick={handleConfirm}>
+      <DialogFooter className="pt-3 border-t mt-auto flex flex-row items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onOpenChange(false)}
+          disabled={saving}
+        >
+          Cancelar
+        </Button>
+        <Button type="button" size="sm" disabled={saving} onClick={handleConfirm} className="gap-1.5">
           {saving ? (
             <>
               <Loader2 className="size-4 animate-spin" aria-hidden />
-              Registrando…
+              Procesando…
             </>
           ) : (
-            "Confirmar venta"
+            "Completar Venta"
           )}
         </Button>
       </DialogFooter>
-    </>
+    </div>
   );
 }
 
@@ -640,7 +712,7 @@ function CheckoutDialog({ open, onOpenChange, ...bodyProps }: CheckoutDialogProp
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-hidden flex flex-col p-4 sm:p-6">
         {open ? (
           <CheckoutBody key="checkout" onOpenChange={onOpenChange} onDirtyChange={setDirty} {...bodyProps} />
         ) : null}

@@ -10,20 +10,22 @@ import {
   ShoppingBag,
   ClipboardList,
   Wallet,
+  History,
+  ShieldCheck,
+  Settings,
+  LayoutDashboard,
+  Package,
+  CircleDot,
   type LucideIcon,
 } from "lucide-react";
 
-/**
- * Los componentes de ícono (funciones) no pueden pasar de un Server Component
- * a un Client Component como prop (RSC solo serializa datos planos). El menú
- * se define con `iconName` (string) y este mapa resuelve el componente donde
- * haga falta renderizarlo, tanto en server (dashboard) como en client (sidebar).
- */
 export const ICON_MAP = {
+  dashboard: LayoutDashboard,
   users: Users,
   tags: Tags,
   pill: Pill,
   boxes: Boxes,
+  package: Package,
   truck: Truck,
   "shopping-cart": ShoppingCart,
   "bar-chart": BarChart3,
@@ -31,6 +33,10 @@ export const ICON_MAP = {
   "shopping-bag": ShoppingBag,
   "clipboard-list": ClipboardList,
   wallet: Wallet,
+  history: History,
+  shield: ShieldCheck,
+  settings: Settings,
+  dot: CircleDot,
 } satisfies Record<string, LucideIcon>;
 
 export type MenuIconName = keyof typeof ICON_MAP;

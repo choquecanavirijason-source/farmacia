@@ -141,12 +141,45 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    /* Scrollbar delgada y elegante para Firefox y navegadores compatibles */
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.5 0.02 250 / 25%) transparent;
+  }
+  .dark * {
+    scrollbar-color: oklch(0.708 0.014 250 / 25%) transparent;
   }
   body {
     @apply bg-background text-foreground;
   }
   html {
     @apply font-sans;
+  }
+
+  /* Custom WebKit Scrollbar (Chrome, Safari, Edge, Brave) */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.5 0.02 250 / 25%);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: oklch(0.708 0.014 250 / 25%);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
   }
 }
 
@@ -245,5 +278,14 @@
     .animate-orb-float-slow {
       animation: none;
     }
+  }
+
+  /* Utilidad para ocultar la barra de scroll manteniendo el desplazamiento */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }

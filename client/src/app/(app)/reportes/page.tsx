@@ -34,9 +34,9 @@ import {
   fetchLotes,
   type KardexMovimientoConLote,
   type StockBajoItem,
-} from "@/lib/api/lotes";
-import { fetchMedicamentos } from "@/lib/api/medicamentos";
-import { fetchDetallesByVenta, fetchVentas } from "@/lib/api/ventas";
+} from "@/lib/api/batches";
+import { fetchMedicamentos } from "@/lib/api/medicaments";
+import { fetchDetallesByVenta, fetchVentas } from "@/lib/api/sales";
 import type { Lote, Medicamento, Venta } from "@/lib/types";
 
 function formatFecha(iso: string): string {
@@ -67,23 +67,24 @@ function agruparVentasPorDia(ventas: Venta[], dias: number): { label: string; va
     buckets.set(d.toISOString().slice(0, 10), 0);
   }
   for (const v of ventas) {
-    if (v.estado !== "activa") continue;
-    const key = v.fecha.slice(0, 10);
+    if (v.estado !== "activa" && (v as any).status !== "active") continue;
+    const key = (v.fecha_hora || (v as any).fecha || (v as any).sale_date || "").slice(0, 10);
     if (buckets.has(key)) {
-      buckets.set(key, (buckets.get(key) ?? 0) + v.total);
+      buckets.set(key, (buckets.get(key) ?? 0) + Number(v.total));
     }
   }
-  return Array.from(buckets.entries()).map(([fecha, total]) => ({
-    label: formatFechaCorta(fecha),
-    value: Math.round(total * 100) / 100,
-  }));
+  return Array.from(buckets.entries())
+    .map(([fecha, total]) => ({ label: formatFechaCorta(fecha), value: Math.round(total * 100) / 100 }));
 }
 
-const TIPO_META = {
+const TIPO_META: Record<string, { label: string; icon: typeof ArrowUpCircle; className: string }> = {
   entrada: { label: "Entrada", icon: ArrowUpCircle, className: "text-success" },
+  in: { label: "Entrada", icon: ArrowUpCircle, className: "text-success" },
   salida: { label: "Salida", icon: ArrowDownCircle, className: "text-destructive" },
+  out: { label: "Salida", icon: ArrowDownCircle, className: "text-destructive" },
   ajuste: { label: "Ajuste", icon: SlidersHorizontal, className: "text-warning" },
-} as const;
+  adjustment: { label: "Ajuste", icon: SlidersHorizontal, className: "text-warning" },
+};
 
 export default function ReportesPage() {
   const [medicamentos, setMedicamentos] = useState<Medicamento[] | null>(null);
@@ -473,13 +474,13 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
     return <p className="text-sm text-muted-foreground">Sin movimientos registrados para este medicamento.</p>;
   }
 
-  const columns: DataTableColumn<KardexMovimientoConLote>[] = [
+  const columns: DataTableColumn<any>[] = [
     {
       key: "tipo",
       header: "Tipo",
-      accessor: (k) => TIPO_META[k.tipo].label,
-      render: (_, k) => {
-        const meta = TIPO_META[k.tipo];
+      accessor: (k: any) => TIPO_META[k.tipo || k.type]?.label || k.tipo || k.type,
+      render: (_, k: any) => {
+        const meta = TIPO_META[k.tipo || k.type] || { label: k.tipo || k.type, icon: SlidersHorizontal, className: "text-muted-foreground" };
         const Icon = meta.icon;
         return (
           <span className={`flex items-center gap-1.5 whitespace-nowrap ${meta.className}`}>
@@ -492,39 +493,43 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
     {
       key: "numero_lote",
       header: "N° Lote",
-      accessor: (k) => k.numero_lote,
+      accessor: (k: any) => k.numero_lote || k.batch_number || "—",
       className: "whitespace-nowrap font-mono text-xs",
     },
     {
       key: "cantidad",
       header: "Cantidad",
-      accessor: (k) => k.cantidad,
-      render: (_, k) => (
-        <span className={`whitespace-nowrap font-medium ${TIPO_META[k.tipo].className}`}>
-          {k.cantidad > 0 ? "+" : ""}
-          {k.cantidad}
-        </span>
-      ),
+      accessor: (k: any) => k.cantidad ?? k.quantity,
+      render: (_, k: any) => {
+        const cant = Number(k.cantidad ?? k.quantity ?? 0);
+        const meta = TIPO_META[k.tipo || k.type] || { className: "" };
+        return (
+          <span className={`whitespace-nowrap font-medium ${meta.className}`}>
+            {cant > 0 ? "+" : ""}
+            {cant}
+          </span>
+        );
+      },
       className: "text-right",
     },
     {
       key: "saldo",
       header: "Saldo",
-      accessor: (k) => k.saldo,
+      accessor: (k: any) => k.saldo ?? k.balance,
       className: "text-right",
     },
     {
       key: "motivo",
       header: "Motivo",
-      accessor: (k) => k.motivo,
+      accessor: (k: any) => k.motivo || k.reason || "—",
       className: "max-w-48 truncate",
     },
     {
       key: "fecha",
       header: "Fecha",
-      accessor: (k) => k.fecha,
+      accessor: (k: any) => k.fecha || k.fecha_hora || k.occurred_at || "",
       className: "whitespace-nowrap text-muted-foreground",
-      render: (_, k) => formatFecha(k.fecha),
+      render: (_, k: any) => formatFecha(k.fecha || k.fecha_hora || k.occurred_at || ""),
     },
   ];
 

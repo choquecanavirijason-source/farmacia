@@ -12,7 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/api-error";
 import { toast } from "sonner";
 
 interface ConfirmDeleteDialogProps {
