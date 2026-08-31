@@ -43,6 +43,7 @@ import {
 } from "@/lib/api/batches";
 import { fetchMedicamentos } from "@/lib/api/medicaments";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import { formatCurrency } from "@/lib/format";
 import type { IBatch, BatchTableEditableField } from "@/lib/types/batch";
 import type { Lote, Medicamento } from "@/lib/types";
@@ -322,7 +323,7 @@ export default function LotesPage() {
       className: "w-28",
       render: (_, l) => {
         if (l.deleted_at) {
-          if (!can("restore batches")) return null;
+          if (!can(PERMISSIONS.RESTORE_BATCHES)) return null;
           return (
             <div className="flex justify-center">
               <Button
@@ -365,7 +366,7 @@ export default function LotesPage() {
                 <MoreHorizontal className="size-4" aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {can("edit batches") && (
+                {can(PERMISSIONS.EDIT_BATCHES) && (
                   <DropdownMenuItem onClick={() => openEdit(l)}>
                     <Pencil className="size-4" aria-hidden />
                     Editar
@@ -375,7 +376,7 @@ export default function LotesPage() {
                   <History className="size-4" aria-hidden />
                   Ver kardex
                 </DropdownMenuItem>
-                {can("dispose batches") && (
+                {can(PERMISSIONS.DISPOSE_BATCHES) && (
                   <DropdownMenuItem
                     variant="destructive"
                     disabled={l.current_quantity === 0}
@@ -385,7 +386,7 @@ export default function LotesPage() {
                     Dar de baja
                   </DropdownMenuItem>
                 )}
-                {can("delete batches") && (
+                {can(PERMISSIONS.DELETE_BATCHES) && (
                   <DropdownMenuItem
                     variant="destructive"
                     onClick={() => setDeleteTarget(l)}
@@ -415,7 +416,7 @@ export default function LotesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {can("delete batches") && selectedRows.length > 0 && (
+          {can(PERMISSIONS.DELETE_BATCHES) && selectedRows.length > 0 && (
             <Button
               type="button"
               variant="destructive"
@@ -426,7 +427,7 @@ export default function LotesPage() {
               Eliminar seleccionados ({selectedRows.length})
             </Button>
           )}
-          {can("create batches") && (
+          {can(PERMISSIONS.CREATE_BATCHES) && (
             <Button
               type="button"
               onClick={openCreate}
@@ -512,10 +513,10 @@ export default function LotesPage() {
         emptyMessage="No se encontraron lotes registrados."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="lotes.csv"
-        onExport={can("export batches") ? exportResource : undefined}
+        onExport={can(PERMISSIONS.EXPORT_BATCHES) ? exportResource : undefined}
         onRefresh={refresh}
         getRowId={(l) => l.id}
-        onSelectionChange={can("delete batches") ? setSelectedRows : undefined}
+        onSelectionChange={can(PERMISSIONS.DELETE_BATCHES) ? setSelectedRows : undefined}
         clearSelectionKey={selectionClearKey}
         enableColumnDrag={true}
         enableRowDrag={false}

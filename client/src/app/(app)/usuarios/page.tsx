@@ -33,6 +33,7 @@ import {
   exportResource,
 } from "@/lib/api/users";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IUser, UserTableEditableField } from "@/lib/types/user";
 import { UserFormDialog } from "./user-form-dialog";
 import { cn } from "@/lib/utils";
@@ -254,7 +255,7 @@ export default function UsuariosPage() {
       className: "w-28",
       render: (_, u) => {
         if (u.deleted_at) {
-          if (!can("restore users")) return null;
+          if (!can(PERMISSIONS.RESTORE_USERS)) return null;
           return (
             <div className="flex justify-center">
               <Button
@@ -274,7 +275,7 @@ export default function UsuariosPage() {
 
         const isSelf = u.id === user?.id;
 
-        if (!can("edit users") && (!can("delete users") || isSelf)) {
+        if (!can(PERMISSIONS.EDIT_USERS) && (!can(PERMISSIONS.DELETE_USERS) || isSelf)) {
           return null;
         }
 
@@ -293,13 +294,13 @@ export default function UsuariosPage() {
                 <MoreHorizontal className="size-4" aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {can("edit users") && (
+                {can(PERMISSIONS.EDIT_USERS) && (
                   <DropdownMenuItem onClick={() => openEdit(u)}>
                     <Pencil className="size-4" aria-hidden />
                     Editar
                   </DropdownMenuItem>
                 )}
-                {can("delete users") && (
+                {can(PERMISSIONS.DELETE_USERS) && (
                   <DropdownMenuItem
                     variant="destructive"
                     disabled={isSelf}
@@ -330,7 +331,7 @@ export default function UsuariosPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {can("delete users") && selectedRows.length > 0 && (
+          {can(PERMISSIONS.DELETE_USERS) && selectedRows.length > 0 && (
             <Button
               type="button"
               variant="destructive"
@@ -341,7 +342,7 @@ export default function UsuariosPage() {
               Eliminar seleccionados ({selectedRows.length})
             </Button>
           )}
-          {can("create users") && (
+          {can(PERMISSIONS.CREATE_USERS) && (
             <Button
               type="button"
               onClick={openCreate}
@@ -375,10 +376,10 @@ export default function UsuariosPage() {
         emptyMessage="No se encontraron usuarios."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="usuarios.csv"
-        onExport={can("export users") ? exportResource : undefined}
+        onExport={can(PERMISSIONS.EXPORT_USERS) ? exportResource : undefined}
         onRefresh={refresh}
         getRowId={(u) => u.id}
-        onSelectionChange={can("delete users") ? setSelectedRows : undefined}
+        onSelectionChange={can(PERMISSIONS.DELETE_USERS) ? setSelectedRows : undefined}
         clearSelectionKey={selectionClearKey}
         enableColumnDrag={true}
         enableRowDrag={false}

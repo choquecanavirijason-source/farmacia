@@ -1,5 +1,6 @@
 import type { RolNombre } from "@/lib/types";
 import type { MenuIconName } from "@/lib/nav/menu-icons";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 
 export interface MenuItem {
   href: string;
@@ -15,22 +16,22 @@ export interface MenuGroup {
 }
 
 const OPERACION_ITEMS: MenuItem[] = [
-  { href: "/clientes", label: "Gestión de Clientes", iconName: "contact", permission: "view clients", roles: ["ADMINISTRADOR", "VENDEDOR"] },
-  { href: "/ventas", label: "Registro de Ventas", iconName: "shopping-bag", permission: "view sales", roles: ["ADMINISTRADOR", "VENDEDOR"] },
-  { href: "/inventario", label: "Consulta de Inventario", iconName: "clipboard-list", permission: "view inventory", roles: ["ADMINISTRADOR", "VENDEDOR"] },
-  { href: "/caja", label: "Gestión de Caja", iconName: "wallet", permission: "view cash registers", roles: ["ADMINISTRADOR", "VENDEDOR"] },
+  { href: "/clientes", label: "Gestión de Clientes", iconName: "contact", permission: PERMISSIONS.VIEW_CLIENTS, roles: ["ADMINISTRADOR", "VENDEDOR"] },
+  { href: "/ventas", label: "Registro de Ventas", iconName: "shopping-bag", permission: PERMISSIONS.VIEW_SALES, roles: ["ADMINISTRADOR", "VENDEDOR"] },
+  { href: "/inventario", label: "Consulta de Inventario", iconName: "clipboard-list", permission: PERMISSIONS.VIEW_INVENTORY, roles: ["ADMINISTRADOR", "VENDEDOR"] },
+  { href: "/caja", label: "Gestión de Caja", iconName: "wallet", permission: PERMISSIONS.VIEW_CASH_REGISTERS, roles: ["ADMINISTRADOR", "VENDEDOR"] },
 ];
 
 const ADMINISTRACION_ITEMS: MenuItem[] = [
-  { href: "/usuarios", label: "Gestión de Usuarios", iconName: "users", permission: "view users", roles: ["ADMINISTRADOR"] },
-  { href: "/roles", label: "Roles y Permisos", iconName: "shield", permission: "view roles", roles: ["ADMINISTRADOR"] },
-  { href: "/categorias", label: "Gestión de Categorías", iconName: "tags", permission: "view categories", roles: ["ADMINISTRADOR"] },
-  { href: "/medicamentos", label: "Gestión de Medicamentos", iconName: "pill", permission: "view medicaments", roles: ["ADMINISTRADOR"] },
-  { href: "/lotes", label: "Gestión de Lotes", iconName: "boxes", permission: "view batches", roles: ["ADMINISTRADOR"] },
-  { href: "/proveedores", label: "Gestión de Proveedores", iconName: "truck", permission: "view suppliers", roles: ["ADMINISTRADOR"] },
-  { href: "/compras", label: "Registro de Compras", iconName: "shopping-cart", permission: "view purchases", roles: ["ADMINISTRADOR"] },
-  { href: "/reportes", label: "Reportes", iconName: "bar-chart", permission: "view reports", roles: ["ADMINISTRADOR"] },
-  { href: "/actividades", label: "Registro de Actividades", iconName: "history", permission: "view audits", roles: ["ADMINISTRADOR"] },
+  { href: "/usuarios", label: "Gestión de Usuarios", iconName: "users", permission: PERMISSIONS.VIEW_USERS, roles: ["ADMINISTRADOR"] },
+  { href: "/roles", label: "Roles y Permisos", iconName: "shield", permission: PERMISSIONS.VIEW_ROLES, roles: ["ADMINISTRADOR"] },
+  { href: "/categorias", label: "Gestión de Categorías", iconName: "tags", permission: PERMISSIONS.VIEW_CATEGORIES, roles: ["ADMINISTRADOR"] },
+  { href: "/medicamentos", label: "Gestión de Medicamentos", iconName: "pill", permission: PERMISSIONS.VIEW_MEDICAMENTS, roles: ["ADMINISTRADOR"] },
+  { href: "/lotes", label: "Gestión de Lotes", iconName: "boxes", permission: PERMISSIONS.VIEW_BATCHES, roles: ["ADMINISTRADOR"] },
+  { href: "/proveedores", label: "Gestión de Proveedores", iconName: "truck", permission: PERMISSIONS.VIEW_SUPPLIERS, roles: ["ADMINISTRADOR"] },
+  { href: "/compras", label: "Registro de Compras", iconName: "shopping-cart", permission: PERMISSIONS.VIEW_PURCHASES, roles: ["ADMINISTRADOR"] },
+  { href: "/reportes", label: "Reportes", iconName: "bar-chart", permission: PERMISSIONS.VIEW_REPORTS, roles: ["ADMINISTRADOR"] },
+  { href: "/actividades", label: "Registro de Actividades", iconName: "history", permission: PERMISSIONS.VIEW_AUDITS, roles: ["ADMINISTRADOR"] },
 ];
 
 export const MENU_GROUPS: MenuGroup[] = [
@@ -41,7 +42,7 @@ export const MENU_GROUPS: MenuGroup[] = [
 export const ALL_MENU_ITEMS: MenuItem[] = MENU_GROUPS.flatMap((g) => g.items);
 
 const EXTRA_PROTECTED_ROUTES: MenuItem[] = [
-  { href: "/configuracion", label: "Configuración", iconName: "settings", permission: "view settings", roles: ["ADMINISTRADOR"] },
+  { href: "/configuracion", label: "Configuración", iconName: "settings", permission: PERMISSIONS.VIEW_SETTINGS, roles: ["ADMINISTRADOR"] },
 ];
 
 export function menuItemsForRole(rol: RolNombre): MenuItem[] {

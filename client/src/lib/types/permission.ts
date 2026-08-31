@@ -1,3 +1,5 @@
+export * from "@/lib/constants/permissions";
+
 export interface IPermission {
   id?: number;
   name: string;

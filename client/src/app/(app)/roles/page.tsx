@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ import {
   exportResource,
 } from "@/lib/api/roles";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IRole, RoleTableEditableField } from "@/lib/types/role";
 import { cn } from "@/lib/utils";
 
@@ -73,43 +74,47 @@ export default function RolesPage() {
     setRefreshKey((k) => k + 1);
   }, []);
 
-  // Función para obtener los roles paginados del backend
-  const fetchData = useCallback(
-    async (fetchParams: ServerFetchParams, signal?: AbortSignal) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const queryParams = {
-          page: fetchParams.page,
-          pageSize: fetchParams.pageSize,
-          search: fetchParams.search,
-          sort_by: fetchParams.sort?.key || "id",
-          sort_dir: (fetchParams.sort?.direction || "asc") as "asc" | "desc",
-        };
+  // Manejador de cambio de parámetros de tabla
+  const paramsRef = useRef(params);
+  const handleParamsChange = useCallback((next: ServerFetchParams) => {
+    const searchChanged = paramsRef.current.search !== next.search;
+    paramsRef.current = next;
+    if (!searchChanged) setLoading(true);
+    setParams(next);
+  }, []);
 
-        const res = await getPaginated(queryParams, signal);
-        setItems(res.data);
-        setTotal(res.meta.total);
-      } catch (err: any) {
-        if (err.name !== "CanceledError" && err.name !== "AbortError") {
-          setError(err?.message || "Error al cargar los roles.");
-          toast.error("Error al cargar los roles.");
+  // Consulta de roles desde la API
+  useEffect(() => {
+    const controller = new AbortController();
+
+    getPaginated(
+      {
+        page: params.page,
+        pageSize: params.pageSize,
+        search: params.search,
+        sort_by: params.sort?.key || "id",
+        sort_dir: params.sort?.direction || "asc",
+      },
+      controller.signal
+    )
+      .then((result) => {
+        setItems(result.data);
+        setTotal(result.meta?.total ?? result.data.length);
+        setError(null);
+        if (result.data.length === 0 && result.meta?.total > 0 && params.page > 1) {
+          setParams((p) => ({ ...p, page: p.page - 1 }));
         }
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setError(err?.response?.data?.message || err?.message || "Error al cargar los roles.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
 
-  // Callback de cambio de parámetros en el DataTable
-  const handleParamsChange = useCallback(
-    (newParams: ServerFetchParams) => {
-      setParams(newParams);
-      fetchData(newParams);
-    },
-    [fetchData]
-  );
+    return () => controller.abort();
+  }, [params, refreshKey]);
 
   // Edición rápida inline en la tabla
   const saveField = useCallback(
@@ -191,7 +196,7 @@ export default function RolesPage() {
       accessor: (r) => r.name,
       resizable: true,
       width: 250,
-      edit: can("edit roles") ? { onSave: (role, val) => saveField(role, "name", String(val)) } : undefined,
+      edit: can(PERMISSIONS.EDIT_ROLES) ? { onSave: (role, val) => saveField(role, "name", String(val)) } : undefined,
       render: (_, r) => (
         <div className="flex items-center gap-2">
           <Shield className="size-4 text-primary shrink-0" />
@@ -259,7 +264,7 @@ export default function RolesPage() {
       render: (_, r) => {
         const isSystem = r.name?.toLowerCase() === "administrator";
 
-        if (!can("edit roles") && (!can("delete roles") || isSystem)) {
+        if (!can(PERMISSIONS.EDIT_ROLES) && (!can(PERMISSIONS.DELETE_ROLES) || isSystem)) {
           return null;
         }
 
@@ -278,7 +283,7 @@ export default function RolesPage() {
                 <MoreHorizontal className="size-4" aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {can("edit roles") && (
+                {can(PERMISSIONS.EDIT_ROLES) && (
                   <DropdownMenuItem
                     nativeButton={false}
                     render={<Link href={`/roles/editar?id=${r.id}`} />}
@@ -287,7 +292,7 @@ export default function RolesPage() {
                     Editar
                   </DropdownMenuItem>
                 )}
-                {can("delete roles") && !isSystem && (
+                {can(PERMISSIONS.DELETE_ROLES) && !isSystem && (
                   <DropdownMenuItem
                     variant="destructive"
                     onClick={() => setDeleteTarget(r)}
@@ -319,7 +324,7 @@ export default function RolesPage() {
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Botón para eliminar seleccionados */}
-          {can("delete roles") && selectedRows.length > 0 && (
+          {can(PERMISSIONS.DELETE_ROLES) && selectedRows.length > 0 && (
             <Button
               type="button"
               variant="destructive"
@@ -332,7 +337,7 @@ export default function RolesPage() {
           )}
 
           {/* Botón para crear nuevo rol mediante navegación de página */}
-          {can("create roles") && (
+          {can(PERMISSIONS.CREATE_ROLES) && (
             <Button
               nativeButton={false}
               render={<Link href="/roles/nuevo" />}
@@ -361,10 +366,10 @@ export default function RolesPage() {
         emptyMessage="No se encontraron roles configurados."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="roles.csv"
-        onExport={can("view roles") ? exportResource : undefined}
+        onExport={can(PERMISSIONS.VIEW_ROLES) ? exportResource : undefined}
         onRefresh={refresh}
         getRowId={(r) => r.id}
-        onSelectionChange={can("delete roles") ? setSelectedRows : undefined}
+        onSelectionChange={can(PERMISSIONS.DELETE_ROLES) ? setSelectedRows : undefined}
         clearSelectionKey={selectionClearKey}
         enableColumnDrag={true}
         enableRowDrag={false}

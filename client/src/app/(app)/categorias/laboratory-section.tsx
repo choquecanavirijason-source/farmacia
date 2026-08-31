@@ -31,6 +31,7 @@ import {
   exportResource,
 } from "@/lib/api/laboratories";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { ILaboratory, LaboratoryTableEditableField } from "@/lib/types/laboratory";
 import { LaboratoryFormDialog } from "./laboratory-form-dialog";
 import { cn } from "@/lib/utils";
@@ -221,9 +222,9 @@ export function LaboratorySection() {
       filterable: false,
       resizable: false,
       className: "w-24",
-      render: (_, l) => {
-        if (l.deleted_at) {
-          if (!can("restore laboratories")) return null;
+      render: (_, lab) => {
+        if (lab.deleted_at) {
+          if (!can(PERMISSIONS.RESTORE_LABORATORIES)) return null;
           return (
             <div className="flex justify-center">
               <Button
@@ -231,7 +232,7 @@ export function LaboratorySection() {
                 variant="outline"
                 size="sm"
                 className="h-8 gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive text-xs font-medium"
-                onClick={() => handleRestore(l)}
+                onClick={() => handleRestore(lab)}
                 title="Restaurar laboratorio"
               >
                 <RotateCcw className="size-3.5" aria-hidden />
@@ -241,7 +242,7 @@ export function LaboratorySection() {
           );
         }
 
-        if (!can("edit laboratories") && !can("delete laboratories")) {
+        if (!can(PERMISSIONS.EDIT_LABORATORIES) && !can(PERMISSIONS.DELETE_LABORATORIES)) {
           return null;
         }
 
@@ -253,23 +254,23 @@ export function LaboratorySection() {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={`Acciones para ${l.name}`}
+                    aria-label={`Acciones para ${lab.name}`}
                   />
                 }
               >
                 <MoreHorizontal className="size-4" aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {can("edit laboratories") && (
-                  <DropdownMenuItem onClick={() => openEdit(l)}>
+                {can(PERMISSIONS.EDIT_LABORATORIES) && (
+                  <DropdownMenuItem onClick={() => openEdit(lab)}>
                     <Pencil className="size-4" aria-hidden />
                     Editar
                   </DropdownMenuItem>
                 )}
-                {can("delete laboratories") && (
+                {can(PERMISSIONS.DELETE_LABORATORIES) && (
                   <DropdownMenuItem
                     variant="destructive"
-                    onClick={() => setDeleteTarget(l)}
+                    onClick={() => setDeleteTarget(lab)}
                   >
                     <Trash2 className="size-4" aria-hidden />
                     Eliminar
@@ -288,7 +289,7 @@ export function LaboratorySection() {
       {/* Botones de acción superior */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          {can("delete laboratories") && selectedRows.length > 0 && (
+          {can(PERMISSIONS.DELETE_LABORATORIES) && selectedRows.length > 0 && (
             <Button
               type="button"
               variant="destructive"
@@ -297,11 +298,11 @@ export function LaboratorySection() {
               className="gap-1.5"
             >
               <Trash2 className="size-3.5" aria-hidden />
-              Eliminar seleccionados ({selectedRows.length})
+              Eliminar seleccionadas ({selectedRows.length})
             </Button>
           )}
         </div>
-        {can("create laboratories") && (
+        {can(PERMISSIONS.CREATE_LABORATORIES) && (
           <Button
             type="button"
             size="sm"
@@ -331,14 +332,14 @@ export function LaboratorySection() {
             ? "bg-destructive/10 hover:bg-destructive/15 text-destructive border-destructive/20 dark:bg-destructive/15 dark:hover:bg-destructive/20"
             : undefined
         }
-        searchPlaceholder="Buscar por nombre o país…"
+        searchPlaceholder="Buscar por nombre o descripción…"
         emptyMessage="No se encontraron laboratorios."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="laboratorios.csv"
-        onExport={can("export laboratories") ? exportResource : undefined}
+        onExport={can(PERMISSIONS.EXPORT_LABORATORIES) ? exportResource : undefined}
         onRefresh={refresh}
         getRowId={(l) => l.id}
-        onSelectionChange={can("delete laboratories") ? setSelectedRows : undefined}
+        onSelectionChange={can(PERMISSIONS.DELETE_LABORATORIES) ? setSelectedRows : undefined}
         clearSelectionKey={selectionClearKey}
         enableColumnDrag={true}
         enableRowDrag={false}

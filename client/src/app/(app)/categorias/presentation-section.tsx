@@ -31,6 +31,7 @@ import {
   exportResource,
 } from "@/lib/api/presentations";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IPresentation, PresentationTableEditableField } from "@/lib/types/presentation";
 import { PresentationFormDialog } from "./presentation-form-dialog";
 import { cn } from "@/lib/utils";
@@ -206,10 +207,9 @@ export function PresentationSection() {
       sortable: false,
       filterable: false,
       resizable: false,
-      className: "w-24",
-      render: (_, p) => {
-        if (p.deleted_at) {
-          if (!can("restore presentations")) return null;
+        render: (_, pres) => {
+        if (pres.deleted_at) {
+          if (!can(PERMISSIONS.RESTORE_PRESENTATIONS)) return null;
           return (
             <div className="flex justify-center">
               <Button
@@ -217,7 +217,7 @@ export function PresentationSection() {
                 variant="outline"
                 size="sm"
                 className="h-8 gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive text-xs font-medium"
-                onClick={() => handleRestore(p)}
+                onClick={() => handleRestore(pres)}
                 title="Restaurar presentación"
               >
                 <RotateCcw className="size-3.5" aria-hidden />
@@ -227,7 +227,7 @@ export function PresentationSection() {
           );
         }
 
-        if (!can("edit presentations") && !can("delete presentations")) {
+        if (!can(PERMISSIONS.EDIT_PRESENTATIONS) && !can(PERMISSIONS.DELETE_PRESENTATIONS)) {
           return null;
         }
 
@@ -239,23 +239,23 @@ export function PresentationSection() {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={`Acciones para ${p.name}`}
+                    aria-label={`Acciones para ${pres.name}`}
                   />
                 }
               >
                 <MoreHorizontal className="size-4" aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {can("edit presentations") && (
-                  <DropdownMenuItem onClick={() => openEdit(p)}>
+                {can(PERMISSIONS.EDIT_PRESENTATIONS) && (
+                  <DropdownMenuItem onClick={() => openEdit(pres)}>
                     <Pencil className="size-4" aria-hidden />
                     Editar
                   </DropdownMenuItem>
                 )}
-                {can("delete presentations") && (
+                {can(PERMISSIONS.DELETE_PRESENTATIONS) && (
                   <DropdownMenuItem
                     variant="destructive"
-                    onClick={() => setDeleteTarget(p)}
+                    onClick={() => setDeleteTarget(pres)}
                   >
                     <Trash2 className="size-4" aria-hidden />
                     Eliminar
@@ -274,7 +274,7 @@ export function PresentationSection() {
       {/* Botones de acción superior */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          {can("delete presentations") && selectedRows.length > 0 && (
+          {can(PERMISSIONS.DELETE_PRESENTATIONS) && selectedRows.length > 0 && (
             <Button
               type="button"
               variant="destructive"
@@ -283,11 +283,11 @@ export function PresentationSection() {
               className="gap-1.5"
             >
               <Trash2 className="size-3.5" aria-hidden />
-              Eliminar seleccionados ({selectedRows.length})
+              Eliminar seleccionadas ({selectedRows.length})
             </Button>
           )}
         </div>
-        {can("create presentations") && (
+        {can(PERMISSIONS.CREATE_PRESENTATIONS) && (
           <Button
             type="button"
             size="sm"
@@ -321,10 +321,10 @@ export function PresentationSection() {
         emptyMessage="No se encontraron presentaciones."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="presentaciones.csv"
-        onExport={can("export presentations") ? exportResource : undefined}
+        onExport={can(PERMISSIONS.EXPORT_PRESENTATIONS) ? exportResource : undefined}
         onRefresh={refresh}
         getRowId={(p) => p.id}
-        onSelectionChange={can("delete presentations") ? setSelectedRows : undefined}
+        onSelectionChange={can(PERMISSIONS.DELETE_PRESENTATIONS) ? setSelectedRows : undefined}
         clearSelectionKey={selectionClearKey}
         enableColumnDrag={true}
         enableRowDrag={false}

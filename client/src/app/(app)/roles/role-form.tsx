@@ -21,10 +21,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { create, update, fetchPermissions } from "@/lib/api/roles";
+import { PERMISSION_MODULES, type PermissionCode } from "@/lib/constants/permissions";
 import type { IRole, IRoleRequest } from "@/lib/types/role";
-import type { IPermissionsResponse } from "@/lib/types/permission";
 
 const roleSchema = z.object({
   name: z.string().trim().min(1, "El nombre del rol es obligatorio.").max(100),
@@ -43,8 +42,6 @@ export function RoleForm({ role }: RoleFormProps) {
   const isAdministrator = role?.name?.toLowerCase() === "administrator";
 
   const [serverError, setServerError] = useState<string | null>(null);
-  const [permissionsData, setPermissionsData] = useState<IPermissionsResponse | null>(null);
-  const [loadingPerms, setLoadingPerms] = useState(true);
 
   const methods = useForm<RoleFormValues>({
     resolver: zodResolver(roleSchema),
@@ -65,15 +62,9 @@ export function RoleForm({ role }: RoleFormProps) {
 
   const selectedPermissions = watch("permissions") || [];
 
-  useEffect(() => {
-    setLoadingPerms(true);
-    fetchPermissions()
-      .then((data) => setPermissionsData(data))
-      .catch(() => setPermissionsData(null))
-      .finally(() => setLoadingPerms(false));
+  const allAvailable = useMemo(() => {
+    return PERMISSION_MODULES.flatMap((m) => m.permissions.map((p) => p.code));
   }, []);
-
-  const allAvailable = useMemo(() => permissionsData?.all || [], [permissionsData]);
 
   const areAllSelected = useMemo(
     () => allAvailable.length > 0 && allAvailable.every((p) => selectedPermissions.includes(p)),
@@ -243,7 +234,6 @@ export function RoleForm({ role }: RoleFormProps) {
               size="sm"
               className="gap-1.5 self-start sm:self-auto text-xs"
               onClick={toggleSelectAll}
-              disabled={loadingPerms}
             >
               {areAllSelected ? (
                 <>
@@ -259,91 +249,79 @@ export function RoleForm({ role }: RoleFormProps) {
         </CardHeader>
 
         <CardContent className="pt-6">
-          {loadingPerms ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-44 w-full rounded-xl" />
-              ))}
-            </div>
-          ) : permissionsData ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.entries(permissionsData.groups).map(([key, group]) => {
-                const groupPermNames = group.permissions.map((p) => p.name);
-                const isGroupAllSelected = groupPermNames.every((p) =>
-                  selectedPermissions.includes(p)
-                );
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {PERMISSION_MODULES.map((module) => {
+              const groupPermNames = module.permissions.map((p) => p.code);
+              const isGroupAllSelected = groupPermNames.every((p) =>
+                selectedPermissions.includes(p)
+              );
 
-                return (
-                  <div
-                    key={key}
-                    className="flex flex-col rounded-xl border border-border/70 bg-card overflow-hidden shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between p-3 bg-muted/40 border-b gap-2">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-foreground/90 block truncate">
-                          {group.title}
-                        </span>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {group.description}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[11px] font-medium shrink-0"
-                        onClick={() => toggleGroup(groupPermNames)}
-                      >
-                        {isGroupAllSelected ? "Desmarcar" : "Marcar todo"}
-                      </Button>
+              return (
+                <div
+                  key={module.id}
+                  className="flex flex-col rounded-xl border border-border/70 bg-card overflow-hidden shadow-2xs"
+                >
+                  <div className="flex items-center justify-between p-3 bg-muted/40 border-b gap-2">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-xs font-bold uppercase tracking-wider text-foreground/90 block truncate">
+                        {module.title}
+                      </span>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {module.description}
+                      </p>
                     </div>
-
-                    <div className="p-3.5 flex flex-col gap-2.5 flex-1 bg-background/50">
-                      {group.permissions.map((p) => {
-                        const isChecked = selectedPermissions.includes(p.name);
-                        return (
-                          <div
-                            key={p.name}
-                            className="flex items-center space-x-2.5 py-0.5"
-                          >
-                            <Checkbox
-                              id={`perm-${p.name}`}
-                              checked={isChecked}
-                              onCheckedChange={(checked: boolean) => {
-                                if (checked) {
-                                  setValue("permissions", [
-                                    ...selectedPermissions,
-                                    p.name,
-                                  ]);
-                                } else {
-                                  setValue(
-                                    "permissions",
-                                    selectedPermissions.filter(
-                                      (perm) => perm !== p.name
-                                    )
-                                  );
-                                }
-                              }}
-                            />
-                            <Label
-                              htmlFor={`perm-${p.name}`}
-                              className="text-xs font-normal cursor-pointer select-none leading-tight"
-                            >
-                              {p.label}
-                            </Label>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[11px] font-medium shrink-0"
+                      onClick={() => toggleGroup(groupPermNames)}
+                    >
+                      {isGroupAllSelected ? "Desmarcar" : "Marcar todo"}
+                    </Button>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-xs text-destructive text-center py-6">
-              Error al cargar los permisos del sistema.
-            </p>
-          )}
+
+                  <div className="p-3.5 flex flex-col gap-2.5 flex-1 bg-background/50">
+                    {module.permissions.map((p) => {
+                      const isChecked = selectedPermissions.includes(p.code);
+                      return (
+                        <div
+                          key={p.code}
+                          className="flex items-center space-x-2.5 py-0.5"
+                        >
+                          <Checkbox
+                            id={`perm-${p.code}`}
+                            checked={isChecked}
+                            onCheckedChange={(checked: boolean) => {
+                              if (checked) {
+                                setValue("permissions", [
+                                  ...selectedPermissions,
+                                  p.code,
+                                ]);
+                              } else {
+                                setValue(
+                                  "permissions",
+                                  selectedPermissions.filter(
+                                    (perm) => perm !== p.code
+                                  )
+                                );
+                              }
+                            }}
+                          />
+                          <Label
+                            htmlFor={`perm-${p.code}`}
+                            className="text-xs font-normal cursor-pointer select-none leading-tight"
+                          >
+                            {p.label}
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
 

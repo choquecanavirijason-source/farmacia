@@ -34,6 +34,7 @@ import {
   exportResource,
 } from "@/lib/api/suppliers";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { ISupplier, SupplierTableEditableField } from "@/lib/types/supplier";
 import { SupplierFormDialog } from "./supplier-form-dialog";
 import { cn } from "@/lib/utils";
@@ -243,7 +244,7 @@ export default function ProveedoresPage() {
       className: "w-28",
       render: (_, p) => {
         if (p.deleted_at) {
-          if (!can("restore suppliers")) return null;
+          if (!can(PERMISSIONS.RESTORE_SUPPLIERS)) return null;
           return (
             <div className="flex justify-center">
               <Button
@@ -261,7 +262,7 @@ export default function ProveedoresPage() {
           );
         }
 
-        if (!can("edit suppliers") && !can("delete suppliers")) {
+        if (!can(PERMISSIONS.EDIT_SUPPLIERS) && !can(PERMISSIONS.DELETE_SUPPLIERS)) {
           return null;
         }
 
@@ -280,13 +281,13 @@ export default function ProveedoresPage() {
                 <MoreHorizontal className="size-4" aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {can("edit suppliers") && (
+                {can(PERMISSIONS.EDIT_SUPPLIERS) && (
                   <DropdownMenuItem onClick={() => openEdit(p)}>
                     <Pencil className="size-4" aria-hidden />
                     Editar
                   </DropdownMenuItem>
                 )}
-                {can("delete suppliers") && (
+                {can(PERMISSIONS.DELETE_SUPPLIERS) && (
                   <DropdownMenuItem
                     variant="destructive"
                     onClick={() => setDeleteTarget(p)}
@@ -316,7 +317,7 @@ export default function ProveedoresPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {can("delete suppliers") && selectedRows.length > 0 && (
+          {can(PERMISSIONS.DELETE_SUPPLIERS) && selectedRows.length > 0 && (
             <Button
               type="button"
               variant="destructive"
@@ -327,7 +328,7 @@ export default function ProveedoresPage() {
               Eliminar seleccionados ({selectedRows.length})
             </Button>
           )}
-          {can("create suppliers") && (
+          {can(PERMISSIONS.CREATE_SUPPLIERS) && (
             <Button
               type="button"
               onClick={openCreate}
@@ -361,10 +362,10 @@ export default function ProveedoresPage() {
         emptyMessage="No se encontraron proveedores."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="proveedores.csv"
-        onExport={can("export suppliers") ? exportResource : undefined}
+        onExport={can(PERMISSIONS.EXPORT_SUPPLIERS) ? exportResource : undefined}
         onRefresh={refresh}
         getRowId={(p) => p.id}
-        onSelectionChange={can("delete suppliers") ? setSelectedRows : undefined}
+        onSelectionChange={can(PERMISSIONS.DELETE_SUPPLIERS) ? setSelectedRows : undefined}
         clearSelectionKey={selectionClearKey}
         enableColumnDrag={true}
         enableRowDrag={false}

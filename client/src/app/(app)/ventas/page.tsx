@@ -14,6 +14,7 @@ import { fetchMedicamentos } from "@/lib/api/medicaments";
 import { fetchCajas } from "@/lib/api/cash-registers";
 import { fetchVentas } from "@/lib/api/sales";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { Caja, Cliente, Medicamento, Venta } from "@/lib/types";
 
 export default function VentasPage() {
@@ -40,8 +41,8 @@ export default function VentasPage() {
   }
 
   const isLoading = caja === undefined || !user;
-  const canSell = can("create sales");
-  const canViewHistory = can("view sales");
+  const canSell = can(PERMISSIONS.CREATE_SALES);
+  const canViewHistory = can(PERMISSIONS.VIEW_SALES);
   const defaultTab = canSell ? "vender" : "historial";
 
   return (

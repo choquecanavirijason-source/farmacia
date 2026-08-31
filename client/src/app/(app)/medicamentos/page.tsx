@@ -37,6 +37,7 @@ import {
 } from "@/lib/api/medicaments";
 import { formatCurrency } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IMedicament, MedicamentTableEditableField } from "@/lib/types/medicament";
 import type { Categoria, Laboratorio, Presentacion } from "@/lib/types";
 import { MedicamentFormDialog } from "./medicament-form-dialog";
@@ -320,7 +321,7 @@ export default function MedicamentosPage() {
       className: "w-28",
       render: (_, m) => {
         if (m.deleted_at) {
-          if (!can("restore medicaments")) return null;
+          if (!can(PERMISSIONS.RESTORE_MEDICAMENTS)) return null;
           return (
             <div className="flex justify-center">
               <Button
@@ -338,7 +339,7 @@ export default function MedicamentosPage() {
           );
         }
 
-        if (!can("edit medicaments") && !can("delete medicaments")) {
+        if (!can(PERMISSIONS.EDIT_MEDICAMENTS) && !can(PERMISSIONS.DELETE_MEDICAMENTS)) {
           return null;
         }
 
@@ -357,13 +358,13 @@ export default function MedicamentosPage() {
                 <MoreHorizontal className="size-4" aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {can("edit medicaments") && (
+                {can(PERMISSIONS.EDIT_MEDICAMENTS) && (
                   <DropdownMenuItem onClick={() => openEdit(m)}>
                     <Pencil className="size-4" aria-hidden />
                     Editar
                   </DropdownMenuItem>
                 )}
-                {can("delete medicaments") && (
+                {can(PERMISSIONS.DELETE_MEDICAMENTS) && (
                   <DropdownMenuItem
                     variant="destructive"
                     onClick={() => setDeleteTarget(m)}
@@ -393,7 +394,7 @@ export default function MedicamentosPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {can("delete medicaments") && selectedRows.length > 0 && (
+          {can(PERMISSIONS.DELETE_MEDICAMENTS) && selectedRows.length > 0 && (
             <Button
               type="button"
               variant="destructive"
@@ -414,7 +415,7 @@ export default function MedicamentosPage() {
           >
             <ScanLine className="size-4" aria-hidden />
           </Button>
-          {can("create medicaments") && (
+          {can(PERMISSIONS.CREATE_MEDICAMENTS) && (
             <Button
               type="button"
               onClick={openCreate}
@@ -448,10 +449,10 @@ export default function MedicamentosPage() {
         emptyMessage="No se encontraron medicamentos."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="medicamentos.csv"
-        onExport={can("export medicaments") ? exportResource : undefined}
+        onExport={can(PERMISSIONS.EXPORT_MEDICAMENTS) ? exportResource : undefined}
         onRefresh={refresh}
         getRowId={(m) => m.id}
-        onSelectionChange={can("delete medicaments") ? setSelectedRows : undefined}
+        onSelectionChange={can(PERMISSIONS.DELETE_MEDICAMENTS) ? setSelectedRows : undefined}
         clearSelectionKey={selectionClearKey}
         enableColumnDrag={true}
         enableRowDrag={false}

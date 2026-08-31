@@ -12,6 +12,7 @@ import { fetchMedicamentos } from "@/lib/api/medicaments";
 import { fetchProveedores } from "@/lib/api/suppliers";
 import { formatCurrency } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { Compra, Medicamento, Proveedor } from "@/lib/types";
 import { PurchaseFormDialog } from "./purchase-form-dialog";
 import { PurchaseDetailSheet } from "./purchase-detail-sheet";
@@ -110,7 +111,7 @@ export default function ComprasPage() {
             Cada compra ingresa medicamentos a un lote nuevo y aumenta el stock.
           </p>
         </div>
-        {can("create purchases") && (
+        {can(PERMISSIONS.CREATE_PURCHASES) && (
           <Button
             type="button"
             onClick={() => setFormOpen(true)}

@@ -31,6 +31,7 @@ import {
   exportResource,
 } from "@/lib/api/categories";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { ICategory, CategoryTableEditableField } from "@/lib/types/category";
 import { CategoryFormDialog } from "./category-form-dialog";
 import { cn } from "@/lib/utils";
@@ -207,9 +208,9 @@ export function CategorySection() {
       filterable: false,
       resizable: false,
       className: "w-24",
-      render: (_, c) => {
-        if (c.deleted_at) {
-          if (!can("restore categories")) return null;
+      render: (_, cat) => {
+        if (cat.deleted_at) {
+          if (!can(PERMISSIONS.RESTORE_CATEGORIES)) return null;
           return (
             <div className="flex justify-center">
               <Button
@@ -217,7 +218,7 @@ export function CategorySection() {
                 variant="outline"
                 size="sm"
                 className="h-8 gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive text-xs font-medium"
-                onClick={() => handleRestore(c)}
+                onClick={() => handleRestore(cat)}
                 title="Restaurar categoría"
               >
                 <RotateCcw className="size-3.5" aria-hidden />
@@ -227,7 +228,7 @@ export function CategorySection() {
           );
         }
 
-        if (!can("edit categories") && !can("delete categories")) {
+        if (!can(PERMISSIONS.EDIT_CATEGORIES) && !can(PERMISSIONS.DELETE_CATEGORIES)) {
           return null;
         }
 
@@ -239,23 +240,23 @@ export function CategorySection() {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={`Acciones para ${c.name}`}
+                    aria-label={`Acciones para ${cat.name}`}
                   />
                 }
               >
                 <MoreHorizontal className="size-4" aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {can("edit categories") && (
-                  <DropdownMenuItem onClick={() => openEdit(c)}>
+                {can(PERMISSIONS.EDIT_CATEGORIES) && (
+                  <DropdownMenuItem onClick={() => openEdit(cat)}>
                     <Pencil className="size-4" aria-hidden />
                     Editar
                   </DropdownMenuItem>
                 )}
-                {can("delete categories") && (
+                {can(PERMISSIONS.DELETE_CATEGORIES) && (
                   <DropdownMenuItem
                     variant="destructive"
-                    onClick={() => setDeleteTarget(c)}
+                    onClick={() => setDeleteTarget(cat)}
                   >
                     <Trash2 className="size-4" aria-hidden />
                     Eliminar
@@ -271,10 +272,13 @@ export function CategorySection() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Botones de acción superior */}
+      {/* Barra de acciones superior */}
       <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Listado y clasificación de medicamentos por categorías terapéuticas.
+        </p>
         <div className="flex items-center gap-2">
-          {can("delete categories") && selectedRows.length > 0 && (
+          {can(PERMISSIONS.DELETE_CATEGORIES) && selectedRows.length > 0 && (
             <Button
               type="button"
               variant="destructive"
@@ -283,24 +287,24 @@ export function CategorySection() {
               className="gap-1.5"
             >
               <Trash2 className="size-3.5" aria-hidden />
-              Eliminar seleccionados ({selectedRows.length})
+              Eliminar seleccionadas ({selectedRows.length})
+            </Button>
+          )}
+          {can(PERMISSIONS.CREATE_CATEGORIES) && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={openCreate}
+              className="gap-1.5"
+            >
+              <Plus className="size-3.5" aria-hidden />
+              Nueva Categoría
             </Button>
           )}
         </div>
-        {can("create categories") && (
-          <Button
-            type="button"
-            size="sm"
-            onClick={openCreate}
-            className="gap-1.5"
-          >
-            <Plus className="size-3.5" aria-hidden />
-            Nueva Categoría
-          </Button>
-        )}
       </div>
 
-      {/* Tabla de datos principal */}
+      {/* Tabla de datos */}
       <DataTable
         data={items}
         columns={columns}
@@ -312,8 +316,8 @@ export function CategorySection() {
           error,
           onRetry: refresh,
         }}
-        getRowClassName={(c) =>
-          c.deleted_at
+        getRowClassName={(cat) =>
+          cat.deleted_at
             ? "bg-destructive/10 hover:bg-destructive/15 text-destructive border-destructive/20 dark:bg-destructive/15 dark:hover:bg-destructive/20"
             : undefined
         }
@@ -321,10 +325,10 @@ export function CategorySection() {
         emptyMessage="No se encontraron categorías."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="categorias.csv"
-        onExport={can("export categories") ? exportResource : undefined}
+        onExport={can(PERMISSIONS.EXPORT_CATEGORIES) ? exportResource : undefined}
         onRefresh={refresh}
-        getRowId={(c) => c.id}
-        onSelectionChange={can("delete categories") ? setSelectedRows : undefined}
+        getRowId={(cat) => cat.id}
+        onSelectionChange={can(PERMISSIONS.DELETE_CATEGORIES) ? setSelectedRows : undefined}
         clearSelectionKey={selectionClearKey}
         enableColumnDrag={true}
         enableRowDrag={false}

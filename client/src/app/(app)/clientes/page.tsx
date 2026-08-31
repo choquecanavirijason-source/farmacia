@@ -33,6 +33,7 @@ import {
   restore,
 } from "@/lib/api/clients";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IClient, ClientTableEditableField } from "@/lib/types/client";
 import { ClientFormDialog } from "./client-form-dialog";
 import { cn } from "@/lib/utils";
@@ -241,7 +242,7 @@ export default function ClientesPage() {
       className: "w-28",
       render: (_, u) => {
         if (u.deleted_at) {
-          if (!can("restore clients")) return null;
+          if (!can(PERMISSIONS.RESTORE_CLIENTS)) return null;
           return (
             <div className="flex justify-center">
               <Button
@@ -259,7 +260,7 @@ export default function ClientesPage() {
           );
         }
 
-        if (!can("edit clients") && !can("delete clients")) {
+        if (!can(PERMISSIONS.EDIT_CLIENTS) && !can(PERMISSIONS.DELETE_CLIENTS)) {
           return null;
         }
 
@@ -278,13 +279,13 @@ export default function ClientesPage() {
                 <MoreHorizontal className="size-4" aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {can("edit clients") && (
+                {can(PERMISSIONS.EDIT_CLIENTS) && (
                   <DropdownMenuItem onClick={() => openEdit(u)}>
                     <Pencil className="size-4" aria-hidden />
                     Editar
                   </DropdownMenuItem>
                 )}
-                {can("delete clients") && (
+                {can(PERMISSIONS.DELETE_CLIENTS) && (
                   <DropdownMenuItem
                     variant="destructive"
                     onClick={() => setDeleteTarget(u)}
@@ -313,7 +314,7 @@ export default function ClientesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {can("delete clients") && selectedRows.length > 0 && (
+          {can(PERMISSIONS.DELETE_CLIENTS) && selectedRows.length > 0 && (
             <Button
               type="button"
               variant="destructive"
@@ -324,7 +325,7 @@ export default function ClientesPage() {
               Eliminar seleccionados ({selectedRows.length})
             </Button>
           )}
-          {can("create clients") && (
+          {can(PERMISSIONS.CREATE_CLIENTS) && (
             <Button
               type="button"
               onClick={openCreate}
@@ -357,10 +358,10 @@ export default function ClientesPage() {
         emptyMessage="No se encontraron clientes."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="clientes.csv"
-        onExport={can("export clients") ? exportResource : undefined}
+        onExport={can(PERMISSIONS.EXPORT_CLIENTS) ? exportResource : undefined}
         onRefresh={refresh}
         getRowId={(u) => u.id}
-        onSelectionChange={can("delete clients") ? setSelectedRows : undefined}
+        onSelectionChange={can(PERMISSIONS.DELETE_CLIENTS) ? setSelectedRows : undefined}
         clearSelectionKey={selectionClearKey}
         enableColumnDrag={true}
         enableRowDrag={true}

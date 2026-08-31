@@ -16,18 +16,20 @@ import {
   type CierreResultado,
 } from "@/lib/api/cash-registers";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import { formatCurrency } from "@/lib/format";
 import type { Caja, MovimientoCaja } from "@/lib/types";
 import { OpenCashRegisterDialog } from "./open-cash-register-dialog";
 import { CloseCashRegisterDialog } from "./close-cash-register-dialog";
 import { CashMovementDialog } from "./cash-movement-dialog";
 
-function formatFecha(iso: string): string {
+function formatFecha(iso?: string | null): string {
+  if (!iso) return "—";
   return new Date(iso).toLocaleString("es-BO", { dateStyle: "medium", timeStyle: "short" });
 }
 
 export default function CajaPage() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const [cajaAbierta, setCajaAbierta] = useState<Caja | null | undefined>(undefined);
   const [movimientos, setMovimientos] = useState<MovimientoCaja[]>([]);
   const [historial, setHistorial] = useState<Caja[] | null>(null);
@@ -39,51 +41,46 @@ export default function CajaPage() {
   useEffect(() => {
     Promise.all([fetchCajaAbierta(), fetchCajas()]).then(([abierta, cajas]) => {
       setCajaAbierta(abierta);
-      setHistorial(
-        (cajas as any[])
-          .filter((c: any) => c.estado === "cerrada" || c.status === "closed")
-          .sort((a: any, b: any) => (b.id_caja || b.id) - (a.id_caja || a.id))
-      );
+      setHistorial(cajas);
       if (abierta) {
         fetchMovimientosByCaja(abierta.id_caja).then(setMovimientos);
-      } else {
-        setMovimientos([]);
       }
     });
   }, []);
 
-  const esperado = useMemo(
-    () => (cajaAbierta ? montoEsperado(cajaAbierta, movimientos) : 0),
-    [cajaAbierta, movimientos]
-  );
-
-  function handleOpened(caja: Caja) {
-    setCajaAbierta(caja);
+  function handleCajaAbierta(nueva: Caja) {
+    setCajaAbierta(nueva);
     setMovimientos([]);
-    toast.success("Caja abierta.");
+    setHistorial((prev) => (prev ? [nueva, ...prev] : [nueva]));
+    toast.success("Caja abierta correctamente.");
   }
 
-  function handleMovimiento(movimiento: MovimientoCaja) {
-    setMovimientos((prev) => [movimiento, ...prev]);
-    toast.success(movimiento.tipo === "ingreso" ? "Ingreso registrado." : "Egreso registrado.");
+  function handleMovimientoCreado(mov: MovimientoCaja) {
+    setMovimientos((prev) => [mov, ...prev]);
+    toast.success(`${mov.tipo === "ingreso" ? "Ingreso" : "Egreso"} registrado.`);
   }
 
-  function handleClosed(caja: any) {
+  function handleCajaCerrada(caja: Caja) {
     setCajaAbierta(null);
     setMovimientos([]);
-    setHistorial((prev) => (prev ? [caja, ...prev] : [caja]));
+    setHistorial((prev) =>
+      prev ? prev.map((c) => (c.id_caja === caja.id_caja ? caja : c)) : null
+    );
     toast.success("Caja cerrada correctamente.");
   }
 
-  const isLoading = cajaAbierta === undefined;
+  const esperado = useMemo(() => {
+    if (!cajaAbierta) return 0;
+    return montoEsperado(cajaAbierta.monto_apertura, movimientos);
+  }, [cajaAbierta, movimientos]);
 
-  const movimientoColumns: DataTableColumn<any>[] = [
+  const movimientosColumns: DataTableColumn<MovimientoCaja>[] = [
     {
       key: "tipo",
       header: "Tipo",
-      accessor: (m: any) => m.tipo,
-      render: (_, m: any) => (
-        <Badge variant={m.tipo === "ingreso" ? "success" : "warning"}>
+      accessor: (m) => m.tipo,
+      render: (_, m) => (
+        <Badge variant={m.tipo === "ingreso" ? "success" : "destructive"}>
           {m.tipo === "ingreso" ? "Ingreso" : "Egreso"}
         </Badge>
       ),
@@ -92,68 +89,93 @@ export default function CajaPage() {
       key: "concepto",
       header: "Concepto",
       accessor: (m: any) => m.concepto || m.concept,
-      className: "max-w-56 truncate",
+      render: (_, m: any) => <span className="font-medium">{m.concepto || m.concept}</span>,
     },
     {
       key: "monto",
       header: "Monto",
-      accessor: (m: any) => m.monto,
-      className: "whitespace-nowrap text-right font-medium",
-      render: (_, m: any) => `${m.tipo === "ingreso" ? "+" : "-"}${formatCurrency(m.monto)}`,
+      accessor: (m) => m.monto,
+      className: "text-right",
+      render: (_, m) => (
+        <span
+          className={`font-semibold font-mono ${
+            m.tipo === "ingreso" ? "text-success" : "text-destructive"
+          }`}
+        >
+          {m.tipo === "ingreso" ? "+" : "-"}
+          {formatCurrency(m.monto)}
+        </span>
+      ),
     },
     {
       key: "fecha",
       header: "Fecha",
-      accessor: (m: any) => m.fecha || m.created_at,
-      className: "whitespace-nowrap text-muted-foreground",
-      render: (_, m: any) => formatFecha(m.fecha || m.created_at),
+      accessor: (m) => m.created_at,
+      render: (_, m) => (
+        <span className="text-muted-foreground">{formatFecha(m.created_at)}</span>
+      ),
     },
   ];
 
-  const historialColumns: DataTableColumn<any>[] = [
+  const historialColumns: DataTableColumn<Caja>[] = [
+    {
+      key: "id_caja",
+      header: "ID",
+      accessor: (c) => c.id_caja,
+      className: "font-mono w-16",
+    },
     {
       key: "fecha_apertura",
       header: "Apertura",
-      accessor: (c: any) => c.fecha_apertura || c.opening_date,
-      className: "whitespace-nowrap text-muted-foreground",
-      render: (_, c: any) => formatFecha(c.fecha_apertura || c.opening_date),
+      accessor: (c) => c.fecha_apertura,
+      render: (_, c) => formatFecha(c.fecha_apertura),
     },
     {
       key: "fecha_cierre",
       header: "Cierre",
-      accessor: (c: any) => c.fecha_cierre || c.closing_date,
-      className: "whitespace-nowrap text-muted-foreground",
-      render: (_, c: any) => (c.fecha_cierre || c.closing_date ? formatFecha(c.fecha_cierre || c.closing_date) : "—"),
+      accessor: (c) => c.fecha_cierre,
+      render: (_, c) => (c.fecha_cierre ? formatFecha(c.fecha_cierre) : "—"),
     },
     {
       key: "monto_apertura",
-      header: "Monto inicial",
-      accessor: (c: any) => c.monto_apertura ?? c.opening_amount,
+      header: "M. Apertura",
+      accessor: (c) => c.monto_apertura,
       className: "text-right",
-      render: (_, c: any) => formatCurrency(Number(c.monto_apertura ?? c.opening_amount ?? 0)),
+      render: (_, c) => formatCurrency(c.monto_apertura),
     },
     {
       key: "monto_cierre",
-      header: "Monto contado",
-      accessor: (c: any) => c.monto_cierre ?? c.closing_amount,
+      header: "M. Cierre",
+      accessor: (c) => c.monto_cierre,
       className: "text-right",
-      render: (_, c: any) => ((c.monto_cierre ?? c.closing_amount) !== null ? formatCurrency(Number(c.monto_cierre ?? c.closing_amount)) : "—"),
+      render: (_, c) => (c.monto_cierre != null ? formatCurrency(c.monto_cierre) : "—"),
     },
     {
       key: "diferencia",
       header: "Diferencia",
-      accessor: (c: any) => Number(c.monto_cierre ?? c.closing_amount ?? 0) - Number(c.monto_esperado ?? c.monto_esperado_cierre ?? c.monto_apertura ?? 0),
+      accessor: (c: any) => c.diferencia ?? (c.monto_cierre != null ? Number(c.monto_cierre) - Number(c.monto_apertura) : null),
       className: "text-right",
       render: (_, c: any) => {
-        const diferencia = Number(c.monto_cierre ?? c.closing_amount ?? 0) - Number(c.monto_esperado ?? c.monto_esperado_cierre ?? c.monto_apertura ?? 0);
-        return (
-          <Badge variant={diferencia === 0 ? "secondary" : diferencia > 0 ? "warning" : "destructive"}>
-            {diferencia === 0 ? "Exacto" : formatCurrency(diferencia)}
-          </Badge>
-        );
+        const dif = c.diferencia ?? (c.monto_cierre != null ? Number(c.monto_cierre) - Number(c.monto_apertura) : null);
+        if (dif == null) return "—";
+        const color =
+          dif === 0 ? "text-muted-foreground" : dif > 0 ? "text-success" : "text-destructive";
+        return <span className={`font-medium font-mono ${color}`}>{formatCurrency(dif)}</span>;
       },
     },
+    {
+      key: "estado",
+      header: "Estado",
+      accessor: (c) => c.estado,
+      render: (_, c) => (
+        <Badge variant={c.estado === "abierta" ? "success" : "secondary"}>
+          {c.estado === "abierta" ? "Abierta" : "Cerrada"}
+        </Badge>
+      ),
+    },
   ];
+
+  const isLoading = cajaAbierta === undefined;
 
   return (
     <div className="flex flex-col gap-6">
@@ -182,7 +204,7 @@ export default function CajaPage() {
                 Abre la caja con el monto inicial en efectivo para empezar a registrar movimientos.
               </p>
             </div>
-            {can("open cash registers") && (
+            {can(PERMISSIONS.OPEN_CASH_REGISTERS) && (
               <Button type="button" onClick={() => setAbrirOpen(true)} className="mt-2 gap-1.5">
                 <Wallet className="size-4" aria-hidden />
                 Abrir Caja
@@ -217,7 +239,7 @@ export default function CajaPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {can("create cash movements") && (
+                {can(PERMISSIONS.CREATE_CASH_MOVEMENTS) && (
                   <>
                     <Button
                       type="button"
@@ -241,7 +263,7 @@ export default function CajaPage() {
                     </Button>
                   </>
                 )}
-                {can("close cash registers") && (
+                {can(PERMISSIONS.CLOSE_CASH_REGISTERS) && (
                   <Button
                     type="button"
                     variant="destructive"
@@ -264,7 +286,7 @@ export default function CajaPage() {
             ) : (
               <DataTable
                 data={movimientos}
-                columns={movimientoColumns}
+                columns={movimientosColumns}
                 searchPlaceholder="Buscar por concepto…"
                 emptyMessage="No se encontraron movimientos."
               />
@@ -292,16 +314,16 @@ export default function CajaPage() {
       <OpenCashRegisterDialog
         open={abrirOpen}
         onOpenChange={setAbrirOpen}
-        idUsuario={1}
-        onCajaAbierta={handleOpened}
+        idUsuario={user?.id || 1}
+        onCajaAbierta={handleCajaAbierta}
       />
 
       {cajaAbierta && movimientoTipo ? (
         <CashMovementDialog
           open={Boolean(movimientoTipo)}
           onOpenChange={(open) => !open && setMovimientoTipo(null)}
-          idCaja={cajaAbierta.id_caja || cajaAbierta.id}
-          onMovimientoRegistrado={handleMovimiento}
+          idCaja={cajaAbierta.id_caja}
+          onMovimientoRegistrado={handleMovimientoCreado}
         />
       ) : null}
 
@@ -310,7 +332,7 @@ export default function CajaPage() {
         caja={cerrarOpen ? cajaAbierta ?? null : null}
         totalEsperado={esperado}
         onOpenChange={(open) => !open && setCerrarOpen(false)}
-        onCajaCerrada={handleClosed}
+        onCajaCerrada={handleCajaCerrada}
       />
     </div>
   );

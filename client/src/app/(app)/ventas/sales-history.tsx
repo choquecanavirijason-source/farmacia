@@ -9,6 +9,7 @@ import { fetchSales } from "@/lib/api/sales";
 import { formatCurrency } from "@/lib/format";
 import type { ISale } from "@/lib/types/sale";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import { VoidSaleDialog } from "./void-sale-dialog";
 import { InvoiceSheet } from "./invoice-sheet";
 
@@ -25,7 +26,7 @@ export function SalesHistory() {
       .then((res) => {
         setSales(res.data);
       })
-      .catch((err) => {
+      .catch(() => {
         toast.error("Error al cargar el historial de ventas.");
       })
       .finally(() => setLoading(false));
@@ -35,13 +36,17 @@ export function SalesHistory() {
     loadSales();
   }, []);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      {loading ? (
-        <div className="flex items-center justify-center p-12">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : sales.length === 0 ? (
+      {sales.length === 0 ? (
         <div className="p-8 text-center text-muted-foreground border rounded-lg">
           No hay ventas registradas.
         </div>
@@ -87,7 +92,7 @@ export function SalesHistory() {
                       >
                         <FileText className="size-4" />
                       </Button>
-                      {can("void sales") && (sale.status === "active" || sale.status === "activa") && (
+                      {can(PERMISSIONS.VOID_SALES) && (sale.status === "active" || sale.status === "activa") && (
                         <Button
                           type="button"
                           variant="ghost"
