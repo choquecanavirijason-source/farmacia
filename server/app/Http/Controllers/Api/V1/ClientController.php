@@ -19,7 +19,15 @@ class ClientController
     public function index(Request $request)
     {
         $search = trim((string) $request->query('search'));
-        $result = Client::withTrashed()
+        $status = (string) $request->query('status', 'all');
+
+        $query = match ($status) {
+            'active' => Client::withoutTrashed(),
+            'trashed', 'deleted' => Client::onlyTrashed(),
+            default => Client::withTrashed(),
+        };
+
+        $result = $query
             ->when($search !== '', fn($query) => $query->search($search))
             ->sort(
                 (string) $request->query('sort_by', 'updated_at'),
@@ -78,7 +86,15 @@ class ClientController
     public function export(Request $request)
     {
         $search = trim((string) $request->query('search'));
-        $results = Client::withTrashed()
+        $status = (string) $request->query('status', 'all');
+
+        $query = match ($status) {
+            'active' => Client::withoutTrashed(),
+            'trashed', 'deleted' => Client::onlyTrashed(),
+            default => Client::withTrashed(),
+        };
+
+        $results = $query
             ->when($search !== '', fn ($query) => $query->search($search))
             ->sort(
                 (string) $request->query('sort_by', 'firstname'),

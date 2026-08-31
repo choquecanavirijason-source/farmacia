@@ -7,13 +7,7 @@ import * as z from "zod";
 import { FormDialog } from "@/components/layout/form-dialog";
 import { InputTextField, NumericField } from "@/components/form";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/combobox";
 import { create, update } from "@/lib/api/batches";
 import type { IBatch, IBatchRequest } from "@/lib/types/batch";
 import type { Medicamento } from "@/lib/types";
@@ -124,22 +118,18 @@ function BatchFormBody({
             name="medicament_id"
             control={control}
             render={({ field }) => (
-              <Select
+              <SearchableSelect
+                options={medicamentos.map((m) => ({
+                  value: String(m.id_medicamento),
+                  label: m.nombre,
+                  sublabel: m.codigo ? `Código: ${m.codigo}` : undefined,
+                }))}
                 value={field.value ? String(field.value) : undefined}
                 onValueChange={(val) => field.onChange(Number(val))}
                 disabled={isEditing}
-              >
-                <SelectTrigger id="medicament_id" className="w-full">
-                  <SelectValue placeholder="Selecciona un medicamento" />
-                </SelectTrigger>
-                <SelectContent>
-                  {medicamentos.map((m) => (
-                    <SelectItem key={m.id_medicamento} value={String(m.id_medicamento)}>
-                      {m.nombre} ({m.codigo})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Selecciona un medicamento…"
+                searchPlaceholder="Buscar medicamento…"
+              />
             )}
           />
         </div>

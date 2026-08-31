@@ -13,6 +13,17 @@ class UpdateMedicamentRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['code' => 'required|string|max:255', 'name' => 'required|string|max:255', 'concentration' => 'nullable|string|max:255', 'price' => 'required|numeric|min:0', 'min_stock' => 'required|integer|min:0', 'requires_prescription' => 'required|boolean', 'status' => 'required|in:active,inactive', 'laboratory_id' => 'required|exists:laboratories,id', 'category_id' => 'required|exists:categories,id', 'presentation_id' => 'required|exists:presentations,id'];
+        return [
+            'code'                  => 'sometimes|required|string|max:255',
+            'name'                  => 'sometimes|required|string|max:255',
+            'concentration'         => 'sometimes|nullable|string|max:255',
+            'price'                 => 'sometimes|required|numeric|min:0',
+            'min_stock'             => 'sometimes|required|integer|min:0',
+            'requires_prescription' => 'sometimes|required|boolean',
+            'status'                => 'sometimes|required|in:active,inactive',
+            'laboratory_id'         => 'sometimes|required|exists:laboratories,id',
+            'category_id'           => 'sometimes|required|exists:categories,id',
+            'presentation_id'       => 'sometimes|required|exists:presentations,id',
+        ];
     }
 }

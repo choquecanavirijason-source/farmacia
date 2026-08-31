@@ -9,35 +9,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PosPanel } from "./pos-panel";
 import { SalesHistory } from "./sales-history";
-import { fetchClientes } from "@/lib/api/clients";
-import { fetchMedicamentos } from "@/lib/api/medicaments";
-import { fetchCajas } from "@/lib/api/cash-registers";
-import { fetchVentas } from "@/lib/api/sales";
+import { fetchCajaAbierta } from "@/lib/api/cash-registers";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
-import type { Caja, Cliente, Medicamento, Venta } from "@/lib/types";
+import type { Caja, Venta } from "@/lib/types";
 
 export default function VentasPage() {
   const { user, can } = useAuth();
   const [caja, setCaja] = useState<Caja | null | undefined>(undefined);
-  const [ventas, setVentas] = useState<Venta[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
 
   useEffect(() => {
-    Promise.all([fetchCajas(), fetchVentas(), fetchClientes(), fetchMedicamentos()]).then(
-      ([cajasData, ventasData, clientesData, medicamentosData]) => {
-        const abierta = (cajasData as any[]).find((c) => c.status === "open" || c.estado === "abierta") || null;
+    fetchCajaAbierta()
+      .then((abierta) => {
         setCaja(abierta);
-        setVentas(ventasData);
-        setClientes(clientesData);
-        setMedicamentos(medicamentosData);
-      }
-    );
+      })
+      .catch(() => {
+        setCaja(null);
+      });
   }, []);
 
-  function handleVentaRegistrada(venta: Venta) {
-    setVentas((prev) => [...prev, venta]);
+  function handleVentaRegistrada(_venta: Venta) {
+    // Venta procesada con éxito
   }
 
   const isLoading = caja === undefined || !user;
@@ -49,7 +41,7 @@ export default function VentasPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight text-balance">Registro de Ventas</h1>
-        <p className="text-sm text-muted-foreground">Punto de venta y facturación.</p>
+        <p className="text-sm text-muted-foreground">Punto de venta (POS) y facturación.</p>
       </div>
 
       <Tabs defaultValue={defaultTab}>
@@ -95,7 +87,7 @@ export default function VentasPage() {
                     })}
                   </span>
                   <Link href="/caja" className="text-muted-foreground underline-offset-2 hover:underline">
-                    Cerrar turno
+                    Ver arqueo de caja
                   </Link>
                 </div>
                 <PosPanel idUsuario={user!.id} idCaja={caja.id_caja} onVentaRegistrada={handleVentaRegistrada} />

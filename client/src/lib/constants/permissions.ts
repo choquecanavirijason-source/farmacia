@@ -237,7 +237,7 @@ export const PERMISSION_MODULES: IPermissionModuleDefinition[] = [
   {
     id: "clients",
     title: "Clientes",
-    description: "Acceso y gestión del padrón de clientes",
+    description: "Acceso y gestión de clientes",
     permissions: [
       { code: PERMISSIONS.VIEW_CLIENTS, label: PERMISSION_LABELS[PERMISSIONS.VIEW_CLIENTS] },
       { code: PERMISSIONS.CREATE_CLIENTS, label: PERMISSION_LABELS[PERMISSIONS.CREATE_CLIENTS] },

@@ -1,8 +1,9 @@
 import apiClient from "@/config/axios";
 import type { IClient, IClientRequest } from "@/lib/types/client";
-import type { IPaginatedResponse, IPaginationRequest } from "@/lib/types/pagination";
+import type { IPaginatedResponse } from "@/lib/types/pagination";
 import type { IApiResponse } from "@/lib/types/api";
 import type { Cliente } from "@/lib/types";
+import type { ServerFetchParams } from "@/components/ui/table";
 
 export const fetchClients = async (): Promise<Cliente[]> => {
   const res = await apiClient.get<IPaginatedResponse<IClient>>("/clients?per_page=100");
@@ -19,8 +20,20 @@ export const fetchClients = async (): Promise<Cliente[]> => {
 
 export const fetchClientes = fetchClients;
 
-export const getPaginated = async (params: IPaginationRequest, signal?: AbortSignal): Promise<IPaginatedResponse<IClient>> => {
-  const res = await apiClient.get<IPaginatedResponse<IClient>>(`/clients`, { params, signal });
+export const getPaginated = async (
+  params: ServerFetchParams | any,
+  signal?: AbortSignal,
+  filters?: { status?: string }
+): Promise<IPaginatedResponse<IClient>> => {
+  const query = {
+    page: params.page,
+    per_page: params.pageSize ?? params.per_page,
+    search: params.search,
+    sort_by: params.sort?.key ?? params.sort_by,
+    sort_dir: params.sort?.direction ?? params.sort_dir,
+    ...filters,
+  };
+  const res = await apiClient.get<IPaginatedResponse<IClient>>(`/clients`, { params: query, signal });
   return res.data;
 };
 
@@ -49,9 +62,9 @@ export const restore = async (id: number): Promise<IApiResponse<IClient>> => {
   return response.data;
 };
 
-export const exportResource = async (format: "excel" | "pdf"): Promise<Blob> => {
+export const exportResource = async (format: "excel" | "pdf", status?: string): Promise<Blob> => {
   const res = await apiClient.get<Blob>("/clients/export", {
-    params: { format },
+    params: { format, status },
     responseType: "blob",
   });
   return res.data;

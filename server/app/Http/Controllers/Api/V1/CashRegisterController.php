@@ -19,6 +19,16 @@ class CashRegisterController
 {
     use ApiResponseTrait;
 
+    public function current()
+    {
+        $caja = CashRegister::where('status', 'open')->latest('opened_at')->first();
+        if (! $caja) {
+            return $this->successResponse(null, 'No hay caja abierta actualmente.');
+        }
+
+        return $this->resourceResponse(new CashRegisterResource($caja), 'Caja actual obtenida con éxito.');
+    }
+
     public function index(Request $request)
     {
         $registers = CashRegister::query()->filter($request->only(['status']))->sort((string) $request->query('sort_by', 'opened_at'), (string) $request->query('sort_dir', 'desc'))->paginate(max(1, $request->integer('per_page', 10)));

@@ -10,27 +10,46 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
+        // Administrador Principal
         $admin = User::updateOrCreate(
-            ['email' => 'admin@example.com'], 
+            ['email' => 'admin@farmacia.bo'],
             [
-                'name' => 'admin', 
-                'username'=>'admin',
-                'firstname' => 'System', 
-                'lastname' => 'Administrator', 
-                'password' => Hash::make('admin123'), 
-                'state' => 'active'
-            ]);
+                'name' => 'admin',
+                'username' => 'admin',
+                'firstname' => 'Juan de Dios',
+                'lastname' => 'Rocha Alcocer',
+                'password' => Hash::make('admin123'),
+                'state' => 'active',
+            ]
+        );
         $admin->syncRoles(['administrator']);
+
+        // Vendedora / Regente Farmacéutica
         $seller = User::updateOrCreate(
-            ['email' => 'seller@example.com'], 
+            ['email' => 'vendedora@farmacia.bo'],
             [
-                'name' => 'seller', 
-                'username'=>'seller',
-                'firstname' => 'Default', 
-                'lastname' => 'Seller', 
-                'password' => Hash::make('seller123'), 
-                'state' => 'active'
-            ]);
+                'name' => 'vendedora',
+                'username' => 'paola.vargas',
+                'firstname' => 'Paola Andrea',
+                'lastname' => 'Vargas Montaño',
+                'password' => Hash::make('vendedor123'),
+                'state' => 'active',
+            ]
+        );
         $seller->syncRoles(['seller']);
+
+        // Usuario adicional de apoyo
+        $seller2 = User::updateOrCreate(
+            ['email' => 'cajero@farmacia.bo'],
+            [
+                'name' => 'cajero',
+                'username' => 'rodrigo.claros',
+                'firstname' => 'Rodrigo',
+                'lastname' => 'Claros Torrico',
+                'password' => Hash::make('caja123'),
+                'state' => 'active',
+            ]
+        );
+        $seller2->syncRoles(['seller']);
     }
 }

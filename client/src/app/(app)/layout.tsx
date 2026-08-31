@@ -5,17 +5,20 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { LayoutProvider, useLayout } from "@/context/layout-context";
 import { filterMenuByPermissions, canAccessPath } from "@/lib/nav/menu-config";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import type { Sesion } from "@/lib/types";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, rol, isLoading, isAuthenticated, can } = useAuth();
+  const { layoutMode } = useLayout();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -47,11 +50,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-muted/20">
+    <div
+      className={cn(
+        "flex min-h-screen w-full bg-muted/20",
+        layoutMode === "top" ? "flex-col" : "flex-row"
+      )}
+    >
       <Sidebar groups={groups} />
       <div className="flex min-h-screen flex-1 flex-col min-w-0">
         <Topbar sesion={sesion} groups={groups} />
-        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 lg:px-8">
+        <main
+          className={cn(
+            "flex-1 min-w-0 px-4 py-6 sm:px-6 lg:px-8",
+            layoutMode === "top" && "max-w-7xl mx-auto w-full"
+          )}
+        >
           {hasAccess ? (
             children
           ) : (
@@ -75,10 +88,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <LayoutProvider>
+      <AppLayoutContent>{children}</AppLayoutContent>
+    </LayoutProvider>
+  );
+}
+
 function AppShellSkeleton() {
   return (
     <div className="flex min-h-screen w-full bg-muted/20">
-      <div className="sticky top-0 hidden h-screen w-16 shrink-0 flex-col gap-4 border-r border-sidebar-border bg-sidebar p-3 md:flex">
+      <div className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-4 border-r border-sidebar-border bg-sidebar p-3 md:flex">
         <Skeleton className="size-9 rounded-lg" />
         <div className="mt-4 flex flex-col gap-3">
           {Array.from({ length: 5 }).map((_, i) => (

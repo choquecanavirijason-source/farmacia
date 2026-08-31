@@ -50,6 +50,30 @@ class CompanyController
         return $this->deletedResponse('Empresa eliminada con éxito.');
     }
 
+    public function current()
+    {
+        $company = Company::firstOrCreate(
+            ['id' => 1],
+            [
+                'name' => 'Farmacia Juan de Dios',
+                'nit' => '1028374029',
+                'address' => 'Av. Principal #123',
+                'phone' => '71234567',
+                'email' => 'contacto@farmacia.com',
+            ]
+        );
+
+        return $this->resourceResponse(new CompanyResource($company), 'Datos de la empresa obtenidos con éxito.');
+    }
+
+    public function updateCurrent(UpdateCompanyRequest $request)
+    {
+        $company = Company::firstOrCreate(['id' => 1]);
+        $company->update($request->validated());
+
+        return $this->updatedResponse(new CompanyResource($company->refresh()), 'Datos de la empresa actualizados con éxito.');
+    }
+
     public function export(Request $request)
     {
         $items = Company::orderBy('name')->get();

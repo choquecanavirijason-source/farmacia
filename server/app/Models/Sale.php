@@ -17,7 +17,7 @@ class Sale extends Model implements Auditable
     use AuditableTrait, HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'sale_date',
+        'sold_at',
         'total',
         'status',
         'client_id',
@@ -34,21 +34,64 @@ class Sale extends Model implements Auditable
     protected function casts(): array
     {
         return [
-            'sale_date'   => 'datetime',
+            'sold_at'     => 'datetime',
             'total'       => 'decimal:2',
             'restored_at' => 'datetime',
             'deleted_at'  => 'datetime',
         ];
     }
 
-    public function scopeFilter(Builder $query, array $filters): Builder
+    protected $appends = [
+        'sale_date',
+    ];
+
+    public function getSaleDateAttribute()
     {
-        return $query->when(isset($filters['status']), fn ($query) => $query->where('status', $filters['status']))->when(isset($filters['client_id']), fn ($query) => $query->where('client_id', $filters['client_id']));
+        return $this->sold_at;
     }
 
-    public function scopeSort(Builder $query, string $column = 'sale_date', string $direction = 'desc'): Builder
+    public function scopeFilter(Builder $query, array $filters): Builder
     {
-        return $query->orderBy(in_array($column, ['id', 'sale_date', 'total', 'status', 'created_at'], true) ? $column : 'sale_date', strtolower($direction) === 'asc' ? 'asc' : 'desc');
+        return $query->when(!empty($filters['status']), fn ($query) => $query->where('status', $filters['status']))
+            ->when(!empty($filters['client_id']), fn ($query) => $query->where('client_id', $filters['client_id']))
+            ->when(!empty($filters['start_date']), fn ($query) => $query->whereDate('sold_at', '>=', $filters['start_date']))
+            ->when(!empty($filters['end_date']), fn ($query) => $query->whereDate('sold_at', '<=', $filters['end_date']))
+            ->when(!empty($filters['search']), function ($query) use ($filters) {
+                $search = $filters['search'];
+                $query->where(function ($q) use ($search) {
+                    if (is_numeric($search)) {
+                        $q->where('id', (int) $search);
+                    }
+                    $q->orWhereHas('client', function ($cq) use ($search) {
+                        $cq->where('firstname', 'ilike', "%{$search}%")
+                            ->orWhere('lastname', 'ilike', "%{$search}%")
+                            ->orWhere('ci', 'like', "%{$search}%")
+                            ->orWhere('nit', 'like', "%{$search}%");
+                    })->orWhereHas('invoice', function ($iq) use ($search) {
+                        $iq->where('invoice_number', 'ilike', "%{$search}%")
+                            ->orWhere('business_name', 'ilike', "%{$search}%");
+                    });
+                });
+            });
+    }
+
+    public function scopeSort(Builder $query, string $column = 'sold_at', string $direction = 'desc'): Builder
+    {
+        $validColumns = [
+            'id' => 'id',
+            'sold_at' => 'sold_at',
+            'sale_date' => 'sold_at',
+            'total' => 'total',
+            'status' => 'status',
+            'created_at' => 'created_at',
+        ];
+
+        $col = $validColumns[$column] ?? 'sold_at';
+
+        return $query->orderBy(
+            $col,
+            strtolower($direction) === 'asc' ? 'asc' : 'desc'
+        );
     }
 
     public function client()
@@ -56,8 +99,28 @@ class Sale extends Model implements Auditable
         return $this->belongsTo(Client::class);
     }
 
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function cashRegister()
+    {
+        return $this->belongsTo(CashRegister::class);
+    }
+
     public function details()
     {
         return $this->hasMany(SaleDetail::class);
+    }
+
+    public function invoice()
+    {
+        return $this->hasOne(Invoice::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(SalePayment::class);
     }
 }

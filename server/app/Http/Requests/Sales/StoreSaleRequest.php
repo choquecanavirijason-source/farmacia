@@ -11,6 +11,15 @@ class StoreSaleRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $formaPago = $this->input('forma_pago') ?? $this->input('payment_method') ?? 'Efectivo';
+        $this->merge([
+            'forma_pago' => $formaPago,
+            'payment_method' => $formaPago,
+        ]);
+    }
+
     public function rules(): array
     {
         return [
@@ -18,8 +27,11 @@ class StoreSaleRequest extends FormRequest
             'user_id' => 'required|integer|exists:users,id',
             'cash_register_id' => 'required|integer|exists:cash_registers,id',
             'forma_pago' => 'required|string|max:40',
+            'payment_method' => 'nullable|string|max:40',
             'nit_cliente' => 'nullable|string|max:30',
+            'client_tax_id' => 'nullable|string|max:30',
             'razon_social' => 'nullable|string|max:150',
+            'business_name' => 'nullable|string|max:150',
             'items' => 'required|array|min:1',
             'items.*.medicament_id' => 'required|integer|exists:medicaments,id',
             'items.*.quantity' => 'required|integer|min:1',

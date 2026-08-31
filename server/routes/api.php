@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SaleController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('auth/login', [AuthController::class, 'login']);
@@ -25,6 +26,8 @@ Route::post('auth/login', [AuthController::class, 'login']);
 Route::middleware('auth:api')->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('auth/me', [AuthController::class, 'me']);
+
+    Route::get('dashboard/stats', [DashboardController::class, 'stats']);
 
     Route::get('categories/export', [CategoryController::class, 'export']);
     Route::delete('categories', [CategoryController::class, 'bulkDestroy']);
@@ -85,6 +88,8 @@ Route::middleware('auth:api')->group(function () {
     Route::apiResource('payment-methods', PaymentMethodController::class);
 
     Route::get('cash-registers/export', [CashRegisterController::class, 'export']);
+    Route::get('cash-registers/current', [CashRegisterController::class, 'current']);
+    Route::post('cash-registers/open', [CashRegisterController::class, 'store']);
     Route::get('cash-registers/{id}/movements', [CashRegisterController::class, 'movements']);
     Route::post('cash-registers/{id}/movements', [CashRegisterController::class, 'registerMovement']);
     Route::post('cash-registers/{id}/close', [CashRegisterController::class, 'close']);
@@ -100,6 +105,9 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('roles', [RoleController::class, 'bulkDestroy']);
     Route::apiResource('roles', RoleController::class);
 
+    Route::get('company', [CompanyController::class, 'current']);
+    Route::put('company', [CompanyController::class, 'updateCurrent']);
+    Route::post('company', [CompanyController::class, 'updateCurrent']);
     Route::get('companies/export', [CompanyController::class, 'export']);
     Route::apiResource('companies', CompanyController::class);
 

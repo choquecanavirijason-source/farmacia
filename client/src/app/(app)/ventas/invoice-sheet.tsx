@@ -10,7 +10,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { fetchInvoice } from "@/lib/api/sales";
+import { fetchInvoice, fetchSale, fetchSaleDetails } from "@/lib/api/sales";
 import { fetchCompany } from "@/lib/api/companies";
 import { formatCurrency } from "@/lib/format";
 import type { ISale, IInvoice } from "@/lib/types/sale";
@@ -23,20 +23,37 @@ interface InvoiceSheetProps {
 }
 
 export function InvoiceSheet({ open, onOpenChange, sale }: InvoiceSheetProps) {
+  const [fullSale, setFullSale] = useState<ISale | null>(null);
+  const [details, setDetails] = useState<any[]>([]);
   const [invoice, setInvoice] = useState<IInvoice | null>(null);
   const [company, setCompany] = useState<ICompany | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!open || !sale) return;
+    if (!open || !sale) {
+      setFullSale(null);
+      setDetails([]);
+      setInvoice(null);
+      return;
+    }
+
     setLoading(true);
 
     Promise.all([
+      fetchSale(sale.id).catch(() => null),
+      fetchSaleDetails(sale.id).catch(() => []),
       fetchInvoice(sale.id).catch(() => null),
       fetchCompany().catch(() => null),
     ])
-      .then(([inv, comp]) => {
-        setInvoice(inv);
+      .then(([saleData, detailsData, inv, comp]) => {
+        setFullSale(saleData || sale);
+        const resolvedDetails = (saleData?.details && saleData.details.length > 0)
+          ? saleData.details
+          : (Array.isArray(detailsData) && detailsData.length > 0)
+          ? detailsData
+          : (sale.details || (sale as any).items || []);
+        setDetails(resolvedDetails);
+        setInvoice(inv || saleData?.invoice || null);
         setCompany(comp);
       })
       .finally(() => setLoading(false));
@@ -46,35 +63,43 @@ export function InvoiceSheet({ open, onOpenChange, sale }: InvoiceSheetProps) {
     window.print();
   }
 
+  const currentSale = fullSale || sale;
+  const clientName = currentSale?.client
+    ? `${currentSale.client.firstname ?? ""} ${currentSale.client.lastname ?? ""}`.trim()
+    : (currentSale as any)?.razon_social || (currentSale as any)?.nombre_cliente || "Cliente General";
+
+  const nitCi = invoice?.client_tax_id || currentSale?.client?.nit || currentSale?.client?.ci || (currentSale as any)?.nit_cliente || "0";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-md flex flex-col justify-between">
+      <SheetContent className="sm:max-w-md flex flex-col justify-between overflow-y-auto">
         <div>
           <SheetHeader>
-            <SheetTitle>Factura de Venta</SheetTitle>
-            <SheetDescription>Comprobante de venta y detalle de productos.</SheetDescription>
+            <SheetTitle>Comprobante de Venta</SheetTitle>
+            <SheetDescription>Detalle de productos y desglose del pago.</SheetDescription>
           </SheetHeader>
 
           {loading ? (
-            <div className="flex items-center justify-center p-8">
+            <div className="flex items-center justify-center p-12">
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             </div>
-          ) : sale ? (
+          ) : currentSale ? (
             <div className="flex flex-col gap-4 p-4 mt-2 border rounded-lg bg-card text-xs">
               <div className="text-center pb-2 border-b">
                 <p className="font-bold text-sm">{company?.name || "Farmacia San Rafael"}</p>
                 <p className="text-muted-foreground">NIT: {company?.nit || "1028374029"}</p>
-                <p className="text-muted-foreground">{company?.address || "Av. América #450"}</p>
+                <p className="text-muted-foreground">{company?.address || "Av. Heroínas #324, Cochabamba"}</p>
+                {company?.phone && <p className="text-muted-foreground">Tel: {company.phone}</p>}
               </div>
 
               <div className="flex justify-between">
-                <span>N° Factura: <strong>{invoice?.invoice_number || `FAC-${sale.id.toString().padStart(6, "0")}`}</strong></span>
-                <span>Fecha: <strong>{new Date(sale.sale_date || sale.created_at).toLocaleDateString("es-ES")}</strong></span>
+                <span>N° Factura: <strong>{invoice?.invoice_number || `FAC-${currentSale.id.toString().padStart(6, "0")}`}</strong></span>
+                <span>Fecha: <strong>{new Date(currentSale.sale_date || currentSale.created_at || (currentSale as any).sold_at || Date.now()).toLocaleDateString("es-BO")}</strong></span>
               </div>
 
               <div className="flex justify-between">
-                <span>Cliente: <strong>{sale.client ? `${sale.client.firstname} ${sale.client.lastname}` : (sale as any).nombre_cliente || "Sin nombre"}</strong></span>
-                <span>NIT/CI: <strong>{invoice?.client_tax_id || sale.client?.nit || sale.client?.ci || "0"}</strong></span>
+                <span>Cliente: <strong>{clientName}</strong></span>
+                <span>NIT/CI: <strong>{nitCi}</strong></span>
               </div>
 
               <div className="border-t pt-2">
@@ -82,25 +107,46 @@ export function InvoiceSheet({ open, onOpenChange, sale }: InvoiceSheetProps) {
                   <thead>
                     <tr className="border-b text-muted-foreground font-semibold">
                       <th className="py-1">Cant</th>
-                      <th className="py-1">Detalle</th>
+                      <th className="py-1">Medicamento / Detalle</th>
+                      <th className="py-1 text-right">P. Unit</th>
                       <th className="py-1 text-right">Subtotal</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(sale.details || (sale as any).items || []).map((d: any, idx: number) => (
-                      <tr key={idx} className="border-b/40">
-                        <td className="py-1 font-mono">{d.quantity || d.cantidad}</td>
-                        <td className="py-1">{d.medicament?.name || d.medicamento?.nombre || `Item #${d.medicament_id || idx + 1}`}</td>
-                        <td className="py-1 text-right font-mono">{formatCurrency(Number(d.subtotal || 0))}</td>
+                    {details.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-3 text-center text-muted-foreground">
+                          No hay items detallados en este registro.
+                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      details.map((d: any, idx: number) => {
+                        const medName = d.medicament?.name || d.medicamento?.nombre || d.name || `Medicamento #${d.medicament_id || idx + 1}`;
+                        const medConc = d.medicament?.concentration || d.medicamento?.concentracion || "";
+                        const qty = d.quantity || d.cantidad || 1;
+                        const unitPrice = d.unit_price || d.precio_unitario || 0;
+                        const subtotal = d.subtotal || (qty * unitPrice);
+
+                        return (
+                          <tr key={d.id || idx} className="border-b border-border/40">
+                            <td className="py-1.5 font-mono text-center">{qty}</td>
+                            <td className="py-1.5 pr-2">
+                              <span className="font-medium">{medName}</span>
+                              {medConc ? <span className="text-[11px] text-muted-foreground block">{medConc}</span> : null}
+                            </td>
+                            <td className="py-1.5 text-right font-mono text-[11px]">{formatCurrency(Number(unitPrice))}</td>
+                            <td className="py-1.5 text-right font-mono font-semibold">{formatCurrency(Number(subtotal))}</td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
 
               <div className="flex justify-between items-center pt-2 font-bold text-sm border-t">
                 <span>Total Cancelado</span>
-                <span className="font-mono text-primary">{formatCurrency(Number(sale.total))}</span>
+                <span className="font-mono text-base text-primary">{formatCurrency(Number(currentSale.total))}</span>
               </div>
             </div>
           ) : null}
@@ -110,7 +156,7 @@ export function InvoiceSheet({ open, onOpenChange, sale }: InvoiceSheetProps) {
           <Button type="button" variant="outline" className="w-full" onClick={() => onOpenChange(false)}>
             Cerrar
           </Button>
-          <Button type="button" className="w-full gap-1.5" onClick={handlePrint} disabled={loading || !sale}>
+          <Button type="button" className="w-full gap-1.5" onClick={handlePrint} disabled={loading || !currentSale}>
             <Printer className="size-4" />
             Imprimir
           </Button>

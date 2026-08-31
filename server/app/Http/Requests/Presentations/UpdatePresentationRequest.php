@@ -13,6 +13,9 @@ class UpdatePresentationRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['name' => 'required|string|max:255', 'description' => 'nullable|string|max:255'];
+        return [
+            'name' => 'sometimes|required|string|max:255',
+            'description' => 'nullable|string|max:255',
+        ];
     }
 }

@@ -2,6 +2,7 @@ import apiClient from "@/config/axios";
 import type { ISale, IInvoice, ISaleRequest } from "@/lib/types/sale";
 import type { IPaginatedResponse, IPaginationRequest } from "@/lib/types/pagination";
 import type { IApiResponse } from "@/lib/types/api";
+import type { ServerFetchParams } from "@/components/ui/table";
 
 export const fetchSales = async (
   params?: IPaginationRequest
@@ -10,20 +11,57 @@ export const fetchSales = async (
   return res.data;
 };
 
+export const getSalesPaginated = async (
+  params: ServerFetchParams,
+  signal?: AbortSignal,
+  filters?: { status?: string; start_date?: string; end_date?: string }
+): Promise<IPaginatedResponse<ISale>> => {
+  const query: Record<string, any> = {
+    page: params.page,
+    per_page: params.pageSize,
+    search: params.search || undefined,
+    sort_by: params.sort?.key || undefined,
+    sort_dir: params.sort?.direction || undefined,
+    ...filters,
+  };
+  const res = await apiClient.get<IPaginatedResponse<ISale>>("/sales", {
+    params: query,
+    signal,
+  });
+  return res.data;
+};
+
+export const exportSales = async (format: "csv" | "excel" | "pdf" = "csv") => {
+  const res = await apiClient.get(`/sales/export?format=${format === "excel" ? "xlsx" : format}`, {
+    responseType: "blob",
+  });
+  const url = window.URL.createObjectURL(new Blob([res.data]));
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", `ventas.${format === "excel" ? "xlsx" : format}`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
+
 export const createSale = async (data: any): Promise<ISale> => {
+  const paymentMethod = data.forma_pago || data.payment_method || "Efectivo";
   const payload = {
     client_id: data.client_id ?? data.id_cliente,
     user_id: data.user_id ?? data.id_usuario,
     cash_register_id: data.cash_register_id ?? data.id_caja,
-    payment_method: data.payment_method ?? data.forma_pago,
+    forma_pago: paymentMethod,
+    payment_method: paymentMethod,
+    nit_cliente: data.nit_cliente ?? data.client_tax_id,
     client_tax_id: data.client_tax_id ?? data.nit_cliente,
+    razon_social: data.razon_social ?? data.business_name,
     business_name: data.business_name ?? data.razon_social,
     items: (data.items || []).map((item: any) => ({
       medicament_id: item.medicament_id ?? item.id_medicamento,
       batch_id: item.batch_id ?? item.id_lote,
       quantity: item.quantity ?? item.cantidad,
       unit_price: item.unit_price ?? item.precio_unitario,
-      discount_percent: item.discount_percent ?? item.descuento_pct ?? 0,
+      discount_percent: item.discount_percent ?? item.descuento_pct ?? item.descuentoPct ?? 0,
     })),
   };
   const res = await apiClient.post<IApiResponse<ISale>>("/sales", payload);
@@ -40,6 +78,11 @@ export const voidSale = async (
 
 export const fetchInvoice = async (saleId: number): Promise<IInvoice> => {
   const res = await apiClient.get<{ data: IInvoice }>(`/sales/${saleId}/invoice`);
+  return res.data.data;
+};
+
+export const fetchSale = async (id: number): Promise<ISale> => {
+  const res = await apiClient.get<IApiResponse<ISale>>(`/sales/${id}`);
   return res.data.data;
 };
 

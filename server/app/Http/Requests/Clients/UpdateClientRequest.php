@@ -13,6 +13,20 @@ class UpdateClientRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['firstname' => 'required|string|max:255', 'lastname' => 'required|string|max:255', 'ci' => 'nullable|string|max:255', 'nit' => 'nullable|string|max:255', 'phone' => 'nullable|string|max:255', 'address' => 'nullable|string|max:255'];
+        return [
+            'firstname' => 'sometimes|required|string|max:255',
+            'lastname'  => 'sometimes|nullable|string|max:255',
+            'ci'        => 'nullable|string|max:255',
+            'nit'       => 'nullable|string|max:255',
+            'phone'     => 'nullable|string|max:255',
+            'address'   => 'nullable|string|max:255',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'firstname.required' => 'El nombre del cliente es obligatorio.',
+        ];
     }
 }

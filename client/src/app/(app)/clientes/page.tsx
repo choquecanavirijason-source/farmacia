@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Phone,
   MapPin,
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
 import {
   remove,
@@ -53,6 +61,8 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<IClient | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<IClient | null>(null);
@@ -75,8 +85,10 @@ export default function ClientesPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const filters: { status?: string } = {};
+    if (statusFilter !== "all") filters.status = statusFilter;
 
-    getPaginated(params, controller.signal)
+    getPaginated(params, controller.signal, filters)
       .then((result) => {
         setItems(result.data);
         setTotal(result.meta?.total ?? result.data.length);
@@ -94,10 +106,9 @@ export default function ClientesPage() {
       });
 
     return () => controller.abort();
-  }, [params, refreshKey]);
+  }, [params, refreshKey, statusFilter]);
 
-  const handleRowReorder = useCallback(async () => {
-  }, []);
+  const handleRowReorder = useCallback(async () => {}, []);
 
   function openCreate() {
     setEditing(null);
@@ -168,7 +179,7 @@ export default function ClientesPage() {
       ),
     },
     {
-      key: "nombre",
+      key: "firstname",
       header: "Nombre",
       accessor: (u) => u.firstname,
       className: "min-w-32 max-w-48",
@@ -203,7 +214,7 @@ export default function ClientesPage() {
       ),
     },
     {
-      key: "telefono",
+      key: "phone",
       header: "Teléfono",
       accessor: (u) => u.phone,
       className: "max-w-32",
@@ -218,7 +229,7 @@ export default function ClientesPage() {
       ),
     },
     {
-      key: "direccion",
+      key: "address",
       header: "Dirección",
       accessor: (u) => u.address,
       className: "max-w-48",
@@ -310,7 +321,7 @@ export default function ClientesPage() {
             Gestión de Clientes
           </h1>
           <p className="text-sm text-muted-foreground">
-            Administra la información de tus clientes y su estado.
+            Administra la información de tus clientes, historial y estado.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -338,6 +349,54 @@ export default function ClientesPage() {
         </div>
       </div>
 
+      {/* Barra de Filtros por Estado (Activos / Eliminados / Todos) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Filter className="size-3.5" />
+            <span className="font-medium">Mostrar clientes:</span>
+          </div>
+
+          <Select
+            value={statusFilter}
+            onValueChange={(val) => {
+              setStatusFilter(val || "all");
+              setParams((p) => ({ ...p, page: 1 }));
+            }}
+          >
+            <SelectTrigger className="h-8 min-w-60 sm:min-w-64 w-auto text-xs px-3">
+              <SelectValue>
+                {statusFilter === "active"
+                  ? "Solo clientes activos"
+                  : statusFilter === "trashed"
+                  ? "Clientes eliminados (Papelera)"
+                  : "Todos los clientes"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent className="min-w-60 sm:min-w-64">
+              <SelectItem value="all">Todos los clientes</SelectItem>
+              <SelectItem value="active">Solo clientes activos</SelectItem>
+              <SelectItem value="trashed">Clientes eliminados (Papelera)</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {statusFilter !== "all" && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setStatusFilter("all");
+                setParams((p) => ({ ...p, page: 1 }));
+              }}
+              className="h-8 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Restablecer filtro
+            </Button>
+          )}
+        </div>
+      </div>
+
       <DataTable
         data={items}
         columns={columns}
@@ -355,10 +414,18 @@ export default function ClientesPage() {
             : undefined
         }
         searchPlaceholder="Buscar por nombre, CI, NIT o teléfono…"
-        emptyMessage="No se encontraron clientes."
+        emptyMessage={
+          statusFilter === "trashed"
+            ? "No hay clientes eliminados en la papelera."
+            : "No se encontraron clientes."
+        }
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="clientes.csv"
-        onExport={can(PERMISSIONS.EXPORT_CLIENTS) ? exportResource : undefined}
+        onExport={
+          can(PERMISSIONS.EXPORT_CLIENTS)
+            ? (format) => exportResource(format, statusFilter)
+            : undefined
+        }
         onRefresh={refresh}
         getRowId={(u) => u.id}
         onSelectionChange={can(PERMISSIONS.DELETE_CLIENTS) ? setSelectedRows : undefined}
@@ -386,7 +453,7 @@ export default function ClientesPage() {
         description={
           <>
             Se eliminará el cliente <strong>{deleteTarget?.firstname} {deleteTarget?.lastname}</strong> y
-            todos sus datos asociados.
+            todos sus datos asociados. Podrás restaurarlo desde el filtro de eliminados si es necesario.
           </>
         }
         onConfirm={async () => {

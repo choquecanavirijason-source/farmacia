@@ -14,13 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/combobox";
 import { registrarCompra } from "@/lib/api/purchases";
 import { formatCurrency } from "@/lib/format";
 import type { Compra, Medicamento, Proveedor } from "@/lib/types";
@@ -190,21 +184,17 @@ export function PurchaseFormDialog({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="id_proveedor">Proveedor *</Label>
-              <Select value={idProveedor} onValueChange={(val) => setIdProveedor(val || "")}>
-                <SelectTrigger id="id_proveedor">
-                  <SelectValue placeholder="Selecciona proveedor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {proveedores.map((p) => (
-                    <SelectItem
-                      key={p.id_proveedor || p.id}
-                      value={String(p.id_proveedor || p.id)}
-                    >
-                      {p.nombre || p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={proveedores.map((p) => ({
+                  value: String(p.id_proveedor || p.id),
+                  label: p.nombre || p.name,
+                  sublabel: p.nit ? `NIT: ${p.nit}` : undefined,
+                }))}
+                value={idProveedor}
+                onValueChange={(val) => setIdProveedor(val || "")}
+                placeholder="Selecciona proveedor…"
+                searchPlaceholder="Buscar proveedor…"
+              />
             </div>
 
             <div className="flex flex-col gap-2">
@@ -255,32 +245,25 @@ export function PurchaseFormDialog({
                 >
                   <div className="sm:col-span-4 flex flex-col gap-1">
                     <Label className="text-[11px]">Medicamento</Label>
-                    <Select
-                      value={it.id_medicamento ? String(it.id_medicamento) : ""}
+                    <SearchableSelect
+                      options={medicamentos.map((m) => ({
+                        value: String(m.id_medicamento || m.id),
+                        label: m.nombre || m.name,
+                        sublabel: m.codigo || m.code ? `Código: ${m.codigo || m.code}` : undefined,
+                      }))}
+                      value={it.id_medicamento ? String(it.id_medicamento) : undefined}
                       onValueChange={(val) =>
-                        handleItemChange(idx, "id_medicamento", Number(val))
+                        handleItemChange(idx, "id_medicamento", Number(val || 0))
                       }
-                    >
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Selecciona" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {medicamentos.map((m) => (
-                          <SelectItem
-                            key={m.id_medicamento || m.id}
-                            value={String(m.id_medicamento || m.id)}
-                          >
-                            {m.nombre || m.name} ({m.codigo || m.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Selecciona…"
+                      searchPlaceholder="Buscar medicamento…"
+                    />
                   </div>
 
                   <div className="sm:col-span-2 flex flex-col gap-1">
                     <Label className="text-[11px]">N° Lote</Label>
                     <Input
-                      className="h-8 text-xs"
+                      className="h-9 text-xs"
                       placeholder="LOT-123"
                       value={it.numero_lote}
                       onChange={(e) =>
@@ -293,7 +276,7 @@ export function PurchaseFormDialog({
                   <div className="sm:col-span-2 flex flex-col gap-1">
                     <Label className="text-[11px]">Vencimiento</Label>
                     <Input
-                      className="h-8 text-xs"
+                      className="h-9 text-xs"
                       type="date"
                       value={it.fecha_vencimiento}
                       onChange={(e) =>
@@ -306,7 +289,7 @@ export function PurchaseFormDialog({
                   <div className="sm:col-span-1 flex flex-col gap-1">
                     <Label className="text-[11px]">Cant</Label>
                     <Input
-                      className="h-8 text-xs"
+                      className="h-9 text-xs"
                       type="number"
                       min={1}
                       value={it.cantidad}
@@ -320,7 +303,7 @@ export function PurchaseFormDialog({
                   <div className="sm:col-span-2 flex flex-col gap-1">
                     <Label className="text-[11px]">P. Compra</Label>
                     <Input
-                      className="h-8 text-xs"
+                      className="h-9 text-xs"
                       type="number"
                       step="0.01"
                       min={0.01}

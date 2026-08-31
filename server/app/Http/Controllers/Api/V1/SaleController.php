@@ -28,7 +28,10 @@ class SaleController
 
     public function index(Request $request)
     {
-        $sales = Sale::query()->filter($request->only(['status', 'client_id']))->sort((string) $request->query('sort_by', 'sold_at'), (string) $request->query('sort_dir', 'desc'))->paginate(max(1, $request->integer('per_page', 10)));
+        $sales = Sale::with(['client', 'invoice', 'payments.paymentMethod'])
+            ->filter($request->only(['status', 'client_id', 'start_date', 'end_date', 'search']))
+            ->sort((string) $request->query('sort_by', 'sold_at'), (string) $request->query('sort_dir', 'desc'))
+            ->paginate(max(1, $request->integer('per_page', 10)));
 
         return $this->collectionResponse(SaleResource::collection($sales), 'Ventas obtenidas con éxito.');
     }
@@ -158,7 +161,9 @@ class SaleController
 
     public function show(int $id)
     {
-        return $this->resourceResponse(new SaleResource(Sale::findOrFail($id)), 'Venta obtenida con éxito.');
+        $sale = Sale::with(['client', 'invoice', 'payments.paymentMethod', 'details.medicament', 'details.batch'])->findOrFail($id);
+
+        return $this->resourceResponse(new SaleResource($sale), 'Venta obtenida con éxito.');
     }
 
     public function update(UpdateSaleRequest $request, int $id)
@@ -180,7 +185,7 @@ class SaleController
     {
         Sale::findOrFail($id);
 
-        $details = SaleDetail::where('sale_id', $id)->orderBy('id')->get();
+        $details = SaleDetail::with(['medicament', 'batch'])->where('sale_id', $id)->orderBy('id')->get();
 
         return $this->successResponse($details, 'Detalle de la venta obtenido con éxito.');
     }

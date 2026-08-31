@@ -13,14 +13,19 @@ import {
   History,
   ShieldCheck,
   Settings,
+  LayoutDashboard,
+  Package,
+  CircleDot,
   type LucideIcon,
 } from "lucide-react";
 
 export const ICON_MAP = {
+  dashboard: LayoutDashboard,
   users: Users,
   tags: Tags,
   pill: Pill,
   boxes: Boxes,
+  package: Package,
   truck: Truck,
   "shopping-cart": ShoppingCart,
   "bar-chart": BarChart3,
@@ -31,6 +36,7 @@ export const ICON_MAP = {
   history: History,
   shield: ShieldCheck,
   settings: Settings,
+  dot: CircleDot,
 } satisfies Record<string, LucideIcon>;
 
 export type MenuIconName = keyof typeof ICON_MAP;

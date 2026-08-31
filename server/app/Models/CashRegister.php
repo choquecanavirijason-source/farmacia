@@ -17,10 +17,9 @@ class CashRegister extends Model implements Auditable
     use AuditableTrait, HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'user_id',
-        'opening_date',
+        'opened_at',
         'opening_amount',
-        'closing_date',
+        'closed_at',
         'closing_amount',
         'expected_closing_amount',
         'status',
@@ -34,8 +33,8 @@ class CashRegister extends Model implements Auditable
     protected function casts(): array
     {
         return [
-            'opening_date'            => 'datetime',
-            'closing_date'            => 'datetime',
+            'opened_at'               => 'datetime',
+            'closed_at'               => 'datetime',
             'opening_amount'          => 'decimal:2',
             'closing_amount'          => 'decimal:2',
             'expected_closing_amount' => 'decimal:2',
@@ -44,13 +43,33 @@ class CashRegister extends Model implements Auditable
         ];
     }
 
+    protected $appends = [
+        'opening_date',
+        'closing_date',
+    ];
+
+    public function getOpeningDateAttribute()
+    {
+        return $this->opened_at;
+    }
+
+    public function getClosingDateAttribute()
+    {
+        return $this->closed_at;
+    }
+
     public function scopeFilter(Builder $query, array $filters): Builder
     {
         return $query->when(isset($filters['status']), fn ($query) => $query->where('status', $filters['status']));
     }
 
-    public function scopeSort(Builder $query, string $column = 'opening_date', string $direction = 'desc'): Builder
+    public function scopeSort(Builder $query, string $column = 'opened_at', string $direction = 'desc'): Builder
     {
-        return $query->orderBy(in_array($column, ['id', 'opening_date', 'closing_date', 'status', 'created_at'], true) ? $column : 'opening_date', strtolower($direction) === 'asc' ? 'asc' : 'desc');
+        return $query->orderBy(in_array($column, ['id', 'opened_at', 'closed_at', 'status', 'created_at'], true) ? $column : 'opened_at', strtolower($direction) === 'asc' ? 'asc' : 'desc');
+    }
+
+    public function movements()
+    {
+        return $this->hasMany(CashMovement::class);
     }
 }

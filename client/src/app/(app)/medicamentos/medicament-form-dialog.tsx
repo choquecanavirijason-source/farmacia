@@ -8,6 +8,7 @@ import { FormDialog } from "@/components/layout/form-dialog";
 import { InputTextField, NumericField } from "@/components/form";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { SearchableSelect } from "@/components/ui/combobox";
 import {
   Select,
   SelectContent,
@@ -161,28 +162,24 @@ function MedicamentFormBody({
           placeholder="Ej. Paracetamol, Ibuprofeno"
         />
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* Selects estilo Select2 a ancho completo (col-12) */}
+        <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="category_id">Categoría</Label>
             <Controller
               name="category_id"
               control={control}
               render={({ field }) => (
-                <Select
+                <SearchableSelect
+                  options={categorias.map((c) => ({
+                    value: String(c.id_categoria),
+                    label: c.nombre,
+                  }))}
                   value={field.value ? String(field.value) : undefined}
                   onValueChange={(val) => field.onChange(Number(val))}
-                >
-                  <SelectTrigger id="category_id" className="w-full">
-                    <SelectValue placeholder="Selecciona" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categorias.map((c) => (
-                      <SelectItem key={c.id_categoria} value={String(c.id_categoria)}>
-                        {c.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Selecciona categoría…"
+                  searchPlaceholder="Buscar categoría…"
+                />
               )}
             />
           </div>
@@ -193,21 +190,16 @@ function MedicamentFormBody({
               name="presentation_id"
               control={control}
               render={({ field }) => (
-                <Select
+                <SearchableSelect
+                  options={presentaciones.map((p) => ({
+                    value: String(p.id_presentacion),
+                    label: p.nombre,
+                  }))}
                   value={field.value ? String(field.value) : undefined}
                   onValueChange={(val) => field.onChange(Number(val))}
-                >
-                  <SelectTrigger id="presentation_id" className="w-full">
-                    <SelectValue placeholder="Selecciona" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {presentaciones.map((p) => (
-                      <SelectItem key={p.id_presentacion} value={String(p.id_presentacion)}>
-                        {p.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Selecciona presentación…"
+                  searchPlaceholder="Buscar presentación…"
+                />
               )}
             />
           </div>
@@ -218,21 +210,16 @@ function MedicamentFormBody({
               name="laboratory_id"
               control={control}
               render={({ field }) => (
-                <Select
+                <SearchableSelect
+                  options={laboratorios.map((l) => ({
+                    value: String(l.id_laboratorio),
+                    label: l.nombre,
+                  }))}
                   value={field.value ? String(field.value) : undefined}
                   onValueChange={(val) => field.onChange(Number(val))}
-                >
-                  <SelectTrigger id="laboratory_id" className="w-full">
-                    <SelectValue placeholder="Selecciona" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {laboratorios.map((l) => (
-                      <SelectItem key={l.id_laboratorio} value={String(l.id_laboratorio)}>
-                        {l.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Selecciona laboratorio…"
+                  searchPlaceholder="Buscar laboratorio…"
+                />
               )}
             />
           </div>
