@@ -2,10 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, Loader2, Lock, Pill, User } from "lucide-react";
-import { setClientSession } from "@/lib/auth/client-session";
-import { apiFetch, setAuthToken } from "@/lib/api/http";
-import type { Sesion } from "@/lib/types";
+import { Eye, EyeOff, Loader2, Lock, Pill, User, ShieldCheck, Sparkles } from "lucide-react";
+import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +19,7 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/dashboard";
+  const { login: authLogin } = useAuth();
 
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
@@ -32,80 +31,69 @@ export function LoginForm() {
     event.preventDefault();
     setError(null);
     setLoading(true);
+
     try {
-      const data = await apiFetch<{
-        token: string;
-        user: {
-          id: number;
-          name: string;
-          email: string;
-          roles: { name: string }[];
-        };
-      }>("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ login, password }),
-      });
-      const sesion: Sesion = {
-        id_usuario: data.user.id,
-        nombre: data.user.name,
-        usuario: data.user.email,
-        rol:
-          data.user.roles[0]?.name === "administrator"
-            ? "ADMINISTRADOR"
-            : "VENDEDOR",
-        token: data.token,
-      };
-      setClientSession(sesion);
-      setAuthToken(sesion.token);
+      await authLogin(login, password);
       router.push(next);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "No se pudo iniciar sesión.",
-      );
+      router.refresh();
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.errors?.login?.[0] ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "No se pudo iniciar sesión.";
+      setError(message);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="flex w-full max-w-md flex-col items-center gap-6">
-      {/* Borde de luz angular (edge light): gradiente diagonal blanco -> transparente vía padding-box. */}
-      <div className="relative w-full rounded-4xl bg-gradient-to-br from-white/80 via-white/25 to-transparent p-px shadow-[0_35px_90px_-25px_rgba(15,23,42,0.4)]">
-        {/* Panel de cristal: fondo translúcido + blur, con textura de ruido y sombra interior para dar grosor. */}
-        <div className="relative overflow-hidden rounded-[calc(var(--radius-4xl)-1px)] bg-background/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] backdrop-blur-2xl">
+    <div className="flex w-full max-w-md flex-col items-center gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+
+      <div className="relative w-full rounded-4xl bg-gradient-to-br from-primary/30 via-primary/10 to-transparent p-[2px] shadow-[0_35px_90px_-25px_rgba(15,23,42,0.5)] hover:shadow-[0_45px_100px_-30px_rgba(15,23,42,0.6)] transition-shadow duration-500">
+        <div className="relative overflow-hidden rounded-[calc(var(--radius-4xl)-2px)] bg-gradient-to-b from-background/95 to-background/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] backdrop-blur-3xl">
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 bg-noise opacity-[0.035] mix-blend-overlay"
+            className="pointer-events-none absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay"
           />
 
-          <div className="relative flex flex-col gap-6">
-            <CardHeader className="items-center gap-3 pt-10 text-center">
-              <div className="flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/25 to-primary/10 text-primary shadow-[inset_0_1px_0_0_rgba(255,255,255,0.5)] ring-1 ring-primary/20">
-                <Pill className="size-8" aria-hidden />
+          <div className="absolute -top-24 -right-24 size-48 rounded-full bg-primary/5 blur-3xl" />
+          <div className="absolute -bottom-24 -left-24 size-48 rounded-full bg-primary/5 blur-3xl" />
+
+          <div className="relative flex flex-col gap-5">
+            <CardHeader className="items-center gap-4 pt-10 pb-2 text-center">
+              <div className="flex items-center justify-center w-full">
+                <div className="relative">
+                  <div className="absolute inset-0 animate-pulse rounded-2xl bg-primary/20 blur-xl" />
+                  <div className="relative flex size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/30 to-primary/10 text-primary shadow-[inset_0_1px_0_0_rgba(255,255,255,0.5)] ring-1 ring-primary/20">
+                    <Pill className="size-9" aria-hidden />
+                  </div>
+                </div>
               </div>
-              {/* Guardia de contraste: título/labels usan foreground sólido, nunca opacidad reducida sobre el cristal. */}
-              <div className="flex flex-col gap-1">
-                <CardTitle className="text-2xl font-semibold tracking-tight text-balance text-foreground sm:text-3xl">
+
+              <div className="flex flex-col gap-1.5">
+                <CardTitle className="text-3xl font-bold tracking-tight text-balance bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent sm:text-4xl">
                   Farmacia Juan de Dios
                 </CardTitle>
-                <CardDescription className="text-base text-foreground/60">
+                <CardDescription className="text-sm text-foreground/60">
                   Ingresa tus credenciales para continuar
                 </CardDescription>
               </div>
             </CardHeader>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-              <CardContent className="flex flex-col gap-4 px-8 sm:px-10">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <CardContent className="flex flex-col gap-5 px-8 sm:px-10">
                 <div className="flex flex-col gap-2">
                   <Label
                     htmlFor="login"
-                    className="text-sm font-medium text-foreground"
+                    className="text-sm font-medium text-foreground/80"
                   >
                     Usuario o correo electrónico
                   </Label>
-                  <div className="relative">
+                  <div className="relative group">
                     <User
-                      className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
+                      className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary"
                       aria-hidden
                     />
                     <Input
@@ -117,20 +105,30 @@ export function LoginForm() {
                       value={login}
                       onChange={(e) => setLogin(e.target.value)}
                       disabled={loading}
-                      className="h-12 rounded-xl bg-background/90 pl-11 text-base"
+                      className="h-12 rounded-xl border-muted/40 bg-background/60 pl-11 text-base transition-all duration-200 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:bg-background/90"
+                      placeholder="ejemplo@correo.com"
                     />
                   </div>
                 </div>
+
                 <div className="flex flex-col gap-2">
-                  <Label
-                    htmlFor="password"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Contraseña
-                  </Label>
-                  <div className="relative">
+                  <div className="flex items-center justify-between">
+                    <Label
+                      htmlFor="password"
+                      className="text-sm font-medium text-foreground/80"
+                    >
+                      Contraseña
+                    </Label>
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </div>
+                  <div className="relative group">
                     <Lock
-                      className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
+                      className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary"
                       aria-hidden
                     />
                     <Input
@@ -142,7 +140,8 @@ export function LoginForm() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
-                      className="h-12 rounded-xl bg-background/90 pr-11 pl-11 text-base"
+                      className="h-12 rounded-xl border-muted/40 bg-background/60 pr-11 pl-11 text-base transition-all duration-200 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:bg-background/90"
+                      placeholder="••••••••"
                     />
                     <button
                       type="button"
@@ -153,7 +152,7 @@ export function LoginForm() {
                           ? "Ocultar contraseña"
                           : "Mostrar contraseña"
                       }
-                      className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center justify-center rounded-md p-1.5 text-muted-foreground transition-all hover:text-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {verContrasena ? (
                         <EyeOff className="size-4.5" aria-hidden />
@@ -167,19 +166,21 @@ export function LoginForm() {
                 {error ? (
                   <p
                     role="alert"
-                    className="wrap-break-word rounded-lg bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive"
+                    className="wrap-break-word animate-in fade-in slide-in-from-top-2 duration-300 rounded-lg bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive border border-destructive/20"
                   >
                     {error}
                   </p>
                 ) : null}
               </CardContent>
 
-              <CardFooter className="flex-col gap-4 px-8 pb-10 sm:px-10">
+              <CardFooter className="flex-col gap-5 px-8 pb-10 sm:px-10">
                 <Button
                   type="submit"
-                  className="h-12 w-full rounded-xl text-base font-semibold shadow-[0_10px_30px_-10px_var(--primary)] transition-transform duration-300 ease-in-out hover:-translate-y-0.5 active:translate-y-0"
+                  className="relative h-12 w-full rounded-xl text-base font-semibold shadow-[0_10px_30px_-10px_var(--primary)] transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-[0_15px_40px_-15px_var(--primary)] active:translate-y-0 active:scale-[0.98] overflow-hidden group"
                   disabled={loading}
                 >
+                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+
                   {loading ? (
                     <>
                       <Loader2 className="size-4.5 animate-spin" aria-hidden />
@@ -189,19 +190,19 @@ export function LoginForm() {
                     "Ingresar"
                   )}
                 </Button>
-                <p className="text-center text-xs text-balance text-muted-foreground">
-                  El acceso está restringido al personal autorizado de la
-                  farmacia.
-                </p>
+
+                <div className="flex items-center gap-3 w-full">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent to-muted-foreground/20" />
+                  <p className="text-center text-[11px] text-balance text-muted-foreground/60">
+                    Acceso restringido al personal autorizado
+                  </p>
+                  <div className="h-px flex-1 bg-gradient-to-l from-transparent to-muted-foreground/20" />
+                </div>
               </CardFooter>
             </form>
           </div>
         </div>
       </div>
-
-      <p className="text-xs text-foreground/40">
-        Sistema de Gestión Farmacéutica
-      </p>
     </div>
   );
 }

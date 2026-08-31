@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Download, FileSpreadsheet, FileText, Loader2, Search, X } from "lucide-react"
+import { Download, FileSpreadsheet, FileText, Loader2, RotateCw, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -19,8 +19,11 @@ interface TableToolbarProps {
     hasActiveFilters: boolean
     onClearFilters: () => void
     selectedCount: number
-    onExport?: (format: "excel" | "pdf") => void
+    exportFilename?: string
+    onExport?: (format: "excel" | "pdf") => void | Promise<any>
     onExportCsv?: () => void
+    onRefresh?: () => void | Promise<any>
+    loading?: boolean
     className?: string
 }
 
@@ -31,8 +34,11 @@ export function TableToolbar({
     hasActiveFilters,
     onClearFilters,
     selectedCount,
+    exportFilename = "reporte",
     onExport,
     onExportCsv,
+    onRefresh,
+    loading,
     className,
 }: TableToolbarProps) {
     const [exporting, setExporting] = React.useState(false)
@@ -41,7 +47,19 @@ export function TableToolbar({
         if (!onExport || exporting) return
         setExporting(true)
         try {
-            await onExport(format)
+            const result = await onExport(format)
+            if (result instanceof Blob) {
+                const extension = format === "excel" ? "xlsx" : "pdf"
+                const baseName = exportFilename.replace(/\.[^/.]+$/, "")
+                const blobUrl = window.URL.createObjectURL(result)
+                const link = document.createElement("a")
+                link.href = blobUrl
+                link.download = `${baseName}.${extension}`
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                window.URL.revokeObjectURL(blobUrl)
+            }
         } finally {
             setExporting(false)
         }
@@ -70,43 +88,59 @@ export function TableToolbar({
                     {selectedCount} seleccionado(s)
                 </span>
             )}
-            {onExport ? (
-                <DropdownMenu>
-                    <DropdownMenuTrigger
-                        render={
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="ml-auto gap-1.5"
-                                disabled={exporting}
-                            />
-                        }
+            <div className="ml-auto flex items-center gap-2">
+                {onRefresh && (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={loading}
+                        onClick={onRefresh}
+                        title="Recargar datos"
                     >
-                        {exporting ? (
-                            <Loader2 className="size-4 animate-spin" aria-hidden />
-                        ) : (
-                            <Download className="size-4" aria-hidden />
-                        )}
-                        {exporting ? "Exportando…" : "Exportar"}
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => handleExport("excel")} disabled={exporting}>
-                            <FileSpreadsheet className="size-4" aria-hidden />
-                            Excel (.xlsx)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleExport("pdf")} disabled={exporting}>
-                            <FileText className="size-4" aria-hidden />
-                            PDF
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            ) : onExportCsv ? (
-                <Button type="button" variant="outline" size="sm" className="ml-auto gap-1.5" onClick={onExportCsv}>
-                    <Download className="size-4" aria-hidden />
-                    Exportar CSV
-                </Button>
-            ) : null}
+                        <RotateCw className={cn("size-4", loading && "animate-spin")} aria-hidden />
+                        <span className="hidden sm:inline">Recargar</span>
+                    </Button>
+                )}
+                {onExport ? (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger
+                            render={
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1.5"
+                                    disabled={exporting}
+                                />
+                            }
+                        >
+                            {exporting ? (
+                                <Loader2 className="size-4 animate-spin" aria-hidden />
+                            ) : (
+                                <Download className="size-4" aria-hidden />
+                            )}
+                            {exporting ? "Exportando…" : "Exportar"}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => handleExport("excel")} disabled={exporting}>
+                                <FileSpreadsheet className="size-4" aria-hidden />
+                                Excel (.xlsx)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => handleExport("pdf")} disabled={exporting}>
+                                <FileText className="size-4" aria-hidden />
+                                PDF
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                ) : onExportCsv ? (
+                    <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={onExportCsv}>
+                        <Download className="size-4" aria-hidden />
+                        Exportar CSV
+                    </Button>
+                ) : null}
+            </div>
         </div>
     )
 }

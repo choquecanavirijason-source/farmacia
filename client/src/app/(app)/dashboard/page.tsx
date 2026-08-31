@@ -3,15 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, PackageX, ShoppingBag, Wallet } from "lucide-react";
-import { getClientSession } from "@/lib/auth/client-session";
+import { useAuth } from "@/context/auth-context";
 import { menuItemsForRole, type MenuItem } from "@/lib/nav/menu-config";
 import { ICON_MAP } from "@/lib/nav/menu-icons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchCajaAbierta } from "@/lib/api/caja";
-import { computeStockBajo, fetchLotes } from "@/lib/api/lotes";
-import { fetchMedicamentos } from "@/lib/api/medicamentos";
-import { fetchVentas } from "@/lib/api/ventas";
+import { fetchCajas } from "@/lib/api/cash-registers";
+import { fetchLotes } from "@/lib/api/batches";
+import { fetchMedicamentos } from "@/lib/api/medicaments";
+import { fetchVentas } from "@/lib/api/sales";
 import type { Caja } from "@/lib/types";
 
 interface Kpis {
@@ -25,37 +25,52 @@ function formatBs(valor: number): string {
 }
 
 export default function DashboardPage() {
-  const [nombre, setNombre] = useState("");
+  const { user, rol } = useAuth();
   const [items, setItems] = useState<MenuItem[]>([]);
   const [kpis, setKpis] = useState<Kpis | null>(null);
 
-  useEffect(() => {
-    const sesion = getClientSession();
-    if (!sesion) return;
-    setNombre(sesion.nombre);
-    setItems(menuItemsForRole(sesion.rol));
+  const fullName = user?.firstname && user?.lastname
+    ? `${user.firstname} ${user.lastname}`.trim()
+    : user?.name ?? "";
 
-    Promise.all([fetchVentas(), fetchMedicamentos(), fetchLotes(), fetchCajaAbierta()]).then(
-      ([ventas, medicamentos, lotes, cajaAbierta]) => {
+  useEffect(() => {
+    setItems(menuItemsForRole(rol));
+
+    Promise.all([fetchVentas(), fetchMedicamentos(), fetchLotes(), fetchCajas()]).then(
+      ([ventas, medicamentos, lotes, cajas]) => {
         const hoy = new Date().toISOString().slice(0, 10);
-        const ventasHoy = ventas
-          .filter((v) => v.estado === "activa" && v.fecha.slice(0, 10) === hoy)
-          .reduce((total, v) => total + v.total, 0);
+        const ventasHoy = (ventas as any[])
+          .filter((v) => (v.estado === "activa" || v.status === "active") && (v.fecha_hora || v.sale_date || "").slice(0, 10) === hoy)
+          .reduce((total, v) => total + Number(v.total), 0);
+
+        const stockMap = new Map<number, number>();
+        lotes.forEach((l: any) => {
+          const mId = l.id_medicamento || l.medicament_id;
+          stockMap.set(mId, (stockMap.get(mId) || 0) + Number(l.cantidad_actual || l.current_quantity || 0));
+        });
+
+        const stockBajoCount = medicamentos.filter((m: any) => {
+          const mId = m.id_medicamento || m.id;
+          const totalStock = stockMap.get(mId) || 0;
+          return totalStock <= Number(m.stock_minimo || m.min_stock || 0);
+        }).length;
+
+        const cajaAbierta = (cajas as any[]).find((c) => c.status === "open" || c.estado === "abierta") || null;
 
         setKpis({
           ventasHoy,
-          stockBajo: computeStockBajo(medicamentos, lotes).length,
+          stockBajo: stockBajoCount,
           cajaAbierta,
         });
       }
     );
-  }, []);
+  }, [rol]);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight text-balance">
-          Bienvenido, {nombre}
+          Bienvenido, {fullName}
         </h1>
         <p className="text-sm text-muted-foreground">
           Menú principal — accede a los módulos disponibles para tu rol.

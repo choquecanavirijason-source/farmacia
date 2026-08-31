@@ -10,9 +10,27 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::updateOrCreate(['email' => 'admin@example.com'], ['name' => 'Administrator', 'firstname' => 'System', 'lastname' => 'Administrator', 'password' => Hash::make('password'), 'state' => 'active']);
+        $admin = User::updateOrCreate(
+            ['email' => 'admin@example.com'], 
+            [
+                'name' => 'admin', 
+                'username'=>'admin',
+                'firstname' => 'System', 
+                'lastname' => 'Administrator', 
+                'password' => Hash::make('admin123'), 
+                'state' => 'active'
+            ]);
         $admin->syncRoles(['administrator']);
-        $seller = User::updateOrCreate(['email' => 'seller@example.com'], ['name' => 'Seller', 'firstname' => 'Default', 'lastname' => 'Seller', 'password' => Hash::make('password'), 'state' => 'active']);
+        $seller = User::updateOrCreate(
+            ['email' => 'seller@example.com'], 
+            [
+                'name' => 'seller', 
+                'username'=>'seller',
+                'firstname' => 'Default', 
+                'lastname' => 'Seller', 
+                'password' => Hash::make('seller123'), 
+                'state' => 'active'
+            ]);
         $seller->syncRoles(['seller']);
     }
 }

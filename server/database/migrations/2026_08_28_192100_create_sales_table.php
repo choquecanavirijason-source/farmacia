@@ -10,13 +10,19 @@ return new class extends Migration
     {
         Schema::create('sales', function (Blueprint $table) {
             $table->id();
-            $table->dateTime('sold_at')->useCurrent();
-            $table->decimal('total', 12, 2)->default(0);
+            $table->timestamp('sold_at');
+            $table->decimal('total', 10, 2);
             $table->enum('status', ['active', 'voided'])->default('active');
-            $table->foreignId('client_id')->nullable()->constrained('clients')->restrictOnDelete();
-            $table->foreignId('user_id')->constrained('users')->restrictOnDelete();
-            $table->foreignId('cash_register_id')->constrained('cash_registers')->restrictOnDelete();
+            $table->foreignId('client_id')->nullable()->constrained('clients');
+            $table->foreignId('user_id')->constrained('users');
+            $table->foreignId('cash_register_id')->constrained('cash_registers');
+            $table->unsignedBigInteger('created_id')->nullable();
+            $table->unsignedBigInteger('updated_id')->nullable();
+            $table->unsignedBigInteger('deleted_id')->nullable();
+            $table->unsignedBigInteger('restored_id')->nullable();
+            $table->timestamp('restored_at')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

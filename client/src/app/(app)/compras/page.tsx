@@ -7,15 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/table";
-import { fetchCompras } from "@/lib/api/compras";
-import { fetchMedicamentos } from "@/lib/api/medicamentos";
-import { fetchProveedores } from "@/lib/api/proveedores";
+import { fetchCompras } from "@/lib/api/purchases";
+import { fetchMedicamentos } from "@/lib/api/medicaments";
+import { fetchProveedores } from "@/lib/api/suppliers";
 import { formatCurrency } from "@/lib/format";
+import { useAuth } from "@/context/auth-context";
 import type { Compra, Medicamento, Proveedor } from "@/lib/types";
-import { CompraFormDialog } from "@/app/(app)/compras/compra-form-dialog";
-import { DetalleCompraSheet } from "@/app/(app)/compras/detalle-compra-sheet";
+import { PurchaseFormDialog } from "./purchase-form-dialog";
+import { PurchaseDetailSheet } from "./purchase-detail-sheet";
 
 export default function ComprasPage() {
+  const { can } = useAuth();
   const [compras, setCompras] = useState<Compra[] | null>(null);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
@@ -68,8 +70,9 @@ export default function ComprasPage() {
     {
       key: "fecha",
       header: "Fecha",
-      accessor: (c) => c.fecha,
+      accessor: (c: any) => c.fecha_compra || c.purchase_date || c.created_at || "",
       className: "whitespace-nowrap text-muted-foreground",
+      render: (_, c: any) => new Date(c.fecha_compra || c.purchase_date || c.created_at).toLocaleDateString("es-ES"),
     },
     {
       key: "total",
@@ -107,16 +110,18 @@ export default function ComprasPage() {
             Cada compra ingresa medicamentos a un lote nuevo y aumenta el stock.
           </p>
         </div>
-        <Button
-          type="button"
-          onClick={() => setFormOpen(true)}
-          disabled={!puedeRegistrar}
-          className="shrink-0 gap-1.5"
-          title={puedeRegistrar ? undefined : "Registra al menos un proveedor y un medicamento primero"}
-        >
-          <Plus className="size-4" aria-hidden />
-          Nueva Compra
-        </Button>
+        {can("create purchases") && (
+          <Button
+            type="button"
+            onClick={() => setFormOpen(true)}
+            disabled={!puedeRegistrar}
+            className="shrink-0 gap-1.5"
+            title={puedeRegistrar ? undefined : "Registra al menos un proveedor y un medicamento primero"}
+          >
+            <Plus className="size-4" aria-hidden />
+            Nueva Compra
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -139,7 +144,7 @@ export default function ComprasPage() {
                   : "Registra primero al menos un proveedor y un medicamento."}
               </p>
             </div>
-            {puedeRegistrar ? (
+            {can("create purchases") && puedeRegistrar ? (
               <Button type="button" onClick={() => setFormOpen(true)} className="mt-2 gap-1.5">
                 <Plus className="size-4" aria-hidden />
                 Nueva Compra
@@ -156,18 +161,19 @@ export default function ComprasPage() {
         />
       )}
 
-      <CompraFormDialog
+      <PurchaseFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
         proveedores={proveedores}
         medicamentos={medicamentos}
-        onSaved={handleSaved}
+        onCompraRegistrada={handleSaved}
       />
 
-      <DetalleCompraSheet
+      <PurchaseDetailSheet
         compra={detalleTarget}
         proveedores={proveedores}
         medicamentos={medicamentos}
+        open={Boolean(detalleTarget)}
         onOpenChange={(open) => !open && setDetalleTarget(null)}
       />
     </div>

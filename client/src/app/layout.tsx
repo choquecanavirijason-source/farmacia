@@ -3,6 +3,7 @@ import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/context/auth-context";
 
 const fontSans = Inter({
   variable: "--font-sans",
@@ -28,10 +29,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          {/* id fijo: al imprimir se oculta TODO este árbol (ver @media print en globals.css) —
-              lo que quede visible en la hoja es únicamente contenido portado fuera de acá (ej. el recibo). */}
-          <div id="app-shell">{children}</div>
-          <Toaster richColors position="top-right" />
+          <AuthProvider>
+            <div id="app-shell">{children}</div>
+            <Toaster richColors position="top-right" />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

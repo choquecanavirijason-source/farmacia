@@ -2,19 +2,44 @@
 
 namespace App\Models;
 
+use App\Observers\AuditObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Supplier extends Model
+#[ObservedBy([AuditObserver::class])]
+class Supplier extends Model implements Auditable
 {
-    use HasFactory;
+    use AuditableTrait, HasFactory, SoftDeletes;
 
-    protected $fillable = ['name', 'nit', 'phone', 'address', 'email'];
+    protected $fillable = [
+        'name',
+        'nit',
+        'phone',
+        'address',
+        'email',
+        'created_id',
+        'updated_id',
+        'deleted_id',
+        'restored_id',
+        'restored_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'restored_at' => 'datetime',
+            'deleted_at'  => 'datetime',
+        ];
+    }
 
     public function scopeSearch(Builder $query, string $search): Builder
     {
-        return $query->where(fn (Builder $query) => $query->where('name', 'like', "%{$search}%")->orWhere('nit', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"));
+        return $query->where(fn ($query) => $query->where('name', 'like', "%{$search}%")->orWhere('nit', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"));
     }
 
     public function scopeSort(Builder $query, string $column = 'name', string $direction = 'asc'): Builder

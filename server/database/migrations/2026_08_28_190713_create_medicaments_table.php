@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('medicaments', function (Blueprint $table) {
@@ -24,13 +21,16 @@ return new class extends Migration
             $table->foreignId('laboratory_id')->constrained('laboratories');
             $table->foreignId('category_id')->constrained('categories');
             $table->foreignId('presentation_id')->constrained('presentations');
+            $table->unsignedBigInteger('created_id')->nullable();
+            $table->unsignedBigInteger('updated_id')->nullable();
+            $table->unsignedBigInteger('deleted_id')->nullable();
+            $table->unsignedBigInteger('restored_id')->nullable();
+            $table->timestamp('restored_at')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('medicaments');

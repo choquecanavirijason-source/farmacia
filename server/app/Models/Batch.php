@@ -2,17 +2,42 @@
 
 namespace App\Models;
 
+use App\Observers\AuditObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Batch extends Model
+#[ObservedBy([AuditObserver::class])]
+class Batch extends Model implements Auditable
 {
-    use HasFactory;
+    use AuditableTrait, HasFactory, SoftDeletes;
 
-    protected $fillable = ['batch_number', 'expiration_date', 'current_quantity', 'purchase_price', 'medicament_id'];
+    protected $fillable = [
+        'batch_number',
+        'expiration_date',
+        'current_quantity',
+        'purchase_price',
+        'medicament_id',
+        'created_id',
+        'updated_id',
+        'deleted_id',
+        'restored_id',
+        'restored_at',
+    ];
 
-    protected $casts = ['expiration_date' => 'date', 'purchase_price' => 'decimal:2'];
+    protected function casts(): array
+    {
+        return [
+            'expiration_date' => 'date',
+            'purchase_price'  => 'decimal:2',
+            'restored_at'     => 'datetime',
+            'deleted_at'      => 'datetime',
+        ];
+    }
 
     public function scopeSearch(Builder $query, string $search): Builder
     {

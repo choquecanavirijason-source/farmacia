@@ -1,19 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { MoreHorizontal, Pencil, Plus, Trash2, Truck } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+  RotateCcw,
+  Phone,
+  MapPin,
+  Mail,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   DataTable,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   type DataTableColumn,
   type ServerFetchParams,
 } from "@/components/ui/table";
@@ -25,281 +26,398 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
 import {
-  deleteProveedor,
-  fetchProveedoresPage,
-  updateProveedor,
-} from "@/lib/api/proveedores";
-import type { Proveedor } from "@/lib/types";
-import { ProveedorFormDialog } from "@/app/(app)/proveedores/proveedor-form-dialog";
+  getPaginated,
+  remove,
+  bulkDestroy,
+  restore,
+  update,
+  exportResource,
+} from "@/lib/api/suppliers";
+import { useAuth } from "@/context/auth-context";
+import type { ISupplier, SupplierTableEditableField } from "@/lib/types/supplier";
+import { SupplierFormDialog } from "./supplier-form-dialog";
+import { cn } from "@/lib/utils";
+
+// Parámetros por defecto para la consulta paginada
+const DEFAULT_PARAMS: ServerFetchParams = {
+  page: 1,
+  pageSize: 10,
+  search: "",
+  sort: null,
+};
 
 export default function ProveedoresPage() {
-  const [proveedores, setProveedores] = useState<{
-    items: Proveedor[];
-    total: number;
-  }>({ items: [], total: 0 });
-  const [params, setParams] = useState<ServerFetchParams>({
-    page: 1,
-    pageSize: 10,
-    search: "",
-    sort: null,
-  });
+  const { can } = useAuth();
+  // Estados para datos, paginación y carga
+  const [params, setParams] = useState<ServerFetchParams>(DEFAULT_PARAMS);
+  const [items, setItems] = useState<ISupplier[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
+  // Estados de formularios y eliminación
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Proveedor | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Proveedor | null>(null);
+  const [editing, setEditing] = useState<ISupplier | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ISupplier | null>(null);
+  const [selectedRows, setSelectedRows] = useState<ISupplier[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [selectionClearKey, setSelectionClearKey] = useState(0);
 
+  // Función para recargar la tabla
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setRefreshKey((k) => k + 1);
+  }, []);
+
+  // Manejador de cambio de parámetros de tabla
+  const paramsRef = useRef(params);
+  const handleParamsChange = useCallback((next: ServerFetchParams) => {
+    const searchChanged = paramsRef.current.search !== next.search;
+    paramsRef.current = next;
+    if (!searchChanged) setLoading(true);
+    setParams(next);
+  }, []);
+
+  // Consulta de proveedores desde la API
   useEffect(() => {
     const controller = new AbortController();
-    fetchProveedoresPage(params, controller.signal)
-      .then(setProveedores)
-      .catch((reason) => {
-        if (!controller.signal.aborted)
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : "Error al cargar los proveedores.",
-          );
+
+    getPaginated(
+      {
+        page: params.page,
+        pageSize: params.pageSize,
+        search: params.search,
+        sort_by: params.sort?.key || "name",
+        sort_dir: params.sort?.direction || "asc",
+      },
+      controller.signal
+    )
+      .then((result) => {
+        setItems(result.data);
+        setTotal(result.meta?.total ?? result.data.length);
+        setError(null);
+        if (result.data.length === 0 && result.meta?.total > 0 && params.page > 1) {
+          setParams((p) => ({ ...p, page: p.page - 1 }));
+        }
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setError(err?.response?.data?.message || err?.message || "Error al cargar los proveedores.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
-    return () => controller.abort();
-  }, [params]);
 
+    return () => controller.abort();
+  }, [params, refreshKey]);
+
+  // Apertura de modal de creación
   function openCreate() {
     setEditing(null);
     setFormOpen(true);
   }
 
-  function openEdit(proveedor: Proveedor) {
+  // Apertura de modal de edición
+  function openEdit(proveedor: ISupplier) {
+    if (proveedor.deleted_at) return;
     setEditing(proveedor);
     setFormOpen(true);
   }
 
-  function upsertProveedor(saved: Proveedor) {
-    setProveedores((prev) => {
-      const exists = prev.items.some(
-        (p) => p.id_proveedor === saved.id_proveedor,
+  // Restauración de un proveedor eliminado lógicamente
+  async function handleRestore(proveedor: ISupplier) {
+    try {
+      await restore(proveedor.id);
+      toast.success("Proveedor restaurado con éxito.");
+      refresh();
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ||
+        err?.message ||
+        "No se pudo restaurar el proveedor."
       );
-      return {
-        ...prev,
-        items: exists
-          ? prev.items.map((p) =>
-              p.id_proveedor === saved.id_proveedor ? saved : p,
-            )
-          : [...prev.items, saved],
-      };
-    });
+    }
   }
 
-  function handleSaved(saved: Proveedor) {
+  // Notificación y recarga al guardar cambios en formulario
+  function handleSaved() {
     const wasEditing = Boolean(editing);
-    upsertProveedor(saved);
     toast.success(wasEditing ? "Proveedor actualizado." : "Proveedor creado.");
+    refresh();
   }
 
-  async function saveField(
-    p: Proveedor,
-    field: "nombre" | "nit" | "telefono" | "email",
-    value: string,
-  ) {
-    const updated = await updateProveedor(p.id_proveedor, {
-      nombre: field === "nombre" ? value : p.nombre,
-      nit: field === "nit" ? value : p.nit,
-      telefono: field === "telefono" ? value : p.telefono,
-      direccion: p.direccion,
-      email: field === "email" ? value : p.email,
+  // Edición rápida en celda de la tabla
+  async function saveField(supplier: ISupplier, field: SupplierTableEditableField, value: string) {
+    if (supplier.deleted_at) return;
+    await update(supplier.id, {
+      [field]: value,
     });
-    upsertProveedor(updated);
+    refresh();
   }
 
-  const isLoading = loading;
-  const hasAny = proveedores.items.length > 0;
-
-  const columns: DataTableColumn<Proveedor>[] = [
+  // Definición de columnas de la tabla de proveedores
+  const columns: DataTableColumn<ISupplier>[] = [
     {
-      key: "nombre",
-      header: "Nombre",
-      accessor: (p) => p.nombre,
-      className: "max-w-56 truncate font-medium",
-      edit: { onSave: (p, value) => saveField(p, "nombre", String(value)) },
+      key: "name",
+      header: "Nombre / Razón Social",
+      accessor: (p) => p.name,
+      resizable: true,
+      width: 220,
+      edit: { onSave: (p, v) => saveField(p, "name", String(v)) },
+      render: (_, p) => (
+        <div className="flex items-center gap-2">
+          <span className={cn("font-medium text-xs", p.deleted_at && "text-destructive line-through")}>
+            {p.name}
+          </span>
+          {p.deleted_at && (
+            <span className="rounded bg-destructive/20 px-1.5 py-0.5 text-[10px] font-semibold text-destructive uppercase tracking-wide">
+              Eliminado
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       key: "nit",
       header: "NIT",
       accessor: (p) => p.nit,
-      className: "whitespace-nowrap font-mono text-xs",
-      edit: { onSave: (p, value) => saveField(p, "nit", String(value)) },
+      resizable: true,
+      width: 140,
+      edit: { onSave: (p, v) => saveField(p, "nit", String(v)) },
+      render: (_, p) => (
+        <span className={cn("font-mono text-xs", p.deleted_at && "text-destructive/80 line-through")}>
+          {p.nit || "-"}
+        </span>
+      ),
     },
     {
-      key: "telefono",
+      key: "phone",
       header: "Teléfono",
-      accessor: (p) => p.telefono,
-      className: "whitespace-nowrap text-muted-foreground",
-      render: (_, p) => p.telefono || "—",
-      edit: { onSave: (p, value) => saveField(p, "telefono", String(value)) },
+      accessor: (p) => p.phone,
+      resizable: true,
+      width: 150,
+      edit: { onSave: (p, v) => saveField(p, "phone", String(v)) },
+      render: (_, p) => (
+        <span className={cn("flex items-center gap-1.5 text-xs", p.deleted_at ? "text-destructive/80" : "text-muted-foreground")}>
+          <Phone className="size-3.5" aria-hidden />
+          <span className="font-mono">{p.phone || "-"}</span>
+        </span>
+      ),
     },
     {
       key: "email",
-      header: "Correo",
+      header: "Correo Electrónico",
       accessor: (p) => p.email,
-      className: "max-w-48 truncate text-muted-foreground",
-      render: (_, p) => p.email || "—",
-      edit: { onSave: (p, value) => saveField(p, "email", String(value)) },
+      resizable: true,
+      width: 200,
+      edit: { onSave: (p, v) => saveField(p, "email", String(v)) },
+      render: (_, p) => (
+        <span className={cn("flex items-center gap-1.5 text-xs", p.deleted_at ? "text-destructive/80" : "text-muted-foreground")}>
+          <Mail className="size-3.5" aria-hidden />
+          <span className="truncate">{p.email || "-"}</span>
+        </span>
+      ),
+    },
+    {
+      key: "address",
+      header: "Dirección",
+      accessor: (p) => p.address,
+      resizable: true,
+      width: 220,
+      edit: { onSave: (p, v) => saveField(p, "address", String(v)) },
+      render: (_, p) => (
+        <span className={cn("flex items-center gap-1.5 text-xs", p.deleted_at ? "text-destructive/80" : "text-muted-foreground")}>
+          <MapPin className="size-3.5" aria-hidden />
+          <span className="truncate">{p.address || "-"}</span>
+        </span>
+      ),
     },
     {
       key: "acciones",
-      header: <span className="sr-only">Acciones</span>,
+      header: "Acciones",
       accessor: () => null,
       sortable: false,
       filterable: false,
-      className: "w-10",
-      render: (_, p) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
+      resizable: false,
+      className: "w-28",
+      render: (_, p) => {
+        if (p.deleted_at) {
+          if (!can("restore suppliers")) return null;
+          return (
+            <div className="flex justify-center">
               <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Acciones para ${p.nombre}`}
-              />
-            }
-          >
-            <MoreHorizontal className="size-4" aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => openEdit(p)}>
-              <Pencil className="size-4" aria-hidden />
-              Editar
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
-              onSelect={() => setDeleteTarget(p)}
-            >
-              <Trash2 className="size-4" aria-hidden />
-              Eliminar
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive text-xs font-medium"
+                onClick={() => handleRestore(p)}
+                title="Restaurar proveedor"
+              >
+                <RotateCcw className="size-3.5" aria-hidden />
+                Restaurar
+              </Button>
+            </div>
+          );
+        }
+
+        if (!can("edit suppliers") && !can("delete suppliers")) {
+          return null;
+        }
+
+        return (
+          <div className="flex justify-center">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Acciones para ${p.name}`}
+                  />
+                }
+              >
+                <MoreHorizontal className="size-4" aria-hidden />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {can("edit suppliers") && (
+                  <DropdownMenuItem onClick={() => openEdit(p)}>
+                    <Pencil className="size-4" aria-hidden />
+                    Editar
+                  </DropdownMenuItem>
+                )}
+                {can("delete suppliers") && (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => setDeleteTarget(p)}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                    Eliminar
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      },
     },
   ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 p-4 md:p-6">
+      {/* Encabezado del módulo */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-balance">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
             Gestión de Proveedores
           </h1>
           <p className="text-sm text-muted-foreground">
-            Proveedores de medicamentos para Registro de Compras.
+            Administra los laboratorios y distribuidores de medicamentos.
           </p>
         </div>
-        <Button type="button" onClick={openCreate} className="shrink-0 gap-1.5">
-          <Plus className="size-4" aria-hidden />
-          Nuevo Proveedor
-        </Button>
-      </div>
-
-      {isLoading ? (
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>NIT</TableHead>
-                <TableHead>Teléfono</TableHead>
-                <TableHead>Correo</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: 4 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((__, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full max-w-24" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : !hasAny ? (
-        <Card className="border-dashed border-border/60 bg-background/60">
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Truck className="size-6" aria-hidden />
-            </span>
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium">
-                Aún no hay proveedores registrados
-              </p>
-              <p className="max-w-sm text-xs text-balance text-muted-foreground">
-                Registra tu primer proveedor para empezar a comprarle
-                medicamentos.
-              </p>
-            </div>
-            <Button type="button" onClick={openCreate} className="mt-2 gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {can("delete suppliers") && selectedRows.length > 0 && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setBulkDeleteOpen(true)}
+              className="shrink-0 gap-1.5"
+            >
+              <Trash2 className="size-4" aria-hidden />
+              Eliminar seleccionados ({selectedRows.length})
+            </Button>
+          )}
+          {can("create suppliers") && (
+            <Button
+              type="button"
+              onClick={openCreate}
+              className="shrink-0 gap-1.5"
+            >
               <Plus className="size-4" aria-hidden />
               Nuevo Proveedor
             </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <DataTable
-          data={proveedores.items}
-          columns={columns}
-          server={{
-            params,
-            onParamsChange: (next) => {
-              setLoading(true);
-              setParams(next);
-            },
-            total: proveedores.total,
-            loading,
-            error,
-            onRetry: () => {
-              setLoading(true);
-              setParams({ ...params });
-            },
-          }}
-          searchPlaceholder="Buscar por nombre o NIT…"
-          emptyMessage="No se encontraron proveedores."
-        />
-      )}
+          )}
+        </div>
+      </div>
 
-      <ProveedorFormDialog
+      {/* Tabla de datos principal */}
+      <DataTable
+        data={items}
+        columns={columns}
+        server={{
+          params,
+          onParamsChange: handleParamsChange,
+          total,
+          loading,
+          error,
+          onRetry: refresh,
+        }}
+        getRowClassName={(p) =>
+          p.deleted_at
+            ? "bg-destructive/10 hover:bg-destructive/15 text-destructive border-destructive/20 dark:bg-destructive/15 dark:hover:bg-destructive/20"
+            : undefined
+        }
+        searchPlaceholder="Buscar por nombre, NIT, teléfono o email…"
+        emptyMessage="No se encontraron proveedores."
+        pageSizeOptions={[10, 20, 50, 100]}
+        exportFilename="proveedores.csv"
+        onExport={can("export suppliers") ? exportResource : undefined}
+        onRefresh={refresh}
+        getRowId={(p) => p.id}
+        onSelectionChange={can("delete suppliers") ? setSelectedRows : undefined}
+        clearSelectionKey={selectionClearKey}
+        enableColumnDrag={true}
+        enableRowDrag={false}
+        persistPreferences={true}
+        storageKey="proveedores-table"
+        minColumnWidth={80}
+      />
+
+      {/* Modal de formulario para crear/editar */}
+      <SupplierFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
-        proveedor={editing}
+        supplier={editing}
         onSaved={handleSaved}
       />
 
+      {/* Diálogo de confirmación para eliminación individual */}
       <ConfirmDeleteDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="¿Eliminar proveedor?"
         description={
           <>
-            Se eliminará <strong>{deleteTarget?.nombre}</strong> del catálogo.
-            Esta acción no se puede deshacer.
+            Se eliminará el proveedor <strong>{deleteTarget?.name}</strong> y sus datos asociados.
           </>
         }
         onConfirm={async () => {
           if (!deleteTarget) return;
-          await deleteProveedor(deleteTarget.id_proveedor);
-          setProveedores((prev) => ({
-            ...prev,
-            items: prev.items.filter(
-              (p) => p.id_proveedor !== deleteTarget.id_proveedor,
-            ),
-          }));
+          await remove(deleteTarget.id);
           toast.success("Proveedor eliminado.");
+          refresh();
+        }}
+      />
+
+      {/* Diálogo de confirmación para eliminación masiva */}
+      <ConfirmDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`¿Eliminar ${selectedRows.length} proveedor(es)?`}
+        description={
+          <>
+            Se eliminarán{" "}
+            <strong>{selectedRows.length} proveedor(es) seleccionado(s)</strong> y sus datos asociados.
+          </>
+        }
+        onConfirm={async () => {
+          if (selectedRows.length === 0) return;
+          const result = await bulkDestroy(
+            selectedRows.map((p) => p.id)
+          );
+          toast.success(result.message || "Proveedores eliminados.");
+          setSelectionClearKey((k) => k + 1);
+          refresh();
         }}
       />
     </div>

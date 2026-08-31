@@ -17,8 +17,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { NavList } from "@/components/layout/nav-list";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { clearClientSession } from "@/lib/auth/client-session";
-import { apiFetch, setAuthToken } from "@/lib/api/http";
+import { logout } from "@/lib/api/auth";
 import type { MenuGroup } from "@/lib/nav/menu-config";
 import type { Sesion } from "@/lib/types";
 
@@ -44,12 +43,8 @@ export function Topbar({ sesion, groups }: TopbarProps) {
   async function handleLogout() {
     setLoggingOut(true);
     try {
-      await apiFetch("/auth/logout", { method: "POST" });
-    } catch {
-      // Token ya inválido o servidor inalcanzable: igual cerramos sesión localmente.
+      await logout();
     } finally {
-      clearClientSession();
-      setAuthToken(null);
       router.push("/login");
     }
   }

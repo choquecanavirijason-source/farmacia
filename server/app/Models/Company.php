@@ -2,15 +2,41 @@
 
 namespace App\Models;
 
+use App\Observers\AuditObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Company extends Model
+#[ObservedBy([AuditObserver::class])]
+class Company extends Model implements Auditable
 {
-    use HasFactory;
+    use AuditableTrait, HasFactory, SoftDeletes;
 
-    protected $fillable = ['name', 'nit', 'address', 'phone', 'email', 'logo_path'];
+    protected $fillable = [
+        'name',
+        'nit',
+        'address',
+        'phone',
+        'email',
+        'logo_path',
+        'created_id',
+        'updated_id',
+        'deleted_id',
+        'restored_id',
+        'restored_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'restored_at' => 'datetime',
+            'deleted_at'  => 'datetime',
+        ];
+    }
 
     public function scopeSearch(Builder $query, string $search): Builder
     {

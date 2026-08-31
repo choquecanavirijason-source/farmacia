@@ -9,7 +9,7 @@ import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { fetchEmpresa, updateEmpresa } from "@/lib/api/empresa";
+import { fetchEmpresa, actualizarEmpresa as updateEmpresa } from "@/lib/api/companies";
 import type { Empresa } from "@/lib/types";
 
 const LOGO_MAX_BYTES = 1_000_000;
@@ -119,7 +119,7 @@ export default function ConfiguracionPage() {
                         variant="ghost"
                         size="icon-sm"
                         disabled={saving}
-                        onClick={() => update("logo", null)}
+                        onClick={() => update("logo", "")}
                         aria-label="Quitar logo"
                       >
                         <X className="size-4" aria-hidden />

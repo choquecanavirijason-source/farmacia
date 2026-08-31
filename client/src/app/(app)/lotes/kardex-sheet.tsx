@@ -10,7 +10,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchKardexByLote } from "@/lib/api/lotes";
+import { fetchKardexByLote } from "@/lib/api/batches";
 import type { KardexMovimiento, Lote } from "@/lib/types";
 
 interface KardexSheetProps {
@@ -18,13 +18,17 @@ interface KardexSheetProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const TIPO_META: Record<KardexMovimiento["tipo"], { label: string; icon: typeof ArrowUpCircle; className: string }> = {
+const TIPO_META: Record<string, { label: string; icon: typeof ArrowUpCircle; className: string }> = {
   entrada: { label: "Entrada", icon: ArrowUpCircle, className: "text-success" },
+  in: { label: "Entrada", icon: ArrowUpCircle, className: "text-success" },
   salida: { label: "Salida", icon: ArrowDownCircle, className: "text-destructive" },
+  out: { label: "Salida", icon: ArrowDownCircle, className: "text-destructive" },
   ajuste: { label: "Ajuste", icon: SlidersHorizontal, className: "text-warning" },
+  adjustment: { label: "Ajuste", icon: SlidersHorizontal, className: "text-warning" },
 };
 
-function formatFecha(iso: string): string {
+function formatFecha(iso?: string): string {
+  if (!iso) return "—";
   return new Date(iso).toLocaleString("es-BO", { dateStyle: "medium", timeStyle: "short" });
 }
 
@@ -32,8 +36,8 @@ function KardexBody({ lote }: { lote: Lote }) {
   const [movimientos, setMovimientos] = useState<KardexMovimiento[] | null>(null);
 
   useEffect(() => {
-    fetchKardexByLote(lote.id_lote).then(setMovimientos);
-  }, [lote.id_lote]);
+    fetchKardexByLote(lote.id_lote || lote.id).then((data) => setMovimientos(data as any));
+  }, [lote.id_lote, lote.id]);
 
   return (
     <div className="flex flex-col gap-3 overflow-y-auto px-4 pb-4">
@@ -43,11 +47,11 @@ function KardexBody({ lote }: { lote: Lote }) {
         <p className="py-8 text-center text-sm text-muted-foreground">Sin movimientos registrados.</p>
       ) : (
         movimientos.map((mov) => {
-          const meta = TIPO_META[mov.tipo];
+          const meta = TIPO_META[mov.tipo] || { label: mov.tipo, icon: SlidersHorizontal, className: "text-muted-foreground" };
           const Icon = meta.icon;
           return (
             <div
-              key={mov.id_movimiento}
+              key={mov.id_movimiento || mov.id}
               className="flex items-start gap-3 rounded-lg border border-border/60 p-3"
             >
               <Icon className={`mt-0.5 size-5 shrink-0 ${meta.className}`} aria-hidden />
@@ -59,10 +63,10 @@ function KardexBody({ lote }: { lote: Lote }) {
                     {mov.cantidad}
                   </span>
                 </div>
-                <p className="wrap-break-word text-xs text-muted-foreground">{mov.motivo}</p>
+                <p className="wrap-break-word text-xs text-muted-foreground">{mov.motivo || mov.reason}</p>
                 <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                  <span>{formatFecha(mov.fecha)}</span>
-                  <span>Saldo: {mov.saldo}</span>
+                  <span>{formatFecha(mov.fecha_hora || mov.occurred_at || (mov as any).fecha)}</span>
+                  <span>Saldo: {mov.saldo ?? mov.balance}</span>
                 </div>
               </div>
             </div>

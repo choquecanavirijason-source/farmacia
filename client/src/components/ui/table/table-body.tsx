@@ -17,6 +17,7 @@ interface TableBodyProps<T> {
     toggleRow: (id: string | number) => void
     pagination: { page: number; pageSize: number; pageItems?: T[] | null; totalItems: number }
     getRowId?: (row: T) => string | number
+    getRowClassName?: (row: T) => string | undefined
     emptyMessage: string
     serverError?: string | null
     onRetry?: () => void
@@ -41,6 +42,7 @@ export function TableBody<T>({
     toggleRow,
     pagination,
     getRowId,
+    getRowClassName,
     emptyMessage,
     serverError,
     onRetry,
@@ -91,7 +93,7 @@ export function TableBody<T>({
                     className="h-24 text-center"
                 >
                     <div className="flex flex-col items-center gap-3">
-                        <p className="text-sm text-muted-foreground">{serverError}</p>
+                        <p className="text-sm text-destructive">{serverError}</p>
                         <Button type="button" variant="outline" size="sm" onClick={onRetry}>
                             Reintentar
                         </Button>
@@ -121,6 +123,7 @@ export function TableBody<T>({
             <>
                 {pageItems.map((row, index) => {
                     const id = getRowId(row)
+                    const rowClassName = getRowClassName?.(row)
                     return (
                         <DraggableRow
                             key={id}
@@ -139,6 +142,7 @@ export function TableBody<T>({
                             setEditing={setEditing}
                             startEdit={startEdit}
                             commitEdit={commitEdit}
+                            rowClassName={rowClassName}
                         />
                     )
                 })}
@@ -151,13 +155,15 @@ export function TableBody<T>({
             {pageItems.map((row, index) => {
                 const id = selectable && getRowId ? getRowId(row) : null
                 const isSelected = id !== null && selectedIds.has(id)
+                const rowClassName = getRowClassName?.(row)
 
                 return (
                     <tr
                         key={id ?? index}
                         className={cn(
                             "border-b transition-colors hover:bg-muted/50 even:bg-muted/40 data-[state=selected]:bg-muted/60",
-                            isSelected && "bg-muted/50"
+                            isSelected && "bg-muted/50",
+                            rowClassName
                         )}
                         data-state={isSelected ? "selected" : undefined}
                     >

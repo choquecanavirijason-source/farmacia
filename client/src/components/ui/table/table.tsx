@@ -26,10 +26,12 @@ function DataTable<T>({
     emptyMessage = "No se encontraron registros.",
     className,
     getRowId,
+    getRowClassName,
     onSelectionChange,
     clearSelectionKey,
     exportFilename = "tabla.csv",
     onExport,
+    onRefresh,
     enableColumnDrag = false,
     enableRowDrag = false,
     onRowReorder,
@@ -372,6 +374,7 @@ function DataTable<T>({
     const serverError = isServerMode ? (server?.error ?? null) : null
     const showSkeleton = Boolean(serverLoading && data.length === 0)
     const isRowDragDisabled = !enableRowDrag || !selectable || !onRowReorder
+    const refreshHandler = onRefresh ?? server?.onRetry
 
     return (
         <DndProvider backend={HTML5Backend}>
@@ -383,8 +386,11 @@ function DataTable<T>({
                     hasActiveFilters={hasActiveFilters}
                     onClearFilters={clearFilters}
                     selectedCount={selectedIds.size}
+                    exportFilename={exportFilename}
                     onExport={onExport}
                     onExportCsv={exportCsv}
+                    onRefresh={refreshHandler}
+                    loading={serverLoading}
                 />
 
                 {isServerMode && serverError && data.length > 0 && (
@@ -447,6 +453,7 @@ function DataTable<T>({
                                     toggleRow={toggleRow}
                                     pagination={pagination}
                                     getRowId={getRowId}
+                                    getRowClassName={getRowClassName}
                                     emptyMessage={emptyMessage}
                                     serverError={serverError}
                                     onRetry={server?.onRetry}

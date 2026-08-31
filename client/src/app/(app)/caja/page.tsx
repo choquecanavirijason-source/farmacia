@@ -9,23 +9,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/table";
 import {
-  fetchCajaAbierta,
   fetchCajas,
+  fetchCajaAbierta,
   fetchMovimientosByCaja,
   montoEsperado,
   type CierreResultado,
-} from "@/lib/api/caja";
+} from "@/lib/api/cash-registers";
+import { useAuth } from "@/context/auth-context";
 import { formatCurrency } from "@/lib/format";
 import type { Caja, MovimientoCaja } from "@/lib/types";
-import { AbrirCajaDialog } from "@/app/(app)/caja/abrir-caja-dialog";
-import { MovimientoCajaDialog } from "@/app/(app)/caja/movimiento-caja-dialog";
-import { CerrarCajaDialog } from "@/app/(app)/caja/cerrar-caja-dialog";
+import { OpenCashRegisterDialog } from "./open-cash-register-dialog";
+import { CloseCashRegisterDialog } from "./close-cash-register-dialog";
+import { CashMovementDialog } from "./cash-movement-dialog";
 
 function formatFecha(iso: string): string {
   return new Date(iso).toLocaleString("es-BO", { dateStyle: "medium", timeStyle: "short" });
 }
 
 export default function CajaPage() {
+  const { can } = useAuth();
   const [cajaAbierta, setCajaAbierta] = useState<Caja | null | undefined>(undefined);
   const [movimientos, setMovimientos] = useState<MovimientoCaja[]>([]);
   const [historial, setHistorial] = useState<Caja[] | null>(null);
@@ -37,7 +39,11 @@ export default function CajaPage() {
   useEffect(() => {
     Promise.all([fetchCajaAbierta(), fetchCajas()]).then(([abierta, cajas]) => {
       setCajaAbierta(abierta);
-      setHistorial(cajas.filter((c) => c.estado === "cerrada").sort((a, b) => b.id_caja - a.id_caja));
+      setHistorial(
+        (cajas as any[])
+          .filter((c: any) => c.estado === "cerrada" || c.status === "closed")
+          .sort((a: any, b: any) => (b.id_caja || b.id) - (a.id_caja || a.id))
+      );
       if (abierta) {
         fetchMovimientosByCaja(abierta.id_caja).then(setMovimientos);
       } else {
@@ -62,25 +68,21 @@ export default function CajaPage() {
     toast.success(movimiento.tipo === "ingreso" ? "Ingreso registrado." : "Egreso registrado.");
   }
 
-  function handleClosed(resultado: CierreResultado) {
+  function handleClosed(caja: any) {
     setCajaAbierta(null);
     setMovimientos([]);
-    setHistorial((prev) => (prev ? [resultado.caja, ...prev] : [resultado.caja]));
-    toast.success(
-      resultado.diferencia === 0
-        ? "Caja cerrada. Cuadró exacto."
-        : `Caja cerrada. Diferencia: ${formatCurrency(resultado.diferencia)}.`
-    );
+    setHistorial((prev) => (prev ? [caja, ...prev] : [caja]));
+    toast.success("Caja cerrada correctamente.");
   }
 
   const isLoading = cajaAbierta === undefined;
 
-  const movimientoColumns: DataTableColumn<MovimientoCaja>[] = [
+  const movimientoColumns: DataTableColumn<any>[] = [
     {
       key: "tipo",
       header: "Tipo",
-      accessor: (m) => m.tipo,
-      render: (_, m) => (
+      accessor: (m: any) => m.tipo,
+      render: (_, m: any) => (
         <Badge variant={m.tipo === "ingreso" ? "success" : "warning"}>
           {m.tipo === "ingreso" ? "Ingreso" : "Egreso"}
         </Badge>
@@ -89,61 +91,61 @@ export default function CajaPage() {
     {
       key: "concepto",
       header: "Concepto",
-      accessor: (m) => m.concepto,
+      accessor: (m: any) => m.concepto || m.concept,
       className: "max-w-56 truncate",
     },
     {
       key: "monto",
       header: "Monto",
-      accessor: (m) => m.monto,
+      accessor: (m: any) => m.monto,
       className: "whitespace-nowrap text-right font-medium",
-      render: (_, m) => `${m.tipo === "ingreso" ? "+" : "-"}${formatCurrency(m.monto)}`,
+      render: (_, m: any) => `${m.tipo === "ingreso" ? "+" : "-"}${formatCurrency(m.monto)}`,
     },
     {
       key: "fecha",
       header: "Fecha",
-      accessor: (m) => m.fecha,
+      accessor: (m: any) => m.fecha || m.created_at,
       className: "whitespace-nowrap text-muted-foreground",
-      render: (_, m) => formatFecha(m.fecha),
+      render: (_, m: any) => formatFecha(m.fecha || m.created_at),
     },
   ];
 
-  const historialColumns: DataTableColumn<Caja>[] = [
+  const historialColumns: DataTableColumn<any>[] = [
     {
       key: "fecha_apertura",
       header: "Apertura",
-      accessor: (c) => c.fecha_apertura,
+      accessor: (c: any) => c.fecha_apertura || c.opening_date,
       className: "whitespace-nowrap text-muted-foreground",
-      render: (_, c) => formatFecha(c.fecha_apertura),
+      render: (_, c: any) => formatFecha(c.fecha_apertura || c.opening_date),
     },
     {
       key: "fecha_cierre",
       header: "Cierre",
-      accessor: (c) => c.fecha_cierre,
+      accessor: (c: any) => c.fecha_cierre || c.closing_date,
       className: "whitespace-nowrap text-muted-foreground",
-      render: (_, c) => (c.fecha_cierre ? formatFecha(c.fecha_cierre) : "—"),
+      render: (_, c: any) => (c.fecha_cierre || c.closing_date ? formatFecha(c.fecha_cierre || c.closing_date) : "—"),
     },
     {
       key: "monto_apertura",
       header: "Monto inicial",
-      accessor: (c) => c.monto_apertura,
+      accessor: (c: any) => c.monto_apertura ?? c.opening_amount,
       className: "text-right",
-      render: (_, c) => formatCurrency(c.monto_apertura),
+      render: (_, c: any) => formatCurrency(Number(c.monto_apertura ?? c.opening_amount ?? 0)),
     },
     {
       key: "monto_cierre",
       header: "Monto contado",
-      accessor: (c) => c.monto_cierre,
+      accessor: (c: any) => c.monto_cierre ?? c.closing_amount,
       className: "text-right",
-      render: (_, c) => (c.monto_cierre !== null ? formatCurrency(c.monto_cierre) : "—"),
+      render: (_, c: any) => ((c.monto_cierre ?? c.closing_amount) !== null ? formatCurrency(Number(c.monto_cierre ?? c.closing_amount)) : "—"),
     },
     {
       key: "diferencia",
       header: "Diferencia",
-      accessor: (c) => (c.monto_cierre ?? 0) - (c.monto_esperado_cierre ?? c.monto_apertura),
+      accessor: (c: any) => Number(c.monto_cierre ?? c.closing_amount ?? 0) - Number(c.monto_esperado ?? c.monto_esperado_cierre ?? c.monto_apertura ?? 0),
       className: "text-right",
-      render: (_, c) => {
-        const diferencia = (c.monto_cierre ?? 0) - (c.monto_esperado_cierre ?? c.monto_apertura);
+      render: (_, c: any) => {
+        const diferencia = Number(c.monto_cierre ?? c.closing_amount ?? 0) - Number(c.monto_esperado ?? c.monto_esperado_cierre ?? c.monto_apertura ?? 0);
         return (
           <Badge variant={diferencia === 0 ? "secondary" : diferencia > 0 ? "warning" : "destructive"}>
             {diferencia === 0 ? "Exacto" : formatCurrency(diferencia)}
@@ -180,10 +182,12 @@ export default function CajaPage() {
                 Abre la caja con el monto inicial en efectivo para empezar a registrar movimientos.
               </p>
             </div>
-            <Button type="button" onClick={() => setAbrirOpen(true)} className="mt-2 gap-1.5">
-              <Wallet className="size-4" aria-hidden />
-              Abrir Caja
-            </Button>
+            {can("open cash registers") && (
+              <Button type="button" onClick={() => setAbrirOpen(true)} className="mt-2 gap-1.5">
+                <Wallet className="size-4" aria-hidden />
+                Abrir Caja
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -213,36 +217,42 @@ export default function CajaPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => setMovimientoTipo("ingreso")}
-                >
-                  <ArrowUpCircle className="size-4" aria-hidden />
-                  Registrar Ingreso
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => setMovimientoTipo("egreso")}
-                >
-                  <ArrowDownCircle className="size-4" aria-hidden />
-                  Registrar Egreso
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  className="ml-auto gap-1.5"
-                  onClick={() => setCerrarOpen(true)}
-                >
-                  <Lock className="size-4" aria-hidden />
-                  Cerrar Caja
-                </Button>
+                {can("create cash movements") && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setMovimientoTipo("ingreso")}
+                    >
+                      <ArrowUpCircle className="size-4" aria-hidden />
+                      Registrar Ingreso
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setMovimientoTipo("egreso")}
+                    >
+                      <ArrowDownCircle className="size-4" aria-hidden />
+                      Registrar Egreso
+                    </Button>
+                  </>
+                )}
+                {can("close cash registers") && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="ml-auto gap-1.5"
+                    onClick={() => setCerrarOpen(true)}
+                  >
+                    <Lock className="size-4" aria-hidden />
+                    Cerrar Caja
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -279,23 +289,28 @@ export default function CajaPage() {
         )}
       </div>
 
-      <AbrirCajaDialog open={abrirOpen} onOpenChange={setAbrirOpen} onOpened={handleOpened} />
+      <OpenCashRegisterDialog
+        open={abrirOpen}
+        onOpenChange={setAbrirOpen}
+        idUsuario={1}
+        onCajaAbierta={handleOpened}
+      />
 
       {cajaAbierta && movimientoTipo ? (
-        <MovimientoCajaDialog
+        <CashMovementDialog
           open={Boolean(movimientoTipo)}
           onOpenChange={(open) => !open && setMovimientoTipo(null)}
-          idCaja={cajaAbierta.id_caja}
-          tipoInicial={movimientoTipo}
-          onRegistrado={handleMovimiento}
+          idCaja={cajaAbierta.id_caja || cajaAbierta.id}
+          onMovimientoRegistrado={handleMovimiento}
         />
       ) : null}
 
-      <CerrarCajaDialog
+      <CloseCashRegisterDialog
+        open={cerrarOpen}
         caja={cerrarOpen ? cajaAbierta ?? null : null}
-        esperado={esperado}
+        totalEsperado={esperado}
         onOpenChange={(open) => !open && setCerrarOpen(false)}
-        onClosed={handleClosed}
+        onCajaCerrada={handleClosed}
       />
     </div>
   );

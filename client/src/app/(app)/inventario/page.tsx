@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/table";
-import { fetchCategorias } from "@/lib/api/catalogos";
-import { fetchLotes } from "@/lib/api/lotes";
-import { fetchMedicamentos } from "@/lib/api/medicamentos";
+import { fetchCategorias } from "@/lib/api/catalogs";
+import { fetchLotes } from "@/lib/api/batches";
+import { fetchMedicamentos } from "@/lib/api/medicaments";
 import type { Categoria, Lote, Medicamento } from "@/lib/types";
-import { LotesMedicamentoSheet } from "@/app/(app)/inventario/lotes-medicamento-sheet";
+import { MedicamentBatchesSheet } from "./medicament-batches-sheet";
 
 export default function InventarioPage() {
   const [medicamentos, setMedicamentos] = useState<Medicamento[] | null>(null);
@@ -135,7 +135,12 @@ export default function InventarioPage() {
         </Card>
       ) : null}
 
-      <LotesMedicamentoSheet medicamento={verLotesDe} onOpenChange={(open) => !open && setVerLotesDe(null)} />
+      <MedicamentBatchesSheet
+        medicamento={verLotesDe}
+        lotes={lotes ?? []}
+        open={Boolean(verLotesDe)}
+        onOpenChange={(open) => !open && setVerLotesDe(null)}
+      />
     </div>
   );
 }

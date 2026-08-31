@@ -1,21 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { MoreHorizontal, Pencil, Plus, Trash2, Users } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+  RotateCcw,
+  User as UserIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   DataTable,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   type DataTableColumn,
+  type ServerFetchParams,
 } from "@/components/ui/table";
 import {
   DropdownMenu,
@@ -24,230 +24,414 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/layout/confirm-delete-dialog";
-import { deleteUsuario, fetchUsuarios, updateUsuario } from "@/lib/api/usuarios";
-import { getClientSession } from "@/lib/auth/client-session";
-import type { Sesion, Usuario } from "@/lib/types";
-import { UsuarioFormDialog } from "@/app/(app)/usuarios/usuario-form-dialog";
+import {
+  getPaginated,
+  remove,
+  bulkDestroy,
+  restore,
+  update,
+  exportResource,
+} from "@/lib/api/users";
+import { useAuth } from "@/context/auth-context";
+import type { IUser, UserTableEditableField } from "@/lib/types/user";
+import { UserFormDialog } from "./user-form-dialog";
+import { cn } from "@/lib/utils";
+
+// Parámetros por defecto para la consulta paginada
+const DEFAULT_PARAMS: ServerFetchParams = {
+  page: 1,
+  pageSize: 10,
+  search: "",
+  sort: null,
+};
 
 export default function UsuariosPage() {
-  const [usuarios, setUsuarios] = useState<Usuario[] | null>(null);
-  const [sesion, setSesion] = useState<Sesion | null>(null);
+  // Estados para datos, paginación y carga
+  const [params, setParams] = useState<ServerFetchParams>(DEFAULT_PARAMS);
+  const [items, setItems] = useState<IUser[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
+  const { user, can } = useAuth();
+
+  // Estados de formularios y eliminación
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Usuario | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Usuario | null>(null);
+  const [editing, setEditing] = useState<IUser | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<IUser | null>(null);
+  const [selectedRows, setSelectedRows] = useState<IUser[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [selectionClearKey, setSelectionClearKey] = useState(0);
 
-  useEffect(() => {
-    setSesion(getClientSession());
-    fetchUsuarios().then(setUsuarios);
+  // Función para recargar la tabla
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setRefreshKey((k) => k + 1);
   }, []);
 
+  // Manejador de cambio de parámetros de tabla
+  const paramsRef = useRef(params);
+  const handleParamsChange = useCallback((next: ServerFetchParams) => {
+    const searchChanged = paramsRef.current.search !== next.search;
+    paramsRef.current = next;
+    if (!searchChanged) setLoading(true);
+    setParams(next);
+  }, []);
+
+  // Consulta de usuarios desde la API
+  useEffect(() => {
+    const controller = new AbortController();
+
+    getPaginated(
+      {
+        page: params.page,
+        pageSize: params.pageSize,
+        search: params.search,
+        sort_by: params.sort?.key || "name",
+        sort_dir: params.sort?.direction || "asc",
+      },
+      controller.signal
+    )
+      .then((result) => {
+        setItems(result.data);
+        setTotal(result.meta?.total ?? result.data.length);
+        setError(null);
+        if (result.data.length === 0 && result.meta?.total > 0 && params.page > 1) {
+          setParams((p) => ({ ...p, page: p.page - 1 }));
+        }
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setError(err?.response?.data?.message || err?.message || "Error al cargar los usuarios.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [params, refreshKey]);
+
+  // Apertura de modal de creación
   function openCreate() {
     setEditing(null);
     setFormOpen(true);
   }
 
-  function openEdit(usuario: Usuario) {
+  // Apertura de modal de edición
+  function openEdit(usuario: IUser) {
+    if (usuario.deleted_at) return;
     setEditing(usuario);
     setFormOpen(true);
   }
 
-  function upsertUsuario(saved: Usuario) {
-    setUsuarios((prev) => {
-      if (!prev) return [saved];
-      const exists = prev.some((u) => u.id_usuario === saved.id_usuario);
-      return exists
-        ? prev.map((u) => (u.id_usuario === saved.id_usuario ? saved : u))
-        : [...prev, saved];
-    });
+  // Restauración de un usuario eliminado lógicamente
+  async function handleRestore(usuario: IUser) {
+    try {
+      await restore(usuario.id);
+      toast.success("Usuario restaurado con éxito.");
+      refresh();
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ||
+        err?.message ||
+        "No se pudo restaurar el usuario."
+      );
+    }
   }
 
-  function handleSaved(saved: Usuario) {
+  // Notificación y recarga al guardar cambios en formulario
+  function handleSaved() {
     const wasEditing = Boolean(editing);
-    upsertUsuario(saved);
     toast.success(wasEditing ? "Usuario actualizado." : "Usuario creado.");
+    refresh();
   }
 
-  async function saveField(u: Usuario, field: "nombre" | "usuario", value: string) {
-    const updated = await updateUsuario(
-      u.id_usuario,
-      { nombre: field === "nombre" ? value : u.nombre, usuario: field === "usuario" ? value : u.usuario, rol: u.rol, estado: u.estado }
-    );
-    upsertUsuario(updated);
+  // Edición rápida en celda de la tabla
+  async function saveField(u: IUser, field: UserTableEditableField, value: string) {
+    if (u.deleted_at) return;
+    await update(u.id, {
+      [field]: value,
+    });
+    refresh();
   }
 
-  const isLoading = usuarios === null;
-  const hasAny = (usuarios?.length ?? 0) > 0;
-
-  const columns: DataTableColumn<Usuario>[] = [
+  // Definición de columnas de la tabla de usuarios
+  const columns: DataTableColumn<IUser>[] = [
     {
-      key: "nombre",
-      header: "Nombre",
-      accessor: (u) => u.nombre,
-      className: "max-w-48",
-      edit: { onSave: (u, value) => saveField(u, "nombre", String(value)) },
+      key: "name",
+      header: "Nombre Completo",
+      accessor: (u) => u.name,
+      resizable: true,
+      width: 220,
+      edit: { onSave: (u, v) => saveField(u, "name", String(v)) },
+      render: (_, u) => {
+        const isSelf = u.id === user?.id;
+        return (
+          <div className="flex items-center gap-2">
+            <div className="size-6 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <UserIcon className="size-3.5" />
+            </div>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className={cn("font-medium text-xs truncate", u.deleted_at && "text-destructive line-through")}>
+                {u.name}
+              </span>
+              {isSelf && (
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  (tú)
+                </span>
+              )}
+            </div>
+            {u.deleted_at && (
+              <span className="rounded bg-destructive/20 px-1.5 py-0.5 text-[10px] font-semibold text-destructive uppercase tracking-wide shrink-0">
+                Eliminado
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "email",
+      header: "Correo Electrónico (Login)",
+      accessor: (u) => u.email,
+      resizable: true,
+      width: 220,
+      edit: { onSave: (u, v) => saveField(u, "email", String(v)) },
       render: (_, u) => (
-        <span className="block truncate" title={u.nombre}>
-          {u.nombre}
-          {u.id_usuario === sesion?.id_usuario ? (
-            <span className="ml-1.5 text-xs font-normal text-muted-foreground">(tú)</span>
-          ) : null}
+        <span className={cn("text-xs font-mono truncate", u.deleted_at ? "text-destructive/80 line-through" : "text-muted-foreground")}>
+          {u.email}
         </span>
       ),
     },
     {
-      key: "usuario",
-      header: "Usuario",
-      accessor: (u) => u.usuario,
-      className: "max-w-32 truncate font-mono text-xs",
-      edit: { onSave: (u, value) => saveField(u, "usuario", String(value)) },
-    },
-    {
-      key: "rol",
+      key: "role",
       header: "Rol",
-      accessor: (u) => u.rol,
-      render: (_, u) => (
-        <Badge variant={u.rol === "ADMINISTRADOR" ? "default" : "secondary"}>
-          {u.rol === "ADMINISTRADOR" ? "Administrador" : "Vendedor"}
-        </Badge>
-      ),
+      accessor: (u) => u.roles?.[0]?.name || "Vendedor",
+      resizable: true,
+      width: 140,
+      render: (_, u) => {
+        const roleName = u.roles?.[0]?.name;
+        const isAdmin = roleName === "administrator" || roleName === "ADMINISTRADOR";
+        return (
+          <Badge variant={isAdmin ? "default" : "secondary"} className="text-[10px]">
+            {isAdmin ? "Administrador" : "Vendedor"}
+          </Badge>
+        );
+      },
     },
     {
-      key: "estado",
+      key: "state",
       header: "Estado",
-      accessor: (u) => u.estado,
+      accessor: (u) => u.state,
+      resizable: true,
+      width: 110,
       render: (_, u) => (
-        <Badge variant={u.estado === "activo" ? "success" : "secondary"}>
-          {u.estado === "activo" ? "Activo" : "Inactivo"}
+        <Badge variant={u.state === "active" ? "success" : "secondary"} className="text-[10px]">
+          {u.state === "active" ? "Activo" : "Inactivo"}
         </Badge>
       ),
     },
     {
-      key: "fecha_registro",
-      header: "Registro",
-      accessor: (u) => u.fecha_registro,
-      className: "whitespace-nowrap text-muted-foreground",
+      key: "created_at",
+      header: "Fecha de Registro",
+      accessor: (u) => u.created_at,
+      resizable: true,
+      width: 160,
+      render: (_, u) => (
+        <span className="text-xs text-muted-foreground">
+          {new Date(u.created_at).toLocaleDateString("es-ES")}
+        </span>
+      ),
     },
     {
       key: "acciones",
-      header: <span className="sr-only">Acciones</span>,
+      header: "Acciones",
       accessor: () => null,
       sortable: false,
       filterable: false,
-      className: "w-10",
+      resizable: false,
+      className: "w-28",
       render: (_, u) => {
-        const isSelf = u.id_usuario === sesion?.id_usuario;
+        if (u.deleted_at) {
+          if (!can("restore users")) return null;
+          return (
+            <div className="flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive text-xs font-medium"
+                onClick={() => handleRestore(u)}
+                title="Restaurar usuario"
+              >
+                <RotateCcw className="size-3.5" aria-hidden />
+                Restaurar
+              </Button>
+            </div>
+          );
+        }
+
+        const isSelf = u.id === user?.id;
+
+        if (!can("edit users") && (!can("delete users") || isSelf)) {
+          return null;
+        }
+
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${u.nombre}`} />}
-            >
-              <MoreHorizontal className="size-4" aria-hidden />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => openEdit(u)}>
-                <Pencil className="size-4" aria-hidden />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" disabled={isSelf} onSelect={() => setDeleteTarget(u)}>
-                <Trash2 className="size-4" aria-hidden />
-                Eliminar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex justify-center">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Acciones para ${u.name}`}
+                  />
+                }
+              >
+                <MoreHorizontal className="size-4" aria-hidden />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {can("edit users") && (
+                  <DropdownMenuItem onClick={() => openEdit(u)}>
+                    <Pencil className="size-4" aria-hidden />
+                    Editar
+                  </DropdownMenuItem>
+                )}
+                {can("delete users") && (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={isSelf}
+                    onClick={() => setDeleteTarget(u)}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                    Eliminar
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         );
       },
     },
   ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 p-4 md:p-6">
+      {/* Encabezado del módulo */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-balance">Gestión de Usuarios</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Gestión de Usuarios
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Cuentas de acceso al sistema y su rol (Administrador o Vendedor).
+            Cuentas de acceso al sistema, roles y estados de acceso.
           </p>
         </div>
-        <Button type="button" onClick={openCreate} className="shrink-0 gap-1.5">
-          <Plus className="size-4" aria-hidden />
-          Nuevo Usuario
-        </Button>
-      </div>
-
-      {isLoading ? (
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Usuario</TableHead>
-                <TableHead>Rol</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Registro</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: 3 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((__, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full max-w-24" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : !hasAny ? (
-        <Card className="border-dashed border-border/60 bg-background/60">
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Users className="size-6" aria-hidden />
-            </span>
-            <p className="text-sm font-medium">Aún no hay usuarios registrados</p>
-            <Button type="button" onClick={openCreate} className="mt-2 gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {can("delete users") && selectedRows.length > 0 && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setBulkDeleteOpen(true)}
+              className="shrink-0 gap-1.5"
+            >
+              <Trash2 className="size-4" aria-hidden />
+              Eliminar seleccionados ({selectedRows.length})
+            </Button>
+          )}
+          {can("create users") && (
+            <Button
+              type="button"
+              onClick={openCreate}
+              className="shrink-0 gap-1.5"
+            >
               <Plus className="size-4" aria-hidden />
               Nuevo Usuario
             </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <DataTable
-          data={usuarios ?? []}
-          columns={columns}
-          searchPlaceholder="Buscar por nombre o usuario…"
-          emptyMessage="No se encontraron usuarios."
-        />
-      )}
+          )}
+        </div>
+      </div>
 
-      <UsuarioFormDialog
+      {/* Tabla de datos principal */}
+      <DataTable
+        data={items}
+        columns={columns}
+        server={{
+          params,
+          onParamsChange: handleParamsChange,
+          total,
+          loading,
+          error,
+          onRetry: refresh,
+        }}
+        getRowClassName={(u) =>
+          u.deleted_at
+            ? "bg-destructive/10 hover:bg-destructive/15 text-destructive border-destructive/20 dark:bg-destructive/15 dark:hover:bg-destructive/20"
+            : undefined
+        }
+        searchPlaceholder="Buscar por nombre o correo electrónico…"
+        emptyMessage="No se encontraron usuarios."
+        pageSizeOptions={[10, 20, 50, 100]}
+        exportFilename="usuarios.csv"
+        onExport={can("export users") ? exportResource : undefined}
+        onRefresh={refresh}
+        getRowId={(u) => u.id}
+        onSelectionChange={can("delete users") ? setSelectedRows : undefined}
+        clearSelectionKey={selectionClearKey}
+        enableColumnDrag={true}
+        enableRowDrag={false}
+        persistPreferences={true}
+        storageKey="usuarios-table"
+        minColumnWidth={80}
+      />
+
+      {/* Modal de formulario para crear/editar */}
+      <UserFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
-        usuario={editing}
-        currentUserId={sesion?.id_usuario ?? null}
+        user={editing}
         onSaved={handleSaved}
       />
 
+      {/* Diálogo de confirmación para eliminación individual */}
       <ConfirmDeleteDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="¿Eliminar usuario?"
         description={
           <>
-            Se eliminará la cuenta de <strong>{deleteTarget?.nombre}</strong>. Esta acción no se puede
-            deshacer.
+            Se eliminará el acceso de <strong>{deleteTarget?.name}</strong> al sistema.
           </>
         }
         onConfirm={async () => {
           if (!deleteTarget) return;
-          await deleteUsuario(deleteTarget.id_usuario);
-          setUsuarios((prev) =>
-            prev ? prev.filter((u) => u.id_usuario !== deleteTarget.id_usuario) : prev
-          );
+          await remove(deleteTarget.id);
           toast.success("Usuario eliminado.");
+          refresh();
+        }}
+      />
+
+      {/* Diálogo de confirmación para eliminación masiva */}
+      <ConfirmDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`¿Eliminar ${selectedRows.length} usuario(s)?`}
+        description={
+          <>
+            Se eliminarán{" "}
+            <strong>{selectedRows.length} usuario(s) seleccionado(s)</strong> del sistema.
+          </>
+        }
+        onConfirm={async () => {
+          if (selectedRows.length === 0) return;
+          const result = await bulkDestroy(
+            selectedRows.map((u) => u.id)
+          );
+          toast.success(result.message || "Usuarios eliminados.");
+          setSelectionClearKey((k) => k + 1);
+          refresh();
         }}
       />
     </div>

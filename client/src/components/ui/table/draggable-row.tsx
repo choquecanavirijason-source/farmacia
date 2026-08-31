@@ -24,6 +24,7 @@ interface DraggableRowProps<T> {
     setEditing: React.Dispatch<React.SetStateAction<EditState | null>>
     startEdit: (index: number, column: DataTableColumn<T>, row: T) => void
     commitEdit: (row: T) => void
+    rowClassName?: string
 }
 
 export function DraggableRow<T>({
@@ -42,6 +43,7 @@ export function DraggableRow<T>({
     setEditing,
     startEdit,
     commitEdit,
+    rowClassName,
 }: DraggableRowProps<T>) {
     const originalIndex = findRowIndex(id)
 
@@ -72,7 +74,6 @@ export function DraggableRow<T>({
         opacity: isDragging ? 0.5 : 1,
     }
 
-    // Drop y preview sobre la fila completa; el drag SOLO desde el icono grip.
     const rowRef = React.useRef<HTMLTableRowElement | null>(null)
 
     React.useEffect(() => {
@@ -89,7 +90,8 @@ export function DraggableRow<T>({
                 "border-b transition-colors hover:bg-muted/50 even:bg-muted/40 data-[state=selected]:bg-muted/60",
                 isSelected && "bg-muted/50",
                 isDragging && "shadow-lg ring-2 ring-primary",
-                isDisabled && "pointer-events-none opacity-60"
+                isDisabled && "pointer-events-none opacity-60",
+                rowClassName
             )}
             data-state={isSelected ? "selected" : undefined}
         >

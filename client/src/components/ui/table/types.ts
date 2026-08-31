@@ -10,7 +10,6 @@ export interface DataTableColumn<T> {
     className?: string
     width?: number
     resizable?: boolean
-    /** Habilita edición rápida: doble clic en la celda la convierte en input y guarda al confirmar. */
     edit?: {
         type?: "text" | "number"
         onSave: (row: T, value: string | number) => Promise<void>
@@ -43,10 +42,12 @@ export interface DataTableProps<T> {
     emptyMessage?: string
     className?: string
     getRowId?: (row: T) => string | number
+    getRowClassName?: (row: T) => string | undefined
     onSelectionChange?: (rows: T[]) => void
     clearSelectionKey?: unknown
     exportFilename?: string
-    onExport?: (format: "excel" | "pdf") => void | Promise<void>
+    onExport?: (format: "excel" | "pdf") => void | Promise<any>
+    onRefresh?: () => void | Promise<any>
     enableColumnDrag?: boolean
     enableRowDrag?: boolean
     onRowReorder?: (reorderedData: T[]) => void

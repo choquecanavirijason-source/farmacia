@@ -10,13 +10,19 @@ return new class extends Migration
     {
         Schema::create('cash_registers', function (Blueprint $table) {
             $table->id();
-            $table->dateTime('opened_at');
+            $table->timestamp('opened_at');
             $table->decimal('opening_amount', 10, 2);
-            $table->dateTime('closed_at')->nullable();
+            $table->timestamp('closed_at')->nullable();
             $table->decimal('closing_amount', 10, 2)->nullable();
             $table->decimal('expected_closing_amount', 10, 2)->nullable();
             $table->enum('status', ['open', 'closed'])->default('open');
+            $table->unsignedBigInteger('created_id')->nullable();
+            $table->unsignedBigInteger('updated_id')->nullable();
+            $table->unsignedBigInteger('deleted_id')->nullable();
+            $table->unsignedBigInteger('restored_id')->nullable();
+            $table->timestamp('restored_at')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

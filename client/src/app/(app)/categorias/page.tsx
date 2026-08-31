@@ -1,9 +1,9 @@
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CategoriaSection } from "@/app/(app)/categorias/categoria-section";
-import { PresentacionSection } from "@/app/(app)/categorias/presentacion-section";
-import { LaboratorioSection } from "@/app/(app)/categorias/laboratorio-section";
+import { CategorySection } from "./category-section";
+import { PresentationSection } from "./presentation-section";
+import { LaboratorySection } from "./laboratory-section";
 
 export default function CategoriasPage() {
   return (
@@ -22,13 +22,15 @@ export default function CategoriasPage() {
           <TabsTrigger value="laboratorios">Laboratorios</TabsTrigger>
         </TabsList>
         <TabsContent value="categorias">
-          <CategoriaSection />
+          <CategorySection />
         </TabsContent>
+
         <TabsContent value="presentaciones">
-          <PresentacionSection />
+          <PresentationSection />
         </TabsContent>
+
         <TabsContent value="laboratorios">
-          <LaboratorioSection />
+          <LaboratorySection />
         </TabsContent>
       </Tabs>
     </div>

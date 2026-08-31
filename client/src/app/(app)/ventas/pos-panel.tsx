@@ -13,8 +13,8 @@ import {
   Trash2,
   UserPlus,
 } from "lucide-react";
-import { fetchCategorias, fetchLaboratorios, fetchPresentaciones } from "@/lib/api/catalogos";
-import { MedicamentoFormDialog } from "@/app/(app)/medicamentos/medicamento-form-dialog";
+import { fetchCategorias, fetchLaboratorios, fetchPresentaciones } from "@/lib/api/catalogs";
+import { MedicamentFormDialog } from "@/app/(app)/medicamentos/medicament-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
@@ -27,17 +27,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { fetchClientes } from "@/lib/api/clientes";
-import { fetchLotes } from "@/lib/api/lotes";
-import { fetchMedicamentos } from "@/lib/api/medicamentos";
-import { crearVenta } from "@/lib/api/ventas";
-import { ApiError } from "@/lib/api/client";
+import { fetchClientes } from "@/lib/api/clients";
+import { fetchLotes } from "@/lib/api/batches";
+import { fetchMedicamentos } from "@/lib/api/medicaments";
+import { crearVenta } from "@/lib/api/sales";
+import { ApiError } from "@/lib/api/api-error";
 import { formatCurrency } from "@/lib/format";
 import {
   FORMAS_PAGO,
   type Categoria,
   type Cliente,
-  type FormaPagoNombre,
+  type PaymentMethodName as FormaPagoNombre,
   type Laboratorio,
   type Lote,
   type Medicamento,
@@ -53,7 +53,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { FacturaSheet } from "@/app/(app)/ventas/factura-sheet";
+import { InvoiceSheet } from "@/app/(app)/ventas/invoice-sheet";
 
 interface PosPanelProps {
   idUsuario: number;
@@ -444,13 +444,13 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
         onSold={handleSold}
       />
 
-      <FacturaSheet
-        venta={facturaVenta}
-        medicamentos={medicamentos}
+      <InvoiceSheet
+        sale={facturaVenta}
+        open={Boolean(facturaVenta)}
         onOpenChange={(open) => !open && setFacturaVenta(null)}
       />
 
-      <MedicamentoFormDialog
+      <MedicamentFormDialog
         open={nuevoProductoOpen}
         onOpenChange={setNuevoProductoOpen}
         categorias={categorias}
@@ -519,7 +519,7 @@ function CheckoutBody({
         id_usuario: idUsuario,
         id_caja: idCaja,
         forma_pago: formaPago,
-        nit_cliente: cliente.ci_nit,
+        nit_cliente: cliente.nit || cliente.ci || "0",
         razon_social: cliente.nombre,
         items: cart.map((l) => ({
           id_medicamento: l.id_medicamento,
@@ -527,7 +527,7 @@ function CheckoutBody({
           precio_unitario: precioConDescuento(precioById.get(l.id_medicamento) ?? 0, l.descuentoPct),
         })),
       });
-      onSold(venta);
+      onSold(venta as any as Venta);
       onOpenChange(false);
       toast.success("Venta registrada.");
     } catch (err) {

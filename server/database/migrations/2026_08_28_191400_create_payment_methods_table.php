@@ -10,9 +10,15 @@ return new class extends Migration
     {
         Schema::create('payment_methods', function (Blueprint $table) {
             $table->id();
-            $table->string('name', 40)->unique();
+            $table->string('name')->unique();
             $table->enum('status', ['active', 'inactive'])->default('active');
+            $table->unsignedBigInteger('created_id')->nullable();
+            $table->unsignedBigInteger('updated_id')->nullable();
+            $table->unsignedBigInteger('deleted_id')->nullable();
+            $table->unsignedBigInteger('restored_id')->nullable();
+            $table->timestamp('restored_at')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
