@@ -25,7 +25,6 @@ import {
   ShieldAlert,
   Sparkles,
   Timer,
-  User,
   UserCheck,
   Users,
   Zap,
@@ -43,7 +42,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { DataTable, type DataTableColumn } from "@/components/ui/table";
+import { DataTable } from "@/components/ui/table";
 import { useAuth } from "@/context/auth-context";
 import {
   fetchLatestSimulation,
