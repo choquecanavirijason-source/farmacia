@@ -62,7 +62,6 @@ export function TopProductsSection({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Date Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
         <DateRangeFilter
           startDate={startDate}
@@ -102,7 +101,6 @@ export function TopProductsSection({
         </Card>
       ) : (
         <div className="flex flex-col gap-4">
-          {/* Quick Metrics */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="p-3.5 rounded-lg border bg-card flex items-center gap-3">
               <div className="size-10 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
@@ -146,7 +144,6 @@ export function TopProductsSection({
             </div>
           </div>
 
-          {/* Bar Chart */}
           <Card>
             <CardContent className="py-6">
               <div className="flex items-center justify-between mb-4">
@@ -164,12 +161,10 @@ export function TopProductsSection({
             </CardContent>
           </Card>
 
-          {/* Ranking Table */}
           <TopProductsTable items={stats.top_productos} totalUnidades={totalUnidadesTop} />
         </div>
       )}
 
-      {/* Print Dialog */}
       <PrintDialog
         open={printOpen}
         onOpenChange={setPrintOpen}

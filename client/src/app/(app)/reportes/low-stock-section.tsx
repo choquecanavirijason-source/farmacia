@@ -35,7 +35,6 @@ export function LowStockSection({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Quick Inventory Metrics */}
       {stockAnalisis && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="p-3 rounded-lg border bg-card flex flex-col gap-0.5">
@@ -63,7 +62,6 @@ export function LowStockSection({
         </div>
       )}
 
-      {/* Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground font-medium">Filtrar vista:</span>
@@ -129,7 +127,6 @@ export function LowStockSection({
         <LowStockTable items={stockFiltrado} />
       )}
 
-      {/* Print Dialog */}
       <PrintDialog
         open={printOpen}
         onOpenChange={setPrintOpen}

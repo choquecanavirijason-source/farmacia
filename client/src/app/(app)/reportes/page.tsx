@@ -44,18 +44,15 @@ export default function ReportesPage() {
   const [medicamentos, setMedicamentos] = useState<any[] | null>(null);
   const [lotes, setLotes] = useState<any[] | null>(null);
 
-  // Estados temporales del formulario de filtros de fechas
   const [tempPreset, setTempPreset] = useState<string>("7dias");
   const [tempStartDate, setTempStartDate] = useState<string>(getSevenDaysAgo());
   const [tempEndDate, setTempEndDate] = useState<string>(getToday());
 
-  // Estados de filtros APLICADOS para ventas
   const [appliedStartDate, setAppliedStartDate] = useState<string>(getSevenDaysAgo());
   const [appliedEndDate, setAppliedEndDate] = useState<string>(getToday());
 
   const [idMedicamentoKardex, setIdMedicamentoKardex] = useState("");
 
-  // Carga de catálogos y lotes
   function loadCatalogs() {
     setLoadingCatalogs(true);
     Promise.all([
@@ -76,7 +73,6 @@ export default function ReportesPage() {
     loadCatalogs();
   }, []);
 
-  // Carga de estadísticas al aplicar filtros de fecha
   useEffect(() => {
     const controller = new AbortController();
     setLoadingStats(true);
@@ -125,7 +121,6 @@ export default function ReportesPage() {
     setAppliedEndDate(tempEndDate);
   }
 
-  // Análisis de Stock
   const stockAnalisis = useMemo<StockBajoItem[] | null>(() => {
     if (!medicamentos) return null;
 
@@ -224,7 +219,6 @@ export default function ReportesPage() {
           <TabsTrigger value="kardex">Kardex por Medicamento</TabsTrigger>
         </TabsList>
 
-        {/* TAB: VENTAS */}
         <TabsContent value="ventas">
           <SalesSection
             stats={stats}
@@ -241,7 +235,6 @@ export default function ReportesPage() {
           />
         </TabsContent>
 
-        {/* TAB: MÁS VENDIDOS */}
         <TabsContent value="mas-vendidos">
           <TopProductsSection
             stats={stats}
@@ -258,7 +251,6 @@ export default function ReportesPage() {
           />
         </TabsContent>
 
-        {/* TAB: STOCK BAJO / ESTADO DE INVENTARIO */}
         <TabsContent value="stock-bajo">
           <LowStockSection
             stockAnalisis={stockAnalisis}
@@ -266,7 +258,6 @@ export default function ReportesPage() {
           />
         </TabsContent>
 
-        {/* TAB: PRÓXIMOS A VENCER */}
         <TabsContent value="por-vencer">
           <ExpiringBatchesSection
             lotes={lotes}
@@ -275,7 +266,6 @@ export default function ReportesPage() {
           />
         </TabsContent>
 
-        {/* TAB: KARDEX */}
         <TabsContent value="kardex">
           <KardexSection
             medicamentos={medicamentos}

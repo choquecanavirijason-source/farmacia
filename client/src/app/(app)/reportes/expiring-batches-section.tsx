@@ -104,7 +104,6 @@ export function ExpiringBatchesSection({
         <ExpiringBatchesTable items={lotesAnalisis} medicamentoById={medicamentoById} />
       )}
 
-      {/* Print Dialog */}
       <PrintDialog
         open={printOpen}
         onOpenChange={setPrintOpen}

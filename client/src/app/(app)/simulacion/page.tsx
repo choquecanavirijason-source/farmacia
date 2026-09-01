@@ -56,7 +56,6 @@ import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 export default function SimulacionPage() {
   const { user } = useAuth();
 
-  // Control de acceso: solo Administrador Principal
   const isRootAdmin =
     user?.id === 1 || user?.username === "admin" || user?.email === "admin@farmacia.bo";
 
@@ -74,7 +73,6 @@ export default function SimulacionPage() {
   const [fetchingLatest, setFetchingLatest] = useState(true);
   const [latestSim, setLatestSim] = useState<SimulationRecord | null>(null);
 
-  // Estados para seguimiento detallado en vivo del progreso (1% - 100%) y tiempo transcurrido
   const [progressPercent, setProgressPercent] = useState(0);
   const [progressDescription, setProgressDescription] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -84,7 +82,6 @@ export default function SimulacionPage() {
 
   const [copiedId, setCopiedId] = useState<number | string | null>(null);
 
-  // Cargar estado de la última simulación realizada
   useEffect(() => {
     if (!isRootAdmin) return;
     setFetchingLatest(true);
@@ -149,11 +146,9 @@ export default function SimulacionPage() {
       setElapsedSeconds(Math.floor((Date.now() - startTime) / 100) / 10);
     }, 100);
 
-    // Animación suave del porcentaje de progreso
     let currentP = 1;
     progressIntervalRef.current = setInterval(() => {
       if (currentP < 95) {
-        // Incremento gradual y dinámico
         const step = currentP < 30 ? 2 : currentP < 70 ? 3 : currentP < 90 ? 2 : 1;
         currentP = Math.min(95, currentP + step);
         setProgressPercent(currentP);
@@ -175,7 +170,6 @@ export default function SimulacionPage() {
 
       const res = await runSimulation(params);
 
-      // Finalización inmediata al 100%
       setProgressPercent(100);
       setProgressDescription("¡Simulación completada con éxito!");
 
@@ -217,7 +211,6 @@ export default function SimulacionPage() {
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto p-2 sm:p-4">
-      {/* Cabecera Principal */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -238,7 +231,6 @@ export default function SimulacionPage() {
         )}
       </div>
 
-      {/* Alerta informativa sobre el reseteo seguro */}
       <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 text-xs">
         <Database className="size-5 text-primary shrink-0 mt-0.5" />
         <div className="flex flex-col gap-1">
@@ -250,7 +242,6 @@ export default function SimulacionPage() {
         </div>
       </div>
 
-      {/* MONITOR DE EJECUCIÓN EN VIVO CON PORCENTAJE (1% - 100%) */}
       {loading && (
         <Card className="border-primary/50 bg-primary/5 shadow-lg animate-in fade-in duration-300">
           <CardContent className="py-6 flex flex-col gap-4">
@@ -272,7 +263,6 @@ export default function SimulacionPage() {
               </div>
             </div>
 
-            {/* Barra de progreso interactiva con indicador visual */}
             <div className="flex flex-col gap-1.5">
               <div className="h-3 w-full rounded-full bg-muted/80 p-0.5 overflow-hidden border">
                 <div
@@ -290,7 +280,6 @@ export default function SimulacionPage() {
         </Card>
       )}
 
-      {/* RESULTADOS Y USUARIOS ACTIVOS (Si ya se ejecutó una simulación) */}
       {latestSim && !loading && (
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -337,7 +326,6 @@ export default function SimulacionPage() {
             </Card>
           </div>
 
-          {/* DESGLOSE DE TIEMPOS DE RENDIMIENTO */}
           {timings && (
             <Card className="border-border/70 bg-muted/10 shadow-sm">
               <CardHeader className="py-3 px-4">
@@ -382,7 +370,6 @@ export default function SimulacionPage() {
             </Card>
           )}
 
-          {/* TABLA DE USUARIOS DE PRUEBA ACTIVOS */}
           {latestSim.generated_users && latestSim.generated_users.length > 0 && (
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="pb-3">
@@ -501,7 +488,6 @@ export default function SimulacionPage() {
         </div>
       )}
 
-      {/* FORMULARIO DE CONFIGURACIÓN Y EJECUCIÓN */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="md:col-span-2 shadow-sm border-border/70">
           <CardHeader>
@@ -514,7 +500,6 @@ export default function SimulacionPage() {
           </CardHeader>
 
           <CardContent className="flex flex-col gap-5 text-xs">
-            {/* Rango de Fechas */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-lg bg-muted/20 border">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="startDate" className="text-xs font-semibold flex items-center gap-1.5">
@@ -543,7 +528,6 @@ export default function SimulacionPage() {
               </div>
             </div>
 
-            {/* Configuración de Usuarios / Personal */}
             <div className="flex flex-col gap-3">
               <span className="font-semibold text-foreground flex items-center gap-1.5">
                 <Users className="size-3.5 text-primary" /> Personal a Generar / Asignar
@@ -599,7 +583,6 @@ export default function SimulacionPage() {
               </div>
             </div>
 
-            {/* Rango de Ventas Diarias */}
             <div className="flex flex-col gap-3">
               <span className="font-semibold text-foreground flex items-center gap-1.5">
                 <Sparkles className="size-3.5 text-primary" /> Volumen de Ventas por Jornada
@@ -637,7 +620,6 @@ export default function SimulacionPage() {
               </div>
             </div>
 
-            {/* Opción de Reset */}
             <div className="flex items-center gap-3 p-3 rounded-lg border bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-300">
               <input
                 id="resetData"
@@ -674,7 +656,6 @@ export default function SimulacionPage() {
           </CardFooter>
         </Card>
 
-        {/* Panel Lateral: Información y Atajos */}
         <div className="flex flex-col gap-4">
           <Card className="border-border/70 bg-muted/10">
             <CardHeader className="pb-2">
@@ -705,7 +686,6 @@ export default function SimulacionPage() {
         </div>
       </div>
 
-      {/* Diálogo de Confirmación */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>

@@ -51,7 +51,6 @@ export function SalesSection({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Date Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
         <DateRangeFilter
           startDate={startDate}
@@ -109,7 +108,6 @@ export function SalesSection({
         </Card>
       )}
 
-      {/* Print Dialog */}
       <PrintDialog
         open={printOpen}
         onOpenChange={setPrintOpen}

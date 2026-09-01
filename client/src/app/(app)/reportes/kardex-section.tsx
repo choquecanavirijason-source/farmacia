@@ -98,7 +98,6 @@ export function KardexSection({
         <KardexTabla key={selectedMedicamentId} idMedicamento={Number(selectedMedicamentId)} />
       )}
 
-      {/* Diálogo de Impresión */}
       <PrintDialog
         open={printOpen}
         onOpenChange={setPrintOpen}
