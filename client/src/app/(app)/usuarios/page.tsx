@@ -37,6 +37,7 @@ import {
   exportResource,
 } from "@/lib/api/users";
 import { fetchRoles } from "@/lib/api/roles";
+import { formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IUser, UserTableEditableField } from "@/lib/types/user";
@@ -310,6 +311,32 @@ export default function UsuariosPage() {
           </div>
         );
       },
+    },
+    {
+      key: "created_at",
+      header: "Creado el",
+      accessor: (u) => u.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, u) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(u.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (u) => u.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, u) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(u.updated_at)}
+        </span>
+      ),
     },
     {
       key: "acciones",

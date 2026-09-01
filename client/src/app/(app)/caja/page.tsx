@@ -28,7 +28,7 @@ import {
 } from "@/lib/api/cash-registers";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 import type { Caja, MovimientoCaja } from "@/lib/types";
 import type { ICashRegister } from "@/lib/types/cash-register";
 import { OpenCashRegisterDialog } from "./open-cash-register-dialog";
@@ -65,12 +65,24 @@ export default function CajaPage() {
   const [movimientoTipo, setMovimientoTipo] = useState<"ingreso" | "egreso" | null>(null);
   const [cerrarOpen, setCerrarOpen] = useState(false);
 
-  // Carga inicial optimizada: solo la caja activa
+  // Carga inicial optimizada: solo la caja activa con sus movimientos
   const refreshCajaActual = useCallback(() => {
     fetchCajaAbierta()
       .then((abierta) => {
         setCajaAbierta(abierta);
-        if (abierta) {
+        if (abierta?.movements && abierta.movements.length > 0) {
+          setMovimientos(
+            abierta.movements.map((m: any) => ({
+              id_movimiento: m.id,
+              id_caja: m.cash_register_id,
+              tipo: m.type === "income" || m.type === "in" || m.type === "ingreso" ? "ingreso" : "egreso",
+              concepto: m.description || m.concept || "",
+              monto: Number(m.amount),
+              fecha: m.occurred_at || m.movement_date || m.created_at,
+              ...m,
+            }))
+          );
+        } else if (abierta) {
           fetchMovimientosByCaja(abierta.id_caja).then(setMovimientos);
         } else {
           setMovimientos([]);
@@ -241,6 +253,32 @@ export default function CajaPage() {
       render: (_, c) => (
         <span className="font-mono text-xs text-muted-foreground">
           {c.expected_closing_amount != null ? formatCurrency(Number(c.expected_closing_amount)) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "created_at",
+      header: "Creado el",
+      accessor: (c) => c.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, c) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(c.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (c) => c.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, c) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(c.updated_at)}
         </span>
       ),
     },

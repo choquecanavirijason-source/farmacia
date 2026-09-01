@@ -28,12 +28,42 @@ export interface IDashboardStats {
   top_productos: {
     id: number;
     name: string;
+    code?: string;
     total_vendido: number;
     total_recaudado: number;
   }[];
+  ventas_ultimos_7_dias?: {
+    date: string;
+    label: string;
+    value: number;
+  }[];
+  ventas_ultimos_30_dias?: {
+    date: string;
+    label: string;
+    value: number;
+  }[];
+  ventas_por_rango?: {
+    date: string;
+    label: string;
+    value: number;
+  }[];
+  ventas_rango_total?: number;
+  rango_inicio?: string;
+  rango_fin?: string;
 }
 
-export const fetchDashboardStats = async (): Promise<IDashboardStats> => {
-  const res = await apiClient.get<{ success: boolean; data: IDashboardStats }>("/dashboard/stats");
+export interface DashboardFilterParams {
+  start_date?: string;
+  end_date?: string;
+}
+
+export const fetchDashboardStats = async (
+  filters?: DashboardFilterParams,
+  signal?: AbortSignal
+): Promise<IDashboardStats> => {
+  const res = await apiClient.get<{ success: boolean; data: IDashboardStats }>("/dashboard/stats", {
+    params: filters,
+    signal,
+  });
   return res.data.data;
 };

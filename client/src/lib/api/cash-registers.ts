@@ -10,9 +10,22 @@ export interface CierreResultado {
   diferencia: number;
 }
 
-export const fetchCashRegisters = async (): Promise<ICashRegister[]> => {
-  const res = await apiClient.get<any>("/cash-registers?per_page=100");
-  return res.data.data;
+let cashRegistersPromise: Promise<ICashRegister[]> | null = null;
+let currentCashRegisterPromise: Promise<ICashRegister | null> | null = null;
+
+export const fetchCashRegisters = async (forceRefresh = false): Promise<ICashRegister[]> => {
+  if (!forceRefresh && cashRegistersPromise) return cashRegistersPromise;
+
+  cashRegistersPromise = apiClient
+    .get<any>("/cash-registers?per_page=100")
+    .then((res) => res.data.data)
+    .finally(() => {
+      setTimeout(() => {
+        cashRegistersPromise = null;
+      }, 1000);
+    });
+
+  return cashRegistersPromise;
 };
 
 export const getCashRegistersPaginated = async (
@@ -49,16 +62,25 @@ export const exportCashRegisters = async (
 
 export const exportResource = exportCashRegisters;
 
-export const fetchCurrentCashRegister = async (): Promise<ICashRegister | null> => {
-  try {
-    const res = await apiClient.get<{ data: ICashRegister | null }>("/cash-registers/current");
-    return res.data.data;
-  } catch {
-    return null;
-  }
+export const fetchCurrentCashRegister = async (forceRefresh = false): Promise<ICashRegister | null> => {
+  if (!forceRefresh && currentCashRegisterPromise) return currentCashRegisterPromise;
+
+  currentCashRegisterPromise = apiClient
+    .get<{ data: ICashRegister | null }>("/cash-registers/current")
+    .then((res) => res.data.data)
+    .catch(() => null)
+    .finally(() => {
+      setTimeout(() => {
+        currentCashRegisterPromise = null;
+      }, 1000);
+    });
+
+  return currentCashRegisterPromise;
 };
 
 export const openCashRegister = async (data: { id_usuario?: number; monto_apertura: number }): Promise<ICashRegister> => {
+  currentCashRegisterPromise = null;
+  cashRegistersPromise = null;
   const res = await apiClient.post<IApiResponse<ICashRegister>>("/cash-registers/open", {
     opening_amount: data.monto_apertura,
   });
@@ -66,6 +88,8 @@ export const openCashRegister = async (data: { id_usuario?: number; monto_apertu
 };
 
 export const closeCashRegister = async (id: number, data: { monto_cierre: number }): Promise<ICashRegister> => {
+  currentCashRegisterPromise = null;
+  cashRegistersPromise = null;
   const res = await apiClient.post<IApiResponse<ICashRegister>>(`/cash-registers/${id}/close`, {
     closing_amount: data.monto_cierre,
   });
@@ -76,6 +100,7 @@ export const createCashMovement = async (
   cashRegisterId: number,
   data: { tipo: "ingreso" | "egreso" | "in" | "out"; monto: number; motivo: string }
 ): Promise<ICashMovement> => {
+  currentCashRegisterPromise = null;
   const res = await apiClient.post<IApiResponse<ICashMovement>>(`/cash-registers/${cashRegisterId}/movements`, {
     type: data.tipo === "ingreso" || data.tipo === "in" ? "income" : "expense",
     amount: data.monto,
@@ -89,9 +114,9 @@ export const fetchCashMovements = async (cashRegisterId: number): Promise<ICashM
   return res.data.data;
 };
 
-export function montoEsperado(caja: any, movimientos: any[]): number {
-  const apertura = Number(caja.monto_apertura ?? caja.opening_amount ?? 0);
-  const movTotal = movimientos.reduce((acc, m) => {
+export function montoEsperado(caja: any, movimientos: any[] = []): number {
+  const apertura = Number(caja?.monto_apertura ?? caja?.opening_amount ?? 0);
+  const movTotal = (movimientos || []).reduce((acc, m) => {
     const isIngreso = m.tipo === "ingreso" || m.type === "income" || m.type === "in";
     const monto = Number(m.monto ?? m.amount ?? 0);
     return isIngreso ? acc + monto : acc - monto;
@@ -115,18 +140,19 @@ export const fetchCajas = async (): Promise<any[]> => {
   }));
 };
 
-export const fetchCajaAbierta = async (): Promise<any | null> => {
-  const c = await fetchCurrentCashRegister();
+export const fetchCajaAbierta = async (forceRefresh = false): Promise<any | null> => {
+  const c = await fetchCurrentCashRegister(forceRefresh);
   if (!c) return null;
   return {
     id_caja: c.id,
-    fecha_apertura: c.opening_date,
+    fecha_apertura: c.opening_date || (c as any).opened_at,
     monto_apertura: Number(c.opening_amount),
-    fecha_cierre: c.closing_date,
+    fecha_cierre: c.closing_date || (c as any).closed_at,
     monto_cierre: c.closing_amount ? Number(c.closing_amount) : null,
     monto_esperado: c.expected_closing_amount ? Number(c.expected_closing_amount) : null,
     estado: "abierta",
     id_usuario: c.user_id ?? 1,
+    movements: (c as any).movements || [],
     ...c,
   };
 };

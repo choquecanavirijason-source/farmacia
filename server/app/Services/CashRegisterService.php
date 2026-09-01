@@ -17,7 +17,7 @@ class CashRegisterService
 {
     public function getCurrent(): ?CashRegister
     {
-        return CashRegister::where('status', 'open')->latest('opened_at')->first();
+        return CashRegister::with('movements')->where('status', 'open')->latest('opened_at')->first();
     }
 
     public function getPaginated(array $filters, int $perPage = 10, string $sortBy = 'opened_at', string $sortDir = 'desc'): LengthAwarePaginator

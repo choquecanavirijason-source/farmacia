@@ -13,7 +13,6 @@ import {
   Trash2,
   UserPlus,
 } from "lucide-react";
-import { fetchCategorias, fetchLaboratorios, fetchPresentaciones } from "@/lib/api/catalogs";
 import { MedicamentFormDialog } from "@/app/(app)/medicamentos/medicament-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,9 +82,6 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
   const [idCliente, setIdCliente] = useState("1");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [facturaVenta, setFacturaVenta] = useState<Venta | null>(null);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [presentaciones, setPresentaciones] = useState<Presentacion[]>([]);
-  const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
   const [nuevoProductoOpen, setNuevoProductoOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,20 +96,6 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
       setClientes(c);
     });
   }, []);
-
-  useEffect(() => {
-    if (nuevoProductoOpen && categorias.length === 0) {
-      Promise.all([
-        fetchCategorias(),
-        fetchPresentaciones(),
-        fetchLaboratorios(),
-      ]).then(([cat, pres, lab]) => {
-        setCategorias(cat);
-        setPresentaciones(pres);
-        setLaboratorios(lab);
-      });
-    }
-  }, [nuevoProductoOpen, categorias.length]);
 
   function handleNuevoProducto(medicamento: Medicamento) {
     setMedicamentos((prev) => [...prev, medicamento]);
@@ -462,9 +444,6 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
       <MedicamentFormDialog
         open={nuevoProductoOpen}
         onOpenChange={setNuevoProductoOpen}
-        categorias={categorias}
-        presentaciones={presentaciones}
-        laboratorios={laboratorios}
         onSaved={handleNuevoProducto}
       />
     </div>
@@ -521,8 +500,7 @@ function CheckoutBody({
     setError(null);
     setSaving(true);
     try {
-      const medicamentos = await fetchMedicamentos();
-      const precioById = new Map(medicamentos.map((m) => [m.id_medicamento, m.precio_venta]));
+      const precioById = new Map(medicamentos.map((m) => [m.id_medicamento || m.id, m.precio_venta || Number(m.price)]));
       const venta = await crearVenta({
         id_cliente: cliente.id_cliente,
         id_usuario: idUsuario,

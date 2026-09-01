@@ -6,9 +6,21 @@ import type { IKardexMovement, AdjustmentReason, Lote, Medicamento } from "@/lib
 
 export const DIAS_ALERTA_VENCIMIENTO = 90;
 
-export const fetchBatches = async (): Promise<IBatch[]> => {
-  const res = await apiClient.get<IPaginatedResponse<IBatch>>("/batches?per_page=100");
-  return res.data.data;
+let batchesPromise: Promise<IBatch[]> | null = null;
+
+export const fetchBatches = async (forceRefresh = false): Promise<IBatch[]> => {
+  if (!forceRefresh && batchesPromise) return batchesPromise;
+
+  batchesPromise = apiClient
+    .get<IPaginatedResponse<IBatch>>("/batches?per_page=100")
+    .then((res) => res.data.data)
+    .finally(() => {
+      setTimeout(() => {
+        batchesPromise = null;
+      }, 1000);
+    });
+
+  return batchesPromise;
 };
 
 export const getPaginated = async (
@@ -20,6 +32,7 @@ export const getPaginated = async (
 };
 
 export const create = async (input: IBatchRequest): Promise<IApiResponse<IBatch>> => {
+  batchesPromise = null;
   const response = await apiClient.post<IApiResponse<IBatch>>("/batches", input);
   return response.data;
 };
@@ -28,28 +41,35 @@ export const update = async (
   id: number,
   input: Partial<IBatchRequest>
 ): Promise<IApiResponse<IBatch>> => {
+  batchesPromise = null;
   const response = await apiClient.put<IApiResponse<IBatch>>(`/batches/${id}`, input);
   return response.data;
 };
 
 export const remove = async (id: number): Promise<IApiResponse<void>> => {
+  batchesPromise = null;
   const response = await apiClient.delete<IApiResponse<void>>(`/batches/${id}`);
   return response.data;
 };
 
 export const bulkDestroy = async (ids: number[]): Promise<IApiResponse<void>> => {
+  batchesPromise = null;
   const response = await apiClient.delete<IApiResponse<void>>("/batches", { data: { ids } });
   return response.data;
 };
 
 export const restore = async (id: number): Promise<IApiResponse<IBatch>> => {
+  batchesPromise = null;
   const response = await apiClient.post<IApiResponse<IBatch>>(`/batches/${id}/restore`);
   return response.data;
 };
 
-export const exportResource = async (format: "excel" | "pdf"): Promise<Blob> => {
+export const exportResource = async (
+  format: "excel" | "pdf",
+  filters: Record<string, any> = {}
+): Promise<Blob> => {
   const res = await apiClient.get<Blob>("/batches/export", {
-    params: { format },
+    params: { format, ...filters },
     responseType: "blob",
   });
   return res.data;
@@ -59,6 +79,7 @@ export const disposeBatch = async (
   id: number,
   input: { cantidad: number; motivo: AdjustmentReason; notas?: string }
 ): Promise<IApiResponse<void>> => {
+  batchesPromise = null;
   const response = await apiClient.post<IApiResponse<void>>(`/batches/${id}/dispose`, input);
   return response.data;
 };
@@ -67,6 +88,7 @@ export const restoreStock = async (
   id: number,
   cantidad: number
 ): Promise<IApiResponse<void>> => {
+  batchesPromise = null;
   const response = await apiClient.post<IApiResponse<void>>(`/batches/${id}/restore`, { cantidad });
   return response.data;
 };
@@ -130,7 +152,6 @@ export interface KardexMovimientoConLote extends IKardexMovement {
   numero_lote: string;
 }
 
-// Aliases de compatibilidad
 export const fetchLotes = async () => {
   const list = await fetchBatches();
   return list.map((l) => ({

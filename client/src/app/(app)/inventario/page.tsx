@@ -16,12 +16,11 @@ import {
   fetchCategorias,
   fetchLaboratorios,
 } from "@/lib/api/medicaments";
-import { fetchLotes } from "@/lib/api/batches";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 import type { IMedicament } from "@/lib/types/medicament";
-import type { Categoria, Laboratorio, Lote, Medicamento } from "@/lib/types";
+import type { Categoria, Laboratorio, Medicamento } from "@/lib/types";
 import { MedicamentBatchesSheet } from "./medicament-batches-sheet";
 import { cn } from "@/lib/utils";
 
@@ -56,7 +55,6 @@ export default function InventarioPage() {
   // Catálogos auxiliares
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
-  const [allBatches, setAllBatches] = useState<Lote[]>([]);
   const [verLotesDe, setVerLotesDe] = useState<Medicamento | null>(null);
 
   const refresh = useCallback(() => {
@@ -72,16 +70,14 @@ export default function InventarioPage() {
     setParams(next);
   }, []);
 
-  // Carga de catálogos y lotes
+  // Carga de catálogos para filtros
   useEffect(() => {
     Promise.all([
       fetchCategorias().catch(() => []),
       fetchLaboratorios().catch(() => []),
-      fetchLotes().catch(() => []),
-    ]).then(([cats, labs, batches]) => {
+    ]).then(([cats, labs]) => {
       setCategorias(cats);
       setLaboratorios(labs);
-      setAllBatches(batches);
     });
   }, []);
 
@@ -268,6 +264,32 @@ export default function InventarioPage() {
       },
     },
     {
+      key: "created_at",
+      header: "Creado el",
+      accessor: (m) => m.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, m) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(m.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (m) => m.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, m) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(m.updated_at)}
+        </span>
+      ),
+    },
+    {
       key: "acciones",
       header: "Lotes",
       accessor: () => null,
@@ -446,7 +468,6 @@ export default function InventarioPage() {
 
       <MedicamentBatchesSheet
         medicamento={verLotesDe}
-        lotes={allBatches}
         open={Boolean(verLotesDe)}
         onOpenChange={(open) => !open && setVerLotesDe(null)}
       />

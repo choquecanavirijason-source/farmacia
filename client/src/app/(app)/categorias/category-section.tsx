@@ -30,6 +30,7 @@ import {
   update,
   exportResource,
 } from "@/lib/api/categories";
+import { formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { ICategory, CategoryTableEditableField } from "@/lib/types/category";
@@ -190,13 +191,27 @@ export function CategorySection() {
     },
     {
       key: "created_at",
-      header: "Fecha de Registro",
-      accessor: (c) => c.created_at,
+      header: "Creado el",
+      accessor: (c) => c.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
       resizable: true,
-      width: 160,
+      width: 140,
       render: (_, c) => (
         <span className="text-xs text-muted-foreground">
-          {new Date(c.created_at).toLocaleDateString("es-ES")}
+          {formatDateTime(c.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (c) => c.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, c) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(c.updated_at)}
         </span>
       ),
     },

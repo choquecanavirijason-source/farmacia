@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,11 +16,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { create, update } from "@/lib/api/medicaments";
+import {
+  create,
+  update,
+  fetchCategorias,
+  fetchPresentaciones,
+  fetchLaboratorios,
+} from "@/lib/api/medicaments";
 import type { IMedicament, IMedicamentRequest } from "@/lib/types/medicament";
 import type { Categoria, Laboratorio, Presentacion } from "@/lib/types";
 
-// Esquema de validación con Zod para Medicamentos
 const medicamentSchema = z.object({
   code: z.string().trim().min(1, "El código es obligatorio."),
   name: z.string().trim().min(1, "El nombre del medicamento es obligatorio."),
@@ -40,9 +45,9 @@ interface MedicamentFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   medicament?: IMedicament | null;
-  categorias: Categoria[];
-  presentaciones: Presentacion[];
-  laboratorios: Laboratorio[];
+  categorias?: Categoria[];
+  presentaciones?: Presentacion[];
+  laboratorios?: Laboratorio[];
   onSaved?: (medicament?: any) => void;
 }
 
@@ -50,13 +55,28 @@ function MedicamentFormBody({
   open,
   onOpenChange,
   medicament,
-  categorias,
-  presentaciones,
-  laboratorios,
+  categorias: initialCategorias,
+  presentaciones: initialPresentaciones,
+  laboratorios: initialLaboratorios,
   onSaved,
 }: MedicamentFormDialogProps) {
   const isEditing = Boolean(medicament);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [categorias, setCategorias] = useState<Categoria[]>(initialCategorias || []);
+  const [presentaciones, setPresentaciones] = useState<Presentacion[]>(initialPresentaciones || []);
+  const [laboratorios, setLaboratorios] = useState<Laboratorio[]>(initialLaboratorios || []);
+
+  useEffect(() => {
+    if (!initialCategorias || initialCategorias.length === 0) {
+      fetchCategorias().then(setCategorias).catch(() => setCategorias([]));
+    }
+    if (!initialPresentaciones || initialPresentaciones.length === 0) {
+      fetchPresentaciones().then(setPresentaciones).catch(() => setPresentaciones([]));
+    }
+    if (!initialLaboratorios || initialLaboratorios.length === 0) {
+      fetchLaboratorios().then(setLaboratorios).catch(() => setLaboratorios([]));
+    }
+  }, [initialCategorias, initialPresentaciones, initialLaboratorios]);
 
   const methods = useForm<MedicamentFormValues>({
     resolver: zodResolver(medicamentSchema),
@@ -109,7 +129,9 @@ function MedicamentFormBody({
       if (fieldErrors && typeof fieldErrors === "object") {
         Object.keys(fieldErrors).forEach((key) => {
           const field = key as keyof MedicamentFormValues;
-          const msg = Array.isArray(fieldErrors[key]) ? fieldErrors[key][0] : fieldErrors[key];
+          const msg = Array.isArray(fieldErrors[key])
+            ? fieldErrors[key][0]
+            : fieldErrors[key];
           setError(field, { type: "server", message: msg });
         });
       }
@@ -122,6 +144,21 @@ function MedicamentFormBody({
     }
   }
 
+  const categoryOptions = categorias.map((c) => ({
+    value: String(c.id_categoria || c.id),
+    label: c.nombre || c.name,
+  }));
+
+  const presentationOptions = presentaciones.map((p) => ({
+    value: String(p.id_presentacion || p.id),
+    label: p.nombre || p.name,
+  }));
+
+  const laboratoryOptions = laboratorios.map((l) => ({
+    value: String(l.id_laboratorio || l.id),
+    label: l.nombre || l.name,
+  }));
+
   return (
     <FormDialog
       methods={methods}
@@ -130,8 +167,8 @@ function MedicamentFormBody({
       isEditing={isEditing}
       title={{ create: "Nuevo Medicamento", edit: "Editar Medicamento" }}
       description={{
-        create: "Completa los campos para registrar un nuevo medicamento.",
-        edit: "Actualiza la información del medicamento en el catálogo.",
+        create: "Ingresa los datos generales, clasificación y precio de venta del medicamento.",
+        edit: "Modifica la información o estado del medicamento seleccionado.",
       }}
       submitLabel={{ create: "Crear Medicamento", edit: "Guardar Cambios" }}
       isSubmitting={isSubmitting}
@@ -142,133 +179,139 @@ function MedicamentFormBody({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <InputTextField
             name="code"
-            label="Código / Barras"
+            label="Código / Código de Barras"
             required
-            placeholder="Ej. MED-0012"
+            placeholder="Ej. MED-001"
             autoFocus
           />
+          <InputTextField
+            name="name"
+            label="Nombre del Medicamento"
+            required
+            placeholder="Ej. Paracetamol"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <InputTextField
             name="concentration"
             label="Concentración"
             required
-            placeholder="Ej. 500 mg, 10 mg/5 ml"
+            placeholder="Ej. 500mg, 1g / 5ml"
+          />
+          <Controller
+            control={control}
+            name="category_id"
+            render={({ field, fieldState }) => (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="category_id">
+                  Categoría <span className="text-destructive">*</span>
+                </Label>
+                <SearchableSelect
+                  options={categoryOptions}
+                  value={field.value ? String(field.value) : undefined}
+                  onValueChange={(val) => field.onChange(val ? Number(val) : 0)}
+                  placeholder="Seleccionar categoría…"
+                  searchPlaceholder="Buscar categoría…"
+                />
+                {fieldState.error && (
+                  <p className="text-xs text-destructive">{fieldState.error.message}</p>
+                )}
+              </div>
+            )}
           />
         </div>
 
-        <InputTextField
-          name="name"
-          label="Nombre Comercial / Genérico"
-          required
-          placeholder="Ej. Paracetamol, Ibuprofeno"
-        />
-
-        {/* Selects estilo Select2 a ancho completo (col-12) */}
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="category_id">Categoría</Label>
-            <Controller
-              name="category_id"
-              control={control}
-              render={({ field }) => (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Controller
+            control={control}
+            name="presentation_id"
+            render={({ field, fieldState }) => (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="presentation_id">
+                  Presentación <span className="text-destructive">*</span>
+                </Label>
                 <SearchableSelect
-                  options={categorias.map((c) => ({
-                    value: String(c.id_categoria),
-                    label: c.nombre,
-                  }))}
+                  options={presentationOptions}
                   value={field.value ? String(field.value) : undefined}
-                  onValueChange={(val) => field.onChange(Number(val))}
-                  placeholder="Selecciona categoría…"
-                  searchPlaceholder="Buscar categoría…"
-                />
-              )}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="presentation_id">Presentación</Label>
-            <Controller
-              name="presentation_id"
-              control={control}
-              render={({ field }) => (
-                <SearchableSelect
-                  options={presentaciones.map((p) => ({
-                    value: String(p.id_presentacion),
-                    label: p.nombre,
-                  }))}
-                  value={field.value ? String(field.value) : undefined}
-                  onValueChange={(val) => field.onChange(Number(val))}
-                  placeholder="Selecciona presentación…"
+                  onValueChange={(val) => field.onChange(val ? Number(val) : 0)}
+                  placeholder="Seleccionar presentación…"
                   searchPlaceholder="Buscar presentación…"
                 />
-              )}
-            />
-          </div>
+                {fieldState.error && (
+                  <p className="text-xs text-destructive">{fieldState.error.message}</p>
+                )}
+              </div>
+            )}
+          />
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="laboratory_id">Laboratorio</Label>
-            <Controller
-              name="laboratory_id"
-              control={control}
-              render={({ field }) => (
+          <Controller
+            control={control}
+            name="laboratory_id"
+            render={({ field, fieldState }) => (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="laboratory_id">
+                  Laboratorio <span className="text-destructive">*</span>
+                </Label>
                 <SearchableSelect
-                  options={laboratorios.map((l) => ({
-                    value: String(l.id_laboratorio),
-                    label: l.nombre,
-                  }))}
+                  options={laboratoryOptions}
                   value={field.value ? String(field.value) : undefined}
-                  onValueChange={(val) => field.onChange(Number(val))}
-                  placeholder="Selecciona laboratorio…"
+                  onValueChange={(val) => field.onChange(val ? Number(val) : 0)}
+                  placeholder="Seleccionar laboratorio…"
                   searchPlaceholder="Buscar laboratorio…"
                 />
-              )}
-            />
-          </div>
+                {fieldState.error && (
+                  <p className="text-xs text-destructive">{fieldState.error.message}</p>
+                )}
+              </div>
+            )}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <NumericField
             name="price"
             label="Precio de Venta (Bs)"
-            allowDecimal
-            placeholder="Ej. 15.50"
+            required
+            allowDecimal={true}
+            placeholder="0.00"
           />
           <NumericField
             name="min_stock"
-            label="Stock Mínimo"
-            placeholder="Ej. 10"
+            label="Stock Mínimo de Alerta"
+            required
+            allowDecimal={false}
+            placeholder="10"
           />
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t">
-          <div className="flex items-center gap-3">
-            <Controller
-              name="requires_prescription"
-              control={control}
-              render={({ field }) => (
+        <div className="flex flex-col gap-4 pt-2 sm:flex-row sm:items-center sm:justify-between">
+          <Controller
+            control={control}
+            name="requires_prescription"
+            render={({ field }) => (
+              <div className="flex items-center gap-3">
                 <Switch
                   id="requires_prescription"
                   checked={field.value}
                   onCheckedChange={field.onChange}
                 />
-              )}
-            />
-            <Label htmlFor="requires_prescription" className="font-normal cursor-pointer text-xs">
-              Requiere receta médica
-            </Label>
-          </div>
+                <Label htmlFor="requires_prescription" className="cursor-pointer text-xs">
+                  Requiere Receta Médica
+                </Label>
+              </div>
+            )}
+          />
 
           {isEditing && (
             <div className="flex items-center gap-2">
               <Label htmlFor="status" className="text-xs">Estado:</Label>
               <Controller
-                name="status"
                 control={control}
+                name="status"
                 render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                  >
-                    <SelectTrigger id="status" className="h-8 w-28 text-xs">
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className="h-8 w-28 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -286,7 +329,6 @@ function MedicamentFormBody({
   );
 }
 
-// Componente modal para crear y editar medicamentos
 export function MedicamentFormDialog({
   open,
   onOpenChange,
@@ -296,6 +338,8 @@ export function MedicamentFormDialog({
   laboratorios,
   onSaved,
 }: MedicamentFormDialogProps) {
+  if (!open) return null;
+
   return (
     <MedicamentFormBody
       key={medicament ? `edit-${medicament.id}` : "new"}
@@ -310,5 +354,4 @@ export function MedicamentFormDialog({
   );
 }
 
-// Alias de compatibilidad
 export const MedicamentoFormDialog = MedicamentFormDialog;

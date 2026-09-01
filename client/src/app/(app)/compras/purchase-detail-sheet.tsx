@@ -17,16 +17,16 @@ interface PurchaseDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   compra: Compra | null;
-  proveedores: Proveedor[];
-  medicamentos: Medicamento[];
+  proveedores?: Proveedor[];
+  medicamentos?: Medicamento[];
 }
 
 export function PurchaseDetailSheet({
   open,
   onOpenChange,
   compra,
-  proveedores,
-  medicamentos,
+  proveedores = [],
+  medicamentos = [],
 }: PurchaseDetailSheetProps) {
   const [details, setDetails] = useState<DetalleCompra[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,6 +47,8 @@ export function PurchaseDetailSheet({
       .catch(() => setDetails([]))
       .finally(() => setLoading(false));
   }, [open, compra]);
+
+  if (!open) return null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -107,5 +109,4 @@ export function PurchaseDetailSheet({
   );
 }
 
-// Alias de compatibilidad
 export const DetalleCompraSheet = PurchaseDetailSheet;

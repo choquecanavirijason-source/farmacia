@@ -37,6 +37,7 @@ import {
   update,
   exportResource,
 } from "@/lib/api/roles";
+import { formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IRole, RoleTableEditableField } from "@/lib/types/role";
@@ -248,10 +249,29 @@ export default function RolesPage() {
     },
     {
       key: "created_at",
-      header: "Fecha de Creación",
-      accessor: (r) => r.created_at,
-      className: "whitespace-nowrap text-xs text-muted-foreground",
-      render: (_, r) => (r.created_at ? new Date(r.created_at).toLocaleDateString("es-ES") : "—"),
+      header: "Creado el",
+      accessor: (r) => r.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, r) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(r.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (r) => r.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, r) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(r.updated_at)}
+        </span>
+      ),
     },
     {
       key: "acciones",

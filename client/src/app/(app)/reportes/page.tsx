@@ -5,7 +5,9 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   BarChart3,
+  Calendar,
   CalendarClock,
+  Filter,
   Printer,
   ShoppingBag,
   SlidersHorizontal,
@@ -13,6 +15,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,53 +31,19 @@ import { PrintDialog } from "@/components/layout/print-dialog";
 import { SimpleBarChart } from "@/components/ui/simple-bar-chart";
 import {
   computeProximosAVencer,
-  computeStockBajo,
   diasHasta,
   fetchKardexByMedicamento,
   fetchLotes,
   type KardexMovimientoConLote,
-  type StockBajoItem,
 } from "@/lib/api/batches";
 import { fetchMedicamentos } from "@/lib/api/medicaments";
-import { fetchDetallesByVenta, fetchVentas } from "@/lib/api/sales";
-import type { Lote, Medicamento, Venta } from "@/lib/types";
+import { fetchDashboardStats, type IDashboardStats } from "@/lib/api/dashboard";
+import { formatCurrency, formatDateTime, formatDate } from "@/lib/format";
+import type { Lote, Medicamento } from "@/lib/types";
 
-function formatFecha(iso: string): string {
-  return new Date(iso).toLocaleString("es-BO", { dateStyle: "medium", timeStyle: "short" });
-}
-
-function formatBs(valor: number): string {
-  return `Bs. ${valor.toFixed(2)}`;
-}
-
-function formatFechaCorta(iso: string): string {
-  return new Date(iso).toLocaleDateString("es-BO", { day: "2-digit", month: "short" });
-}
-
-interface MasVendidoItem {
+export interface StockBajoItem {
   medicamento: Medicamento;
-  cantidad: number;
-}
-
-/** Agrupa las ventas activas de los últimos `dias` días por fecha calendario. */
-function agruparVentasPorDia(ventas: Venta[], dias: number): { label: string; value: number }[] {
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  const buckets = new Map<string, number>();
-  for (let i = dias - 1; i >= 0; i--) {
-    const d = new Date(hoy);
-    d.setDate(d.getDate() - i);
-    buckets.set(d.toISOString().slice(0, 10), 0);
-  }
-  for (const v of ventas) {
-    if (v.estado !== "activa" && (v as any).status !== "active") continue;
-    const key = (v.fecha_hora || (v as any).fecha || (v as any).sale_date || "").slice(0, 10);
-    if (buckets.has(key)) {
-      buckets.set(key, (buckets.get(key) ?? 0) + Number(v.total));
-    }
-  }
-  return Array.from(buckets.entries())
-    .map(([fecha, total]) => ({ label: formatFechaCorta(fecha), value: Math.round(total * 100) / 100 }));
+  stock: number;
 }
 
 const TIPO_META: Record<string, { label: string; icon: typeof ArrowUpCircle; className: string }> = {
@@ -86,126 +55,350 @@ const TIPO_META: Record<string, { label: string; icon: typeof ArrowUpCircle; cla
   adjustment: { label: "Ajuste", icon: SlidersHorizontal, className: "text-warning" },
 };
 
+function getSevenDaysAgo(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 6);
+  return d.toISOString().slice(0, 10);
+}
+
+function getToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getMonthStart(): string {
+  const d = new Date();
+  d.setDate(1);
+  return d.toISOString().slice(0, 10);
+}
+
+function getThirtyDaysAgo(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 29);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function ReportesPage() {
+  const [stats, setStats] = useState<IDashboardStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
   const [medicamentos, setMedicamentos] = useState<Medicamento[] | null>(null);
   const [lotes, setLotes] = useState<Lote[] | null>(null);
-  const [ventas, setVentas] = useState<Venta[] | null>(null);
-  const [masVendidos, setMasVendidos] = useState<MasVendidoItem[] | null>(null);
+
+  // Rango de fechas para reportes estadísticos de ventas
+  const [preset, setPreset] = useState<string>("7dias");
+  const [startDate, setStartDate] = useState<string>(getSevenDaysAgo());
+  const [endDate, setEndDate] = useState<string>(getToday());
+
   const [ventanaDias, setVentanaDias] = useState("30");
-
   const [idMedicamentoKardex, setIdMedicamentoKardex] = useState("");
+  const [printOpen, setPrintOpen] = useState<"ventas" | "stock-bajo" | "por-vencer" | "kardex" | "mas-vendidos" | null>(null);
 
-  const [printOpen, setPrintOpen] = useState<"stock-bajo" | "por-vencer" | "kardex" | null>(null);
-
+  // Carga de catálogos y lotes
   useEffect(() => {
-    Promise.all([fetchMedicamentos(), fetchLotes(), fetchVentas()]).then(([m, l, v]) => {
-      setMedicamentos(m);
-      setLotes(l);
-      setVentas(v);
-
-      const activas = v.filter((venta) => venta.estado === "activa");
-      Promise.all(activas.map((venta) => fetchDetallesByVenta(venta.id_venta))).then((detallesPorVenta) => {
-        const cantidadPorMedicamento = new Map<number, number>();
-        for (const detalles of detallesPorVenta) {
-          for (const d of detalles) {
-            cantidadPorMedicamento.set(
-              d.id_medicamento,
-              (cantidadPorMedicamento.get(d.id_medicamento) ?? 0) + d.cantidad
-            );
-          }
-        }
-        const medicamentoById = new Map(m.map((med) => [med.id_medicamento, med]));
-        const top = Array.from(cantidadPorMedicamento.entries())
-          .map(([id_medicamento, cantidad]) => ({ medicamento: medicamentoById.get(id_medicamento), cantidad }))
-          .filter((x): x is MasVendidoItem => Boolean(x.medicamento))
-          .sort((a, b) => b.cantidad - a.cantidad)
-          .slice(0, 5);
-        setMasVendidos(top);
-      });
+    Promise.all([
+      fetchMedicamentos().catch(() => []),
+      fetchLotes().catch(() => []),
+    ]).then(([meds, lots]) => {
+      setMedicamentos(meds);
+      setLotes(lots);
     });
   }, []);
 
-  const stockBajo = useMemo(
-    () => (medicamentos && lotes ? computeStockBajo(medicamentos, lotes) : null),
-    [medicamentos, lotes]
-  );
+  // Carga de estadísticas filtradas por rango de fecha
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoadingStats(true);
 
-  const proximosAVencer = useMemo(
-    () => (lotes ? computeProximosAVencer(lotes, Number(ventanaDias)) : null),
-    [lotes, ventanaDias]
-  );
+    fetchDashboardStats(
+      {
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+      },
+      controller.signal
+    )
+      .then((st) => {
+        setStats(st);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingStats(false);
+      });
+
+    return () => controller.abort();
+  }, [startDate, endDate]);
+
+  function handlePresetChange(val: string | null) {
+    if (!val) return;
+    setPreset(val);
+    if (val === "hoy") {
+      const today = getToday();
+      setStartDate(today);
+      setEndDate(today);
+    } else if (val === "7dias") {
+      setStartDate(getSevenDaysAgo());
+      setEndDate(getToday());
+    } else if (val === "30dias") {
+      setStartDate(getThirtyDaysAgo());
+      setEndDate(getToday());
+    } else if (val === "mes") {
+      setStartDate(getMonthStart());
+      setEndDate(getToday());
+    }
+  }
+
+  const stockBajo = useMemo<StockBajoItem[] | null>(() => {
+    if (!medicamentos) return null;
+    return medicamentos
+      .filter((m: any) => {
+        const stock = Number(m.total_stock ?? m.stock_actual ?? 0);
+        return stock < Number(m.min_stock ?? m.stock_minimo ?? 0);
+      })
+      .map((m: any) => ({
+        medicamento: m,
+        stock: Number(m.total_stock ?? m.stock_actual ?? 0),
+      }));
+  }, [medicamentos]);
+
+  const proximosAVencer = useMemo(() => {
+    return lotes ? computeProximosAVencer(lotes, Number(ventanaDias)) : null;
+  }, [lotes, ventanaDias]);
 
   const medicamentoById = useMemo(
-    () => new Map((medicamentos ?? []).map((m) => [m.id_medicamento, m])),
+    () => new Map((medicamentos ?? []).map((m) => [m.id_medicamento || m.id, m])),
     [medicamentos]
   );
 
   const medicamentoKardexSeleccionado = medicamentos?.find(
-    (m) => m.id_medicamento === Number(idMedicamentoKardex)
+    (m) => (m.id_medicamento || m.id) === Number(idMedicamentoKardex)
   );
+
+  const chartVentasData = useMemo(() => {
+    if (!stats?.ventas_por_rango) return [];
+    return stats.ventas_por_rango.map((d) => ({
+      label: d.label,
+      value: d.value,
+    }));
+  }, [stats]);
+
+  const topProductosChartData = useMemo(() => {
+    if (!stats?.top_productos) return [];
+    return stats.top_productos.map((p) => ({
+      label: p.name,
+      value: Number(p.total_vendido),
+    }));
+  }, [stats]);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-balance">Reportes</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-balance">Reportes Estadísticos</h1>
         <p className="text-sm text-muted-foreground">
-          Apoyo a la toma de decisiones: inventario, vencimientos y trazabilidad.
+          Apoyo a la toma de decisiones: análisis de ventas, rotación de productos, inventario, vencimientos y kardex.
         </p>
       </div>
 
-      <Tabs defaultValue="stock-bajo">
+      <Tabs defaultValue="ventas">
         <TabsList className="flex-wrap">
-          <TabsTrigger value="ventas">Ventas</TabsTrigger>
-          <TabsTrigger value="mas-vendidos">Más vendidos</TabsTrigger>
-          <TabsTrigger value="stock-bajo">Stock bajo</TabsTrigger>
-          <TabsTrigger value="por-vencer">Próximos a vencer</TabsTrigger>
-          <TabsTrigger value="kardex">Kardex por medicamento</TabsTrigger>
+          <TabsTrigger value="ventas">Tendencia de Ventas</TabsTrigger>
+          <TabsTrigger value="mas-vendidos">Más Vendidos</TabsTrigger>
+          <TabsTrigger value="stock-bajo">Stock Bajo</TabsTrigger>
+          <TabsTrigger value="por-vencer">Próximos a Vencer</TabsTrigger>
+          <TabsTrigger value="kardex">Kardex por Medicamento</TabsTrigger>
         </TabsList>
 
+        {/* PESTAÑA: VENTAS */}
         <TabsContent value="ventas" className="flex flex-col gap-4">
-          {ventas === null ? (
-            <Skeleton className="h-56 w-full" />
-          ) : ventas.filter((v) => v.estado === "activa").length === 0 ? (
+          {/* Barra de Filtro de Fechas */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Filter className="size-3.5" />
+                <span className="font-medium">Periodo:</span>
+              </div>
+
+              <Select value={preset} onValueChange={handlePresetChange}>
+                <SelectTrigger className="h-8 w-36 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hoy">Hoy</SelectItem>
+                  <SelectItem value="7dias">Últimos 7 días</SelectItem>
+                  <SelectItem value="30dias">Últimos 30 días</SelectItem>
+                  <SelectItem value="mes">Este mes</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center gap-1.5">
+                <Calendar className="size-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Desde:</span>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setPreset("custom");
+                  }}
+                  className="h-8 w-36 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Hasta:</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setPreset("custom");
+                  }}
+                  className="h-8 w-36 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {stats && (
+                <div className="text-xs text-muted-foreground">
+                  Total periodo: <strong className="text-primary font-mono text-sm">{formatCurrency(stats.ventas_rango_total ?? 0)}</strong>
+                </div>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setPrintOpen("ventas")}
+                disabled={loadingStats || chartVentasData.length === 0}
+              >
+                <Printer className="size-4" aria-hidden />
+                Imprimir
+              </Button>
+            </div>
+          </div>
+
+          {loadingStats ? (
+            <Skeleton className="h-64 w-full" />
+          ) : chartVentasData.length === 0 ? (
             <Card className="border-dashed border-border/60 bg-background/60">
               <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
                 <ShoppingBag className="size-6 text-muted-foreground" aria-hidden />
-                <p className="text-sm font-medium">Todavía no hay ventas registradas</p>
+                <p className="text-sm font-medium">No hay registros de ventas en el periodo seleccionado</p>
               </CardContent>
             </Card>
           ) : (
             <Card>
               <CardContent className="py-6">
-                <p className="mb-4 text-sm font-medium text-muted-foreground">Últimos 7 días (Bs.)</p>
-                <SimpleBarChart data={agruparVentasPorDia(ventas, 7)} formatValue={formatBs} />
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Ingresos diarios por ventas activas (Bs.)
+                  </p>
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {startDate ? formatDate(startDate) : ""} — {endDate ? formatDate(endDate) : ""}
+                  </span>
+                </div>
+                <SimpleBarChart data={chartVentasData} formatValue={(v) => formatCurrency(v)} />
               </CardContent>
             </Card>
           )}
         </TabsContent>
 
+        {/* PESTAÑA: MÁS VENDIDOS */}
         <TabsContent value="mas-vendidos" className="flex flex-col gap-4">
-          {masVendidos === null ? (
-            <Skeleton className="h-56 w-full" />
-          ) : masVendidos.length === 0 ? (
+          {/* Barra de Filtro de Fechas para Top Productos */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Filter className="size-3.5" />
+                <span className="font-medium">Periodo de ventas:</span>
+              </div>
+
+              <Select value={preset} onValueChange={handlePresetChange}>
+                <SelectTrigger className="h-8 w-36 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hoy">Hoy</SelectItem>
+                  <SelectItem value="7dias">Últimos 7 días</SelectItem>
+                  <SelectItem value="30dias">Últimos 30 días</SelectItem>
+                  <SelectItem value="mes">Este mes</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center gap-1.5">
+                <Calendar className="size-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Desde:</span>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setPreset("custom");
+                  }}
+                  className="h-8 w-36 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Hasta:</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setPreset("custom");
+                  }}
+                  className="h-8 w-36 text-xs"
+                />
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setPrintOpen("mas-vendidos")}
+              disabled={loadingStats || !stats?.top_productos || stats.top_productos.length === 0}
+            >
+              <Printer className="size-4" aria-hidden />
+              Imprimir Reporte
+            </Button>
+          </div>
+
+          {loadingStats ? (
+            <Skeleton className="h-64 w-full" />
+          ) : !stats?.top_productos || stats.top_productos.length === 0 ? (
             <Card className="border-dashed border-border/60 bg-background/60">
               <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
                 <TrendingUp className="size-6 text-muted-foreground" aria-hidden />
-                <p className="text-sm font-medium">Todavía no hay ventas registradas</p>
+                <p className="text-sm font-medium">No se registraron ventas en el periodo seleccionado</p>
               </CardContent>
             </Card>
           ) : (
-            <Card>
-              <CardContent className="py-6">
-                <p className="mb-4 text-sm font-medium text-muted-foreground">
-                  Top 5 medicamentos por unidades vendidas
-                </p>
-                <SimpleBarChart
-                  data={masVendidos.map((x) => ({ label: x.medicamento.nombre, value: x.cantidad }))}
-                />
-              </CardContent>
-            </Card>
+            <div className="flex flex-col gap-4">
+              <Card>
+                <CardContent className="py-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Top 10 medicamentos por unidades vendidas
+                    </p>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {startDate ? formatDate(startDate) : ""} — {endDate ? formatDate(endDate) : ""}
+                    </span>
+                  </div>
+                  <SimpleBarChart data={topProductosChartData} />
+                </CardContent>
+              </Card>
+
+              <TopProductosTable items={stats.top_productos} />
+            </div>
           )}
         </TabsContent>
 
+        {/* PESTAÑA: STOCK BAJO */}
         <TabsContent value="stock-bajo" className="flex flex-col gap-4">
           {stockBajo === null ? (
             <div className="flex flex-col gap-2">
@@ -217,7 +410,7 @@ export default function ReportesPage() {
             <Card className="border-dashed border-border/60 bg-background/60">
               <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
                 <BarChart3 className="size-6 text-muted-foreground" aria-hidden />
-                <p className="text-sm font-medium">Ningún medicamento está por debajo de su stock mínimo</p>
+                <p className="text-sm font-medium">Todos los medicamentos cuentan con stock suficiente por encima de su mínimo</p>
               </CardContent>
             </Card>
           ) : (
@@ -230,38 +423,41 @@ export default function ReportesPage() {
                 onClick={() => setPrintOpen("stock-bajo")}
               >
                 <Printer className="size-4" aria-hidden />
-                Imprimir
+                Imprimir Reporte
               </Button>
               <StockBajoTable items={stockBajo} />
             </>
           )}
         </TabsContent>
 
+        {/* PESTAÑA: PRÓXIMOS A VENCER */}
         <TabsContent value="por-vencer" className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <CalendarClock className="size-4 text-muted-foreground" aria-hidden />
-            <p className="text-sm text-muted-foreground">Ventana:</p>
-            <Select value={ventanaDias} onValueChange={(v) => setVentanaDias(v ?? "30")}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="15">15 días</SelectItem>
-                <SelectItem value="30">30 días</SelectItem>
-                <SelectItem value="60">60 días</SelectItem>
-                <SelectItem value="90">90 días</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="size-4 text-muted-foreground" aria-hidden />
+              <span className="text-xs text-muted-foreground">Ventana de alerta:</span>
+              <Select value={ventanaDias} onValueChange={(v) => setVentanaDias(v ?? "30")}>
+                <SelectTrigger className="h-8 w-32 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15 días</SelectItem>
+                  <SelectItem value="30">30 días</SelectItem>
+                  <SelectItem value="60">60 días</SelectItem>
+                  <SelectItem value="90">90 días</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             {proximosAVencer && proximosAVencer.length > 0 ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="ml-auto gap-1.5"
+                className="gap-1.5"
                 onClick={() => setPrintOpen("por-vencer")}
               >
                 <Printer className="size-4" aria-hidden />
-                Imprimir
+                Imprimir Reporte
               </Button>
             ) : null}
           </div>
@@ -276,7 +472,7 @@ export default function ReportesPage() {
             <Card className="border-dashed border-border/60 bg-background/60">
               <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
                 <CalendarClock className="size-6 text-muted-foreground" aria-hidden />
-                <p className="text-sm font-medium">Ningún lote vence dentro de esta ventana</p>
+                <p className="text-sm font-medium">Ningún lote vence dentro de esta ventana de tiempo ({ventanaDias} días)</p>
               </CardContent>
             </Card>
           ) : (
@@ -284,17 +480,18 @@ export default function ReportesPage() {
           )}
         </TabsContent>
 
+        {/* PESTAÑA: KARDEX */}
         <TabsContent value="kardex" className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex min-w-0 max-w-sm flex-1 flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 max-w-sm flex-1 flex-col gap-1">
               <Select value={idMedicamentoKardex} onValueChange={(v) => setIdMedicamentoKardex(v ?? "")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecciona un medicamento" />
+                <SelectTrigger className="h-9 w-full text-xs">
+                  <SelectValue placeholder="Selecciona un medicamento para ver su kardex..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {(medicamentos ?? []).map((m) => (
-                    <SelectItem key={m.id_medicamento} value={String(m.id_medicamento)}>
-                      {m.nombre} ({m.codigo})
+                  {(medicamentos ?? []).map((m: any) => (
+                    <SelectItem key={m.id_medicamento || m.id} value={String(m.id_medicamento || m.id)}>
+                      {m.nombre || m.name} ({m.codigo || m.code})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -309,23 +506,63 @@ export default function ReportesPage() {
                 onClick={() => setPrintOpen("kardex")}
               >
                 <Printer className="size-4" aria-hidden />
-                Imprimir
+                Imprimir Kardex
               </Button>
             ) : null}
           </div>
 
           {!idMedicamentoKardex ? (
-            <p className="text-sm text-muted-foreground">Selecciona un medicamento para ver su kardex.</p>
+            <Card className="border-dashed border-border/60 bg-background/60">
+              <CardContent className="py-12 text-center text-xs text-muted-foreground">
+                Selecciona un medicamento en el menú desplegable superior para consultar su historial de movimientos.
+              </CardContent>
+            </Card>
           ) : (
             <KardexTabla key={idMedicamentoKardex} idMedicamento={Number(idMedicamentoKardex)} />
           )}
         </TabsContent>
       </Tabs>
 
+      {/* DIÁLOGOS DE IMPRESIÓN */}
+      <PrintDialog
+        open={printOpen === "ventas"}
+        onOpenChange={(open) => !open && setPrintOpen(null)}
+        title={`Reporte de Ventas — ${startDate ? formatDate(startDate) : ""} al ${endDate ? formatDate(endDate) : ""}`}
+      >
+        <div className="flex flex-col gap-4 p-4 text-xs">
+          <div className="flex justify-between border-b pb-2">
+            <span>Rango: <strong>{startDate} al {endDate}</strong></span>
+            <span>Total Recaudado: <strong>{formatCurrency(stats?.ventas_rango_total ?? 0)}</strong></span>
+          </div>
+          <DataTable
+            data={stats?.ventas_por_rango || []}
+            columns={[
+              { key: "label", header: "Fecha / Periodo", accessor: (d) => d.label },
+              {
+                key: "value",
+                header: "Total Vendido (Bs)",
+                accessor: (d) => d.value,
+                className: "text-right font-mono",
+                render: (_, d) => formatCurrency(d.value),
+              },
+            ]}
+            emptyMessage="No hay datos de ventas en este periodo."
+          />
+        </div>
+      </PrintDialog>
+
+      <PrintDialog
+        open={printOpen === "mas-vendidos"}
+        onOpenChange={(open) => !open && setPrintOpen(null)}
+        title={`Top Productos Más Vendidos — ${startDate ? formatDate(startDate) : ""} al ${endDate ? formatDate(endDate) : ""}`}
+      >
+        {stats?.top_productos ? <TopProductosTable items={stats.top_productos} /> : null}
+      </PrintDialog>
+
       <PrintDialog
         open={printOpen === "stock-bajo"}
         onOpenChange={(open) => !open && setPrintOpen(null)}
-        title="Medicamentos con stock bajo"
+        title="Reporte: Medicamentos con Stock Bajo"
       >
         {stockBajo ? <StockBajoTable items={stockBajo} /> : null}
       </PrintDialog>
@@ -333,7 +570,7 @@ export default function ReportesPage() {
       <PrintDialog
         open={printOpen === "por-vencer"}
         onOpenChange={(open) => !open && setPrintOpen(null)}
-        title={`Lotes próximos a vencer (${ventanaDias} días)`}
+        title={`Reporte: Lotes Próximos a Vencer (${ventanaDias} días)`}
       >
         {proximosAVencer ? (
           <ProximosAVencerTable items={proximosAVencer} medicamentoById={medicamentoById} />
@@ -343,7 +580,7 @@ export default function ReportesPage() {
       <PrintDialog
         open={printOpen === "kardex"}
         onOpenChange={(open) => !open && setPrintOpen(null)}
-        title={`Kardex — ${medicamentoKardexSeleccionado?.nombre ?? ""}`}
+        title={`Kardex de Inventario — ${(medicamentoKardexSeleccionado as any)?.nombre || (medicamentoKardexSeleccionado as any)?.name || ""}`}
       >
         {idMedicamentoKardex ? <KardexTabla idMedicamento={Number(idMedicamentoKardex)} /> : null}
       </PrintDialog>
@@ -351,38 +588,90 @@ export default function ReportesPage() {
   );
 }
 
+function TopProductosTable({ items }: { items: any[] }) {
+  const columns: DataTableColumn<any>[] = [
+    {
+      key: "code",
+      header: "Código",
+      accessor: (i) => i.code || "-",
+      className: "w-28 font-mono text-xs",
+    },
+    {
+      key: "name",
+      header: "Medicamento",
+      accessor: (i) => i.name,
+      className: "font-medium text-xs",
+    },
+    {
+      key: "total_vendido",
+      header: "Uds. Vendidas",
+      accessor: (i) => Number(i.total_vendido),
+      className: "w-32 text-right font-mono text-xs font-semibold",
+    },
+    {
+      key: "total_recaudado",
+      header: "Total Recaudado",
+      accessor: (i) => Number(i.total_recaudado),
+      className: "w-36 text-right font-mono text-xs font-bold text-primary",
+      render: (_, i) => formatCurrency(Number(i.total_recaudado)),
+    },
+  ];
+
+  return (
+    <DataTable
+      data={items}
+      columns={columns}
+      searchPlaceholder="Buscar producto..."
+      emptyMessage="No se encontraron productos."
+    />
+  );
+}
+
 function StockBajoTable({ items }: { items: StockBajoItem[] }) {
   const columns: DataTableColumn<StockBajoItem>[] = [
     {
-      key: "medicamento",
-      header: "Medicamento",
-      accessor: (i) => i.medicamento.nombre,
-      className: "max-w-56 truncate font-medium",
-    },
-    {
       key: "codigo",
       header: "Código",
-      accessor: (i) => i.medicamento.codigo,
-      className: "whitespace-nowrap font-mono text-xs",
+      accessor: (i) => (i.medicamento as any).codigo || (i.medicamento as any).code,
+      className: "w-28 font-mono text-xs",
+    },
+    {
+      key: "medicamento",
+      header: "Medicamento",
+      accessor: (i) => i.medicamento.nombre || (i.medicamento as any).name,
+      className: "font-medium text-xs",
     },
     {
       key: "stock",
-      header: "Stock actual",
+      header: "Stock Actual",
       accessor: (i) => i.stock,
-      className: "text-right",
+      className: "w-28 text-center font-mono text-xs",
+      render: (_, i) => (
+        <span className={i.stock === 0 ? "text-destructive font-bold" : "text-amber-600 font-semibold"}>
+          {i.stock} uds
+        </span>
+      ),
     },
     {
       key: "stock_minimo",
-      header: "Stock mínimo",
-      accessor: (i) => i.medicamento.stock_minimo,
-      className: "text-right",
+      header: "Stock Mínimo",
+      accessor: (i) => Number((i.medicamento as any).stock_minimo || (i.medicamento as any).min_stock || 0),
+      className: "w-28 text-center font-mono text-xs text-muted-foreground",
+      render: (_, i) => `${(i.medicamento as any).stock_minimo || (i.medicamento as any).min_stock || 0} uds`,
     },
     {
       key: "deficit",
       header: "Déficit",
-      accessor: (i) => i.medicamento.stock_minimo - i.stock,
-      className: "text-right",
-      render: (_, i) => <Badge variant="destructive">{i.medicamento.stock_minimo - i.stock}</Badge>,
+      accessor: (i) => {
+        const min = Number((i.medicamento as any).stock_minimo || (i.medicamento as any).min_stock || 0);
+        return Math.max(0, min - i.stock);
+      },
+      className: "w-28 text-center",
+      render: (_, i) => {
+        const min = Number((i.medicamento as any).stock_minimo || (i.medicamento as any).min_stock || 0);
+        const def = Math.max(0, min - i.stock);
+        return <Badge variant="destructive">-{def} uds</Badge>;
+      },
     },
   ];
 
@@ -407,39 +696,45 @@ function ProximosAVencerTable({
     {
       key: "medicamento",
       header: "Medicamento",
-      accessor: (l) => medicamentoById.get(l.id_medicamento)?.nombre ?? null,
-      className: "max-w-56 truncate font-medium",
+      accessor: (l) => {
+        const m = medicamentoById.get(l.id_medicamento || (l as any).medicament_id);
+        return m?.nombre || (m as any)?.name || `Medicamento #${l.id_medicamento || (l as any).medicament_id}`;
+      },
+      className: "font-medium text-xs",
     },
     {
       key: "numero_lote",
       header: "N° Lote",
-      accessor: (l) => l.numero_lote,
-      className: "whitespace-nowrap font-mono text-xs",
+      accessor: (l) => l.numero_lote || (l as any).batch_number,
+      className: "w-32 font-mono text-xs",
     },
     {
       key: "fecha_vencimiento",
       header: "Vencimiento",
-      accessor: (l) => l.fecha_vencimiento,
-      className: "whitespace-nowrap",
+      accessor: (l) => l.fecha_vencimiento || (l as any).expiration_date,
+      className: "w-32 text-xs",
+      render: (_, l) => formatDate(l.fecha_vencimiento || (l as any).expiration_date),
     },
     {
       key: "dias",
-      header: "Días",
-      accessor: (l) => diasHasta(l.fecha_vencimiento),
+      header: "Tiempo Restante",
+      accessor: (l) => diasHasta(l.fecha_vencimiento || (l as any).expiration_date),
+      className: "w-36 text-center",
       render: (_, l) => {
-        const dias = diasHasta(l.fecha_vencimiento);
+        const dias = diasHasta(l.fecha_vencimiento || (l as any).expiration_date);
         return (
-          <Badge variant={dias < 0 ? "destructive" : "warning"}>
-            {dias < 0 ? `Venció hace ${Math.abs(dias)} d.` : `${dias} d.`}
+          <Badge variant={dias <= 0 ? "destructive" : dias <= 30 ? "warning" : "secondary"}>
+            {dias < 0 ? `Venció hace ${Math.abs(dias)} d.` : dias === 0 ? "Vence hoy" : `${dias} días`}
           </Badge>
         );
       },
     },
     {
       key: "cantidad_actual",
-      header: "Cantidad",
-      accessor: (l) => l.cantidad_actual,
-      className: "text-right",
+      header: "Stock Lote",
+      accessor: (l) => Number(l.cantidad_actual ?? (l as any).current_quantity ?? 0),
+      className: "w-28 text-right font-mono text-xs",
+      render: (_, l) => `${l.cantidad_actual ?? (l as any).current_quantity ?? 0} uds`,
     },
   ];
 
@@ -471,7 +766,11 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
   }
 
   if (kardex.length === 0) {
-    return <p className="text-sm text-muted-foreground">Sin movimientos registrados para este medicamento.</p>;
+    return (
+      <div className="rounded-lg border p-8 text-center text-xs text-muted-foreground">
+        Sin movimientos registrados para este medicamento.
+      </div>
+    );
   }
 
   const columns: DataTableColumn<any>[] = [
@@ -479,12 +778,13 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
       key: "tipo",
       header: "Tipo",
       accessor: (k: any) => TIPO_META[k.tipo || k.type]?.label || k.tipo || k.type,
+      className: "w-28",
       render: (_, k: any) => {
         const meta = TIPO_META[k.tipo || k.type] || { label: k.tipo || k.type, icon: SlidersHorizontal, className: "text-muted-foreground" };
         const Icon = meta.icon;
         return (
-          <span className={`flex items-center gap-1.5 whitespace-nowrap ${meta.className}`}>
-            <Icon className="size-4" aria-hidden />
+          <span className={`flex items-center gap-1.5 whitespace-nowrap text-xs font-medium ${meta.className}`}>
+            <Icon className="size-3.5" aria-hidden />
             {meta.label}
           </span>
         );
@@ -494,42 +794,45 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
       key: "numero_lote",
       header: "N° Lote",
       accessor: (k: any) => k.numero_lote || k.batch_number || "—",
-      className: "whitespace-nowrap font-mono text-xs",
+      className: "w-28 font-mono text-xs",
     },
     {
       key: "cantidad",
       header: "Cantidad",
       accessor: (k: any) => k.cantidad ?? k.quantity,
+      className: "w-24 text-right font-mono text-xs",
       render: (_, k: any) => {
         const cant = Number(k.cantidad ?? k.quantity ?? 0);
-        const meta = TIPO_META[k.tipo || k.type] || { className: "" };
+        const isEntry = k.tipo === "in" || k.tipo === "entrada" || k.type === "in" || k.type === "entrada";
         return (
-          <span className={`whitespace-nowrap font-medium ${meta.className}`}>
-            {cant > 0 ? "+" : ""}
-            {cant}
+          <span className={isEntry ? "text-success font-semibold" : "text-destructive font-semibold"}>
+            {isEntry ? "+" : "-"}{Math.abs(cant)}
           </span>
         );
       },
-      className: "text-right",
     },
     {
       key: "saldo",
-      header: "Saldo",
+      header: "Saldo Resultante",
       accessor: (k: any) => k.saldo ?? k.balance,
-      className: "text-right",
+      className: "w-28 text-right font-mono text-xs font-bold",
+      render: (_, k: any) => `${k.saldo ?? k.balance ?? 0} uds`,
     },
     {
       key: "motivo",
-      header: "Motivo",
+      header: "Motivo / Detalle",
       accessor: (k: any) => k.motivo || k.reason || "—",
-      className: "max-w-48 truncate",
+      className: "text-xs",
+      render: (_, k: any) => (
+        <span className="text-muted-foreground">{k.motivo || k.reason || "—"}</span>
+      ),
     },
     {
       key: "fecha",
-      header: "Fecha",
-      accessor: (k: any) => k.fecha || k.fecha_hora || k.occurred_at || "",
-      className: "whitespace-nowrap text-muted-foreground",
-      render: (_, k: any) => formatFecha(k.fecha || k.fecha_hora || k.occurred_at || ""),
+      header: "Fecha y Hora",
+      accessor: (k: any) => k.fecha || k.fecha_hora || k.occurred_at || k.created_at || "",
+      className: "w-36 text-xs text-muted-foreground",
+      render: (_, k: any) => formatDateTime(k.fecha || k.fecha_hora || k.occurred_at || k.created_at),
     },
   ];
 

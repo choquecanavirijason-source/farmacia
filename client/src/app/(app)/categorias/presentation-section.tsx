@@ -30,6 +30,7 @@ import {
   update,
   exportResource,
 } from "@/lib/api/presentations";
+import { formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IPresentation, PresentationTableEditableField } from "@/lib/types/presentation";
@@ -190,13 +191,27 @@ export function PresentationSection() {
     },
     {
       key: "created_at",
-      header: "Fecha de Registro",
-      accessor: (p) => p.created_at,
+      header: "Creado el",
+      accessor: (p) => p.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
       resizable: true,
-      width: 160,
+      width: 140,
       render: (_, p) => (
         <span className="text-xs text-muted-foreground">
-          {new Date(p.created_at).toLocaleDateString("es-ES")}
+          {formatDateTime(p.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (p) => p.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, p) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(p.updated_at)}
         </span>
       ),
     },

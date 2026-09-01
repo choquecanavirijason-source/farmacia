@@ -52,6 +52,8 @@ export function CashMovementDialog({
     }
   }, [open]);
 
+  if (!open) return null;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const numMonto = Number(monto);

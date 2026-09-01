@@ -16,7 +16,8 @@ class DashboardController
 
     public function stats(Request $request)
     {
-        $stats = $this->dashboardService->getStats();
-        return $this->successResponse($stats, 'Estadísticas del panel principal obtenidas con éxito.');
+        $filters = $request->only(['start_date', 'end_date']);
+        $stats = $this->dashboardService->getStats($filters);
+        return $this->successResponse($stats, 'Estadísticas obtenidas con éxito.');
     }
 }

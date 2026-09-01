@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { getSalesPaginated, exportSales } from "@/lib/api/sales";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 import type { ISale } from "@/lib/types/sale";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
@@ -179,6 +179,32 @@ export function SalesHistory() {
         <Badge variant={s.status === "active" || s.status === "activa" ? "success" : "destructive"} className="text-[11px]">
           {s.status === "active" || s.status === "activa" ? "Completada" : "Anulada"}
         </Badge>
+      ),
+    },
+    {
+      key: "created_at",
+      header: "Creado el",
+      accessor: (s) => s.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, s) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(s.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (s) => s.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, s) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(s.updated_at)}
+        </span>
       ),
     },
     {

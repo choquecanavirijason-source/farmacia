@@ -40,6 +40,8 @@ export function OpenCashRegisterDialog({
     }
   }, [open]);
 
+  if (!open) return null;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const monto = Number(montoApertura);

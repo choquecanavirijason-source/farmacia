@@ -4,22 +4,55 @@ import type { IPresentation } from "@/lib/types/presentation";
 import type { ILaboratory } from "@/lib/types/laboratory";
 import type { IPaginatedResponse } from "@/lib/types/pagination";
 
-export const fetchCategories = async (): Promise<ICategory[]> => {
-  const res = await apiClient.get<IPaginatedResponse<ICategory>>("/categories?per_page=100");
-  return res.data.data;
+let categoriesPromise: Promise<ICategory[]> | null = null;
+let presentationsPromise: Promise<IPresentation[]> | null = null;
+let laboratoriesPromise: Promise<ILaboratory[]> | null = null;
+
+export const fetchCategories = async (forceRefresh = false): Promise<ICategory[]> => {
+  if (!forceRefresh && categoriesPromise) return categoriesPromise;
+
+  categoriesPromise = apiClient
+    .get<IPaginatedResponse<ICategory>>("/categories?per_page=100")
+    .then((res) => res.data.data)
+    .finally(() => {
+      setTimeout(() => {
+        categoriesPromise = null;
+      }, 1000);
+    });
+
+  return categoriesPromise;
 };
 
-export const fetchPresentations = async (): Promise<IPresentation[]> => {
-  const res = await apiClient.get<IPaginatedResponse<IPresentation>>("/presentations?per_page=100");
-  return res.data.data;
+export const fetchPresentations = async (forceRefresh = false): Promise<IPresentation[]> => {
+  if (!forceRefresh && presentationsPromise) return presentationsPromise;
+
+  presentationsPromise = apiClient
+    .get<IPaginatedResponse<IPresentation>>("/presentations?per_page=100")
+    .then((res) => res.data.data)
+    .finally(() => {
+      setTimeout(() => {
+        presentationsPromise = null;
+      }, 1000);
+    });
+
+  return presentationsPromise;
 };
 
-export const fetchLaboratories = async (): Promise<ILaboratory[]> => {
-  const res = await apiClient.get<IPaginatedResponse<ILaboratory>>("/laboratories?per_page=100");
-  return res.data.data;
+export const fetchLaboratories = async (forceRefresh = false): Promise<ILaboratory[]> => {
+  if (!forceRefresh && laboratoriesPromise) return laboratoriesPromise;
+
+  laboratoriesPromise = apiClient
+    .get<IPaginatedResponse<ILaboratory>>("/laboratories?per_page=100")
+    .then((res) => res.data.data)
+    .finally(() => {
+      setTimeout(() => {
+        laboratoriesPromise = null;
+      }, 1000);
+    });
+
+  return laboratoriesPromise;
 };
 
-// Aliases de compatibilidad
 export const fetchCategorias = async () => {
   const list = await fetchCategories();
   return list.map((c) => ({

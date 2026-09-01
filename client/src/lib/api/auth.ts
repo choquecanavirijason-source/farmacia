@@ -18,6 +18,16 @@ interface LoginApiResponse {
   };
 }
 
+export interface UpdateProfileRequest {
+  firstname: string;
+  lastname: string;
+  username: string;
+  email: string;
+  current_password?: string;
+  password?: string;
+  password_confirmation?: string;
+}
+
 let mePromise: Promise<any> | null = null;
 
 export async function login(loginVal: string, passwordVal: string): Promise<LoginApiResponse["data"]> {
@@ -48,8 +58,8 @@ export function isAuthenticated(): boolean {
   return Boolean(getAuthToken());
 }
 
-export async function getCurrentUser() {
-  if (mePromise) return mePromise;
+export async function getCurrentUser(forceRefresh = false) {
+  if (!forceRefresh && mePromise) return mePromise;
 
   mePromise = apiClient
     .get("/auth/me")
@@ -61,6 +71,12 @@ export async function getCurrentUser() {
     });
 
   return mePromise;
+}
+
+export async function updateProfile(data: UpdateProfileRequest): Promise<any> {
+  mePromise = null;
+  const response = await apiClient.put("/auth/profile", data);
+  return (response.data as any)?.data ?? response.data;
 }
 
 export { apiClient };

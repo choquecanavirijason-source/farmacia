@@ -20,13 +20,12 @@ import {
   getPurchasesPaginated,
   exportPurchases,
 } from "@/lib/api/purchases";
-import { fetchMedicamentos } from "@/lib/api/medicaments";
 import { fetchProveedores } from "@/lib/api/suppliers";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IPurchase } from "@/lib/types/purchase";
-import type { Compra, Medicamento, Proveedor } from "@/lib/types";
+import type { Compra, Proveedor } from "@/lib/types";
 import { PurchaseFormDialog } from "./purchase-form-dialog";
 import { PurchaseDetailSheet } from "./purchase-detail-sheet";
 
@@ -68,7 +67,6 @@ export default function ComprasPage() {
 
   // Catálogos auxiliares
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
-  const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [detalleTarget, setDetalleTarget] = useState<Compra | null>(null);
@@ -86,15 +84,11 @@ export default function ComprasPage() {
     setParams(next);
   }, []);
 
-  // Carga de proveedores y medicamentos
+  // Carga de proveedores para el selector de filtro
   useEffect(() => {
-    Promise.all([
-      fetchProveedores().catch(() => []),
-      fetchMedicamentos().catch(() => []),
-    ]).then(([provData, medData]) => {
-      setProveedores(provData);
-      setMedicamentos(medData);
-    });
+    fetchProveedores()
+      .then(setProveedores)
+      .catch(() => setProveedores([]));
   }, []);
 
   // Carga paginada en servidor de compras
@@ -137,7 +131,7 @@ export default function ComprasPage() {
     refresh();
   }
 
-  const puedeRegistrar = proveedores.length > 0 && medicamentos.length > 0;
+  const puedeRegistrar = true;
 
   const columns: DataTableColumn<IPurchase>[] = [
     {
@@ -198,6 +192,32 @@ export default function ComprasPage() {
       render: (_, c) => (
         <span className="font-mono text-xs font-bold text-foreground">
           {formatCurrency(Number(c.total || 0))}
+        </span>
+      ),
+    },
+    {
+      key: "created_at",
+      header: "Creado el",
+      accessor: (c) => c.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, c) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(c.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (c) => c.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, c) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(c.updated_at)}
         </span>
       ),
     },
@@ -376,14 +396,12 @@ export default function ComprasPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         proveedores={proveedores}
-        medicamentos={medicamentos}
         onCompraRegistrada={handleSaved}
       />
 
       <PurchaseDetailSheet
         compra={detalleTarget}
         proveedores={proveedores}
-        medicamentos={medicamentos}
         open={Boolean(detalleTarget)}
         onOpenChange={(open) => !open && setDetalleTarget(null)}
       />

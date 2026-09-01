@@ -40,6 +40,7 @@ import {
   update,
   restore,
 } from "@/lib/api/clients";
+import { formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IClient, ClientTableEditableField } from "@/lib/types/client";
@@ -240,6 +241,32 @@ export default function ClientesPage() {
         <span className={cn("flex items-center gap-1.5", u.deleted_at ? "text-destructive/80" : "text-muted-foreground")}>
           <MapPin className="size-3.5" aria-hidden />
           <span className="truncate text-xs">{u.address || "-"}</span>
+        </span>
+      ),
+    },
+    {
+      key: "created_at",
+      header: "Creado el",
+      accessor: (u) => u.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, u) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(u.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (u) => u.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, u) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(u.updated_at)}
         </span>
       ),
     },

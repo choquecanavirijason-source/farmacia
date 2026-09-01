@@ -31,15 +31,11 @@ import {
   restore,
   update,
   exportResource,
-  fetchCategorias,
-  fetchLaboratorios,
-  fetchPresentaciones,
 } from "@/lib/api/medicaments";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IMedicament, MedicamentTableEditableField } from "@/lib/types/medicament";
-import type { Categoria, Laboratorio, Presentacion } from "@/lib/types";
 import { MedicamentFormDialog } from "./medicament-form-dialog";
 import { cn } from "@/lib/utils";
 
@@ -61,11 +57,6 @@ export default function MedicamentosPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Catálogos para selectores
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [presentaciones, setPresentaciones] = useState<Presentacion[]>([]);
-  const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
-
   // Estados de formularios y eliminación
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<IMedicament | null>(null);
@@ -73,17 +64,6 @@ export default function MedicamentosPage() {
   const [selectedRows, setSelectedRows] = useState<IMedicament[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [selectionClearKey, setSelectionClearKey] = useState(0);
-
-  // Carga inicial de catálogos
-  useEffect(() => {
-    Promise.all([fetchCategorias(), fetchPresentaciones(), fetchLaboratorios()]).then(
-      ([c, p, l]) => {
-        setCategorias(c);
-        setPresentaciones(p);
-        setLaboratorios(l);
-      }
-    );
-  }, []);
 
   // Función para recargar la tabla
   const refresh = useCallback(() => {
@@ -312,6 +292,32 @@ export default function MedicamentosPage() {
       ),
     },
     {
+      key: "created_at",
+      header: "Creado el",
+      accessor: (m) => m.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, m) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(m.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (m) => m.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, m) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(m.updated_at)}
+        </span>
+      ),
+    },
+    {
       key: "acciones",
       header: "Acciones",
       accessor: () => null,
@@ -475,9 +481,6 @@ export default function MedicamentosPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         medicament={editing}
-        categorias={categorias}
-        presentaciones={presentaciones}
-        laboratorios={laboratorios}
         onSaved={handleSaved}
       />
 

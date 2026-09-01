@@ -34,6 +34,8 @@ export function VoidSaleDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  if (!open || !sale) return null;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!sale) return;

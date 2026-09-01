@@ -21,9 +21,21 @@ export {
   fetchPresentaciones,
 };
 
-export const fetchMedicaments = async (): Promise<IMedicament[]> => {
-  const res = await apiClient.get<IPaginatedResponse<IMedicament>>("/medicaments?per_page=100");
-  return res.data.data;
+let medicamentsPromise: Promise<IMedicament[]> | null = null;
+
+export const fetchMedicaments = async (forceRefresh = false): Promise<IMedicament[]> => {
+  if (!forceRefresh && medicamentsPromise) return medicamentsPromise;
+
+  medicamentsPromise = apiClient
+    .get<IPaginatedResponse<IMedicament>>("/medicaments?per_page=100")
+    .then((res) => res.data.data)
+    .finally(() => {
+      setTimeout(() => {
+        medicamentsPromise = null;
+      }, 1000);
+    });
+
+  return medicamentsPromise;
 };
 
 export const getPaginated = async (
@@ -44,6 +56,7 @@ export const getPaginated = async (
 };
 
 export const create = async (input: IMedicamentRequest): Promise<IApiResponse<IMedicament>> => {
+  medicamentsPromise = null;
   const response = await apiClient.post<IApiResponse<IMedicament>>("/medicaments", input);
   return response.data;
 };
@@ -52,21 +65,25 @@ export const update = async (
   id: number,
   input: Partial<IMedicamentRequest>
 ): Promise<IApiResponse<IMedicament>> => {
+  medicamentsPromise = null;
   const response = await apiClient.put<IApiResponse<IMedicament>>(`/medicaments/${id}`, input);
   return response.data;
 };
 
 export const remove = async (id: number): Promise<IApiResponse<void>> => {
+  medicamentsPromise = null;
   const response = await apiClient.delete<IApiResponse<void>>(`/medicaments/${id}`);
   return response.data;
 };
 
 export const bulkDestroy = async (ids: number[]): Promise<IApiResponse<void>> => {
+  medicamentsPromise = null;
   const response = await apiClient.delete<IApiResponse<void>>("/medicaments", { data: { ids } });
   return response.data;
 };
 
 export const restore = async (id: number): Promise<IApiResponse<IMedicament>> => {
+  medicamentsPromise = null;
   const response = await apiClient.post<IApiResponse<IMedicament>>(`/medicaments/${id}/restore`);
   return response.data;
 };

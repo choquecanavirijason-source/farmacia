@@ -33,6 +33,7 @@ import {
   update,
   exportResource,
 } from "@/lib/api/suppliers";
+import { formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { ISupplier, SupplierTableEditableField } from "@/lib/types/supplier";
@@ -231,6 +232,32 @@ export default function ProveedoresPage() {
         <span className={cn("flex items-center gap-1.5 text-xs", p.deleted_at ? "text-destructive/80" : "text-muted-foreground")}>
           <MapPin className="size-3.5" aria-hidden />
           <span className="truncate">{p.address || "-"}</span>
+        </span>
+      ),
+    },
+    {
+      key: "created_at",
+      header: "Creado el",
+      accessor: (p) => p.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, p) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(p.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (p) => p.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, p) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(p.updated_at)}
         </span>
       ),
     },

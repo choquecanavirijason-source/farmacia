@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardService
 {
-    public function getStats(): array
+    public function getStats(array $filters = []): array
     {
         $today = Carbon::today();
         $startOfMonth = Carbon::now()->startOfMonth();
@@ -52,6 +52,85 @@ class DashboardService
                 'estado'     => $s->status,
             ]);
 
+        // Default 7 days
+        $ventasPorDia7 = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = Carbon::today()->subDays($i);
+            $total = (float) Sale::where('status', 'active')
+                ->whereDate('sold_at', $date)
+                ->sum('total');
+            $ventasPorDia7[] = [
+                'date'  => $date->format('Y-m-d'),
+                'label' => $date->locale('es')->isoFormat('D MMM'),
+                'value' => round($total, 2),
+            ];
+        }
+
+        // Default 30 days
+        $ventasPorDia30 = [];
+        for ($i = 29; $i >= 0; $i--) {
+            $date = Carbon::today()->subDays($i);
+            $total = (float) Sale::where('status', 'active')
+                ->whereDate('sold_at', $date)
+                ->sum('total');
+            $ventasPorDia30[] = [
+                'date'  => $date->format('Y-m-d'),
+                'label' => $date->locale('es')->isoFormat('D MMM'),
+                'value' => round($total, 2),
+            ];
+        }
+
+        // Custom date range support
+        $startDate = !empty($filters['start_date'])
+            ? Carbon::parse($filters['start_date'])->startOfDay()
+            : Carbon::today()->subDays(6)->startOfDay();
+
+        $endDate = !empty($filters['end_date'])
+            ? Carbon::parse($filters['end_date'])->endOfDay()
+            : Carbon::today()->endOfDay();
+
+        if ($startDate->gt($endDate)) {
+            $temp = $startDate;
+            $startDate = $endDate->copy()->startOfDay();
+            $endDate = $temp->copy()->endOfDay();
+        }
+
+        $totalRango = (float) Sale::where('status', 'active')
+            ->whereBetween('sold_at', [$startDate, $endDate])
+            ->sum('total');
+
+        $ventasPorRango = [];
+        $diffDays = $startDate->diffInDays($endDate);
+
+        if ($diffDays <= 90) {
+            $curr = $startDate->copy()->startOfDay();
+            while ($curr->lte($endDate)) {
+                $total = (float) Sale::where('status', 'active')
+                    ->whereDate('sold_at', $curr)
+                    ->sum('total');
+                $ventasPorRango[] = [
+                    'date'  => $curr->format('Y-m-d'),
+                    'label' => $curr->locale('es')->isoFormat('D MMM'),
+                    'value' => round($total, 2),
+                ];
+                $curr->addDay();
+            }
+        } else {
+            $curr = $startDate->copy()->startOfMonth();
+            while ($curr->lte($endDate)) {
+                $total = (float) Sale::where('status', 'active')
+                    ->whereBetween('sold_at', [$curr->copy()->startOfMonth(), $curr->copy()->endOfMonth()])
+                    ->sum('total');
+                $ventasPorRango[] = [
+                    'date'  => $curr->format('Y-m'),
+                    'label' => $curr->locale('es')->isoFormat('MMM YYYY'),
+                    'value' => round($total, 2),
+                ];
+                $curr->addMonth();
+            }
+        }
+
+        // Top products within date range
         $topProducts = [];
         try {
             $topProducts = DB::table('sale_details')
@@ -60,15 +139,17 @@ class DashboardService
                 ->where('sales.status', 'active')
                 ->whereNull('sales.deleted_at')
                 ->whereNull('sale_details.deleted_at')
+                ->whereBetween('sales.sold_at', [$startDate, $endDate])
                 ->select(
                     'medicaments.id',
                     'medicaments.name',
+                    'medicaments.code',
                     DB::raw('SUM(sale_details.quantity) as total_vendido'),
                     DB::raw('SUM(sale_details.subtotal) as total_recaudado')
                 )
-                ->groupBy('medicaments.id', 'medicaments.name')
+                ->groupBy('medicaments.id', 'medicaments.name', 'medicaments.code')
                 ->orderByDesc('total_vendido')
-                ->limit(5)
+                ->limit(10)
                 ->get();
         } catch (\Throwable) {
             $topProducts = [];
@@ -92,8 +173,14 @@ class DashboardService
                 'opening_amount' => (float) $openCashRegister->opening_amount,
                 'status'         => $openCashRegister->status,
             ] : null,
-            'ultimas_ventas' => $recentSales,
-            'top_productos'  => $topProducts,
+            'ultimas_ventas'         => $recentSales,
+            'top_productos'          => $topProducts,
+            'ventas_ultimos_7_dias'  => $ventasPorDia7,
+            'ventas_ultimos_30_dias' => $ventasPorDia30,
+            'ventas_por_rango'       => $ventasPorRango,
+            'ventas_rango_total'     => $totalRango,
+            'rango_inicio'           => $startDate->format('Y-m-d'),
+            'rango_fin'              => $endDate->format('Y-m-d'),
         ];
     }
 }

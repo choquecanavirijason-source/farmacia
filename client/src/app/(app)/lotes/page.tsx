@@ -42,9 +42,9 @@ import {
   DIAS_ALERTA_VENCIMIENTO,
 } from "@/lib/api/batches";
 import { fetchMedicamentos } from "@/lib/api/medicaments";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
-import { formatCurrency } from "@/lib/format";
 import type { IBatch, BatchTableEditableField } from "@/lib/types/batch";
 import type { Lote, Medicamento } from "@/lib/types";
 import { BatchFormDialog } from "./batch-form-dialog";
@@ -310,6 +310,32 @@ export default function LotesPage() {
       render: (_, l) => (
         <span className={cn("font-medium text-xs", l.deleted_at && "text-destructive line-through")}>
           {formatCurrency(Number(l.purchase_price))}
+        </span>
+      ),
+    },
+    {
+      key: "created_at",
+      header: "Creado el",
+      accessor: (l) => l.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, l) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(l.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (l) => l.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, l) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(l.updated_at)}
         </span>
       ),
     },

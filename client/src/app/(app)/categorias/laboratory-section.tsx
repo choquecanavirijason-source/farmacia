@@ -30,6 +30,7 @@ import {
   update,
   exportResource,
 } from "@/lib/api/laboratories";
+import { formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { ILaboratory, LaboratoryTableEditableField } from "@/lib/types/laboratory";
@@ -204,13 +205,27 @@ export function LaboratorySection() {
     },
     {
       key: "created_at",
-      header: "Fecha de Registro",
-      accessor: (l) => l.created_at,
+      header: "Creado el",
+      accessor: (l) => l.created_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
       resizable: true,
-      width: 160,
+      width: 140,
       render: (_, l) => (
         <span className="text-xs text-muted-foreground">
-          {new Date(l.created_at).toLocaleDateString("es-ES")}
+          {formatDateTime(l.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Actualizado el",
+      accessor: (l) => l.updated_at ?? "",
+      className: "w-36 text-xs text-muted-foreground",
+      resizable: true,
+      width: 140,
+      render: (_, l) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(l.updated_at)}
         </span>
       ),
     },

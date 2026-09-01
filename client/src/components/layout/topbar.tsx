@@ -11,6 +11,7 @@ import {
   PanelLeft,
   PanelLeftClose,
   ChevronDown,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -29,7 +30,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { NavList } from "@/components/layout/nav-list";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { LayoutCustomizer } from "@/components/layout/layout-customizer";
+import { EditProfileDialog } from "@/components/layout/edit-profile-dialog";
 import { useLayout } from "@/context/layout-context";
+import { useAuth } from "@/context/auth-context";
 import { ICON_MAP } from "@/lib/nav/menu-icons";
 import { logout } from "@/lib/api/auth";
 import { cn } from "@/lib/utils";
@@ -53,9 +56,11 @@ function initials(nombre: string): string {
 export function Topbar({ sesion, groups }: TopbarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user } = useAuth();
   const { layoutMode, sidebarPinned, toggleSidebarPinned } = useLayout();
   const [loggingOut, setLoggingOut] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -305,6 +310,13 @@ export function Topbar({ sesion, groups }: TopbarProps) {
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => setProfileOpen(true)}
+              className="cursor-pointer"
+            >
+              <User className="size-4" aria-hidden />
+              Editar perfil
+            </DropdownMenuItem>
             {sesion.rol === "ADMINISTRADOR" ? (
               <DropdownMenuItem
                 onClick={() => router.push("/configuracion")}
@@ -325,6 +337,13 @@ export function Topbar({ sesion, groups }: TopbarProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Modal para editar datos de perfil y contraseña */}
+        <EditProfileDialog
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+          user={user}
+        />
       </div>
     </header>
   );

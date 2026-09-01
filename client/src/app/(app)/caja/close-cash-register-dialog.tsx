@@ -43,6 +43,8 @@ export function CloseCashRegisterDialog({
     }
   }, [open, totalEsperado]);
 
+  if (!open) return null;
+
   const numCierre = Number(montoCierre);
   const diferencia = numCierre - totalEsperado;
 

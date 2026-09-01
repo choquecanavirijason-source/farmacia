@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Http\Requests\Auth\AuthRequest;
+use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Models\User;
 use App\Traits\ApiResponseTrait;
 use App\Traits\Auth\AuthTrait;
@@ -47,5 +48,29 @@ class AuthController
     public function me(Request $request)
     {
         return $this->_generateResponse_($request->user());
+    }
+
+    public function updateProfile(UpdateProfileRequest $request)
+    {
+        $user = $request->user();
+        $data = $request->validated();
+
+        if (!empty($data['password'])) {
+            if (!Hash::check($data['current_password'], $user->password)) {
+                throw ValidationException::withMessages([
+                    'current_password' => ['La contraseña actual es incorrecta.']
+                ]);
+            }
+            $user->password = $data['password'];
+        }
+
+        $user->firstname = $data['firstname'];
+        $user->lastname  = $data['lastname'];
+        $user->username  = $data['username'];
+        $user->email     = $data['email'];
+        $user->name      = trim("{$data['firstname']} {$data['lastname']}");
+        $user->save();
+
+        return $this->_generateResponse_($user->fresh());
     }
 }
