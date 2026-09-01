@@ -138,7 +138,7 @@ class DashboardService
                 ->join('medicaments', 'medicaments.id', '=', 'sale_details.medicament_id')
                 ->where('sales.status', 'active')
                 ->whereNull('sales.deleted_at')
-                ->whereNull('sale_details.deleted_at')
+                ->whereNull('medicaments.deleted_at')
                 ->whereBetween('sales.sold_at', [$startDate, $endDate])
                 ->select(
                     'medicaments.id',
@@ -151,7 +151,8 @@ class DashboardService
                 ->orderByDesc('total_vendido')
                 ->limit(10)
                 ->get();
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Error in top_productos query: ' . $e->getMessage());
             $topProducts = [];
         }
 

@@ -93,8 +93,8 @@ export const restoreStock = async (
   return response.data;
 };
 
-export const fetchKardex = async (medicamentId: number): Promise<any[]> => {
-  const res = await apiClient.get<{ data: any[] }>(`/medicaments/${medicamentId}/kardex`);
+export const fetchKardex = async (medicamentId: number, signal?: AbortSignal): Promise<any[]> => {
+  const res = await apiClient.get<{ data: any[] }>(`/medicaments/${medicamentId}/kardex`, { signal });
   return res.data.data;
 };
 
@@ -182,8 +182,8 @@ export const fetchKardexByLote = async (id: number) => {
   }));
 };
 
-export const fetchKardexByMedicamento = async (id: number) => {
-  const data = await fetchKardex(id);
+export const fetchKardexByMedicamento = async (id: number, signal?: AbortSignal) => {
+  const data = await fetchKardex(id, signal);
   return data.map((k) => ({
     id_movimiento: k.id,
     id_lote: k.batch_id,

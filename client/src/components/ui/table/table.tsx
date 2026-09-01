@@ -1,8 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { DndProvider } from "react-dnd"
-import { HTML5Backend } from "react-dnd-html5-backend"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -378,8 +376,7 @@ function DataTable<T>({
     const refreshHandler = onRefresh ?? server?.onRetry
 
     return (
-        <DndProvider backend={HTML5Backend}>
-            <div className={cn("space-y-4", className)}>
+        <div className={cn("space-y-4", className)}>
                 <TableToolbar
                     searchValue={isServerMode && server ? server.params.search : search}
                     onSearchChange={handleSearchChange}
@@ -485,7 +482,6 @@ function DataTable<T>({
                     siblingCount={1}
                 />
             </div>
-        </DndProvider>
     )
 }
 

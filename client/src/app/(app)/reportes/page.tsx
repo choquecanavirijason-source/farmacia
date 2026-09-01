@@ -2,22 +2,34 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertOctagon,
+  AlertTriangle,
   ArrowDownCircle,
   ArrowUpCircle,
+  Award,
   BarChart3,
+  Boxes,
   Calendar,
   CalendarClock,
+  Check,
+  CheckCircle2,
+  DollarSign,
   Filter,
+  Flame,
+  Package,
+  Pill,
   Printer,
+  RefreshCw,
   ShoppingBag,
   SlidersHorizontal,
   TrendingUp,
+  Trophy,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable, type DataTableColumn } from "@/components/ui/table";
 import {
@@ -30,20 +42,21 @@ import {
 import { PrintDialog } from "@/components/layout/print-dialog";
 import { SimpleBarChart } from "@/components/ui/simple-bar-chart";
 import {
-  computeProximosAVencer,
   diasHasta,
+  fetchBatches,
   fetchKardexByMedicamento,
-  fetchLotes,
   type KardexMovimientoConLote,
 } from "@/lib/api/batches";
-import { fetchMedicamentos } from "@/lib/api/medicaments";
+import { fetchMedicaments } from "@/lib/api/medicaments";
 import { fetchDashboardStats, type IDashboardStats } from "@/lib/api/dashboard";
 import { formatCurrency, formatDateTime, formatDate } from "@/lib/format";
-import type { Lote, Medicamento } from "@/lib/types";
 
 export interface StockBajoItem {
-  medicamento: Medicamento;
+  medicamento: any;
   stock: number;
+  minStock: number;
+  deficit: number;
+  status: "agotado" | "critico" | "bajo" | "optimo";
 }
 
 const TIPO_META: Record<string, { label: string; icon: typeof ArrowUpCircle; className: string }> = {
@@ -80,38 +93,55 @@ function getThirtyDaysAgo(): string {
 export default function ReportesPage() {
   const [stats, setStats] = useState<IDashboardStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
-  const [medicamentos, setMedicamentos] = useState<Medicamento[] | null>(null);
-  const [lotes, setLotes] = useState<Lote[] | null>(null);
+  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
+  const [medicamentos, setMedicamentos] = useState<any[] | null>(null);
+  const [lotes, setLotes] = useState<any[] | null>(null);
 
-  // Rango de fechas para reportes estadísticos de ventas
-  const [preset, setPreset] = useState<string>("7dias");
-  const [startDate, setStartDate] = useState<string>(getSevenDaysAgo());
-  const [endDate, setEndDate] = useState<string>(getToday());
+  // Estados temporales del formulario de filtros de fechas
+  const [tempPreset, setTempPreset] = useState<string>("7dias");
+  const [tempStartDate, setTempStartDate] = useState<string>(getSevenDaysAgo());
+  const [tempEndDate, setTempEndDate] = useState<string>(getToday());
 
-  const [ventanaDias, setVentanaDias] = useState("30");
+  // Estados de filtros APLICADOS para ventas
+  const [appliedStartDate, setAppliedStartDate] = useState<string>(getSevenDaysAgo());
+  const [appliedEndDate, setAppliedEndDate] = useState<string>(getToday());
+
+  // Filtros de las otras pestañas
+  const [stockFiltroVista, setStockFiltroVista] = useState<"todos" | "bajos" | "agotados">("todos");
+  const [ventanaDias, setVentanaDias] = useState("90");
   const [idMedicamentoKardex, setIdMedicamentoKardex] = useState("");
-  const [printOpen, setPrintOpen] = useState<"ventas" | "stock-bajo" | "por-vencer" | "kardex" | "mas-vendidos" | null>(null);
+  const [printOpen, setPrintOpen] = useState<string | null>(null);
 
-  // Carga de catálogos y lotes
-  useEffect(() => {
+  // Carga inicial y forzada de catálogos y lotes
+  function loadCatalogs() {
+    setLoadingCatalogs(true);
     Promise.all([
-      fetchMedicamentos().catch(() => []),
-      fetchLotes().catch(() => []),
-    ]).then(([meds, lots]) => {
-      setMedicamentos(meds);
-      setLotes(lots);
-    });
+      fetchMedicaments(true).catch(() => []),
+      fetchBatches(true).catch(() => []),
+    ])
+      .then(([meds, lots]) => {
+        setMedicamentos(meds);
+        setLotes(lots);
+        if (meds.length > 0 && !idMedicamentoKardex) {
+          setIdMedicamentoKardex(String(meds[0].id));
+        }
+      })
+      .finally(() => setLoadingCatalogs(false));
+  }
+
+  useEffect(() => {
+    loadCatalogs();
   }, []);
 
-  // Carga de estadísticas filtradas por rango de fecha
+  // Carga de estadísticas al aplicar filtros de fecha
   useEffect(() => {
     const controller = new AbortController();
     setLoadingStats(true);
 
     fetchDashboardStats(
       {
-        start_date: startDate || undefined,
-        end_date: endDate || undefined,
+        start_date: appliedStartDate || undefined,
+        end_date: appliedEndDate || undefined,
       },
       controller.signal
     )
@@ -126,51 +156,114 @@ export default function ReportesPage() {
       });
 
     return () => controller.abort();
-  }, [startDate, endDate]);
+  }, [appliedStartDate, appliedEndDate]);
 
   function handlePresetChange(val: string | null) {
     if (!val) return;
-    setPreset(val);
+    setTempPreset(val);
     if (val === "hoy") {
       const today = getToday();
-      setStartDate(today);
-      setEndDate(today);
+      setTempStartDate(today);
+      setTempEndDate(today);
     } else if (val === "7dias") {
-      setStartDate(getSevenDaysAgo());
-      setEndDate(getToday());
+      setTempStartDate(getSevenDaysAgo());
+      setTempEndDate(getToday());
     } else if (val === "30dias") {
-      setStartDate(getThirtyDaysAgo());
-      setEndDate(getToday());
+      setTempStartDate(getThirtyDaysAgo());
+      setTempEndDate(getToday());
     } else if (val === "mes") {
-      setStartDate(getMonthStart());
-      setEndDate(getToday());
+      setTempStartDate(getMonthStart());
+      setTempEndDate(getToday());
     }
   }
 
-  const stockBajo = useMemo<StockBajoItem[] | null>(() => {
-    if (!medicamentos) return null;
-    return medicamentos
-      .filter((m: any) => {
-        const stock = Number(m.total_stock ?? m.stock_actual ?? 0);
-        return stock < Number(m.min_stock ?? m.stock_minimo ?? 0);
-      })
-      .map((m: any) => ({
-        medicamento: m,
-        stock: Number(m.total_stock ?? m.stock_actual ?? 0),
-      }));
-  }, [medicamentos]);
+  function handleApplyFilters() {
+    setAppliedStartDate(tempStartDate);
+    setAppliedEndDate(tempEndDate);
+  }
 
-  const proximosAVencer = useMemo(() => {
-    return lotes ? computeProximosAVencer(lotes, Number(ventanaDias)) : null;
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      handleApplyFilters();
+    }
+  }
+
+  // Análisis de Stock de todos los medicamentos
+  const stockAnalisis = useMemo<StockBajoItem[] | null>(() => {
+    if (!medicamentos) return null;
+
+    const stockMap = new Map<number, number>();
+    if (lotes && lotes.length > 0) {
+      for (const l of lotes) {
+        const mId = l.medicament_id || l.id_medicamento;
+        const currentQty = Number(l.current_quantity ?? l.cantidad_actual ?? 0);
+        stockMap.set(mId, (stockMap.get(mId) ?? 0) + currentQty);
+      }
+    }
+
+    return medicamentos.map((m: any) => {
+      const mId = m.id || m.id_medicamento;
+      const stock = stockMap.has(mId)
+        ? (stockMap.get(mId) ?? 0)
+        : Number(m.total_stock ?? m.stock_actual ?? 0);
+
+      const minStock = Number(m.min_stock ?? m.stock_minimo ?? 0);
+      const deficit = Math.max(0, minStock - stock);
+
+      let status: "agotado" | "critico" | "bajo" | "optimo" = "optimo";
+      if (stock === 0) {
+        status = "agotado";
+      } else if (stock <= Math.floor(minStock / 2)) {
+        status = "critico";
+      } else if (stock < minStock) {
+        status = "bajo";
+      }
+
+      return {
+        medicamento: m,
+        stock,
+        minStock,
+        deficit,
+        status,
+      };
+    });
+  }, [medicamentos, lotes]);
+
+  const stockFiltrado = useMemo(() => {
+    if (!stockAnalisis) return null;
+    if (stockFiltroVista === "bajos") {
+      return stockAnalisis.filter((i) => i.status === "bajo" || i.status === "critico" || i.status === "agotado");
+    }
+    if (stockFiltroVista === "agotados") {
+      return stockAnalisis.filter((i) => i.status === "agotado");
+    }
+    return stockAnalisis;
+  }, [stockAnalisis, stockFiltroVista]);
+
+  const lotesAnalisis = useMemo(() => {
+    if (!lotes) return null;
+    const diasLimite = ventanaDias === "all" ? 99999 : Number(ventanaDias);
+
+    return lotes
+      .filter((l: any) => {
+        const dias = diasHasta(l.expiration_date || l.fecha_vencimiento);
+        if (ventanaDias === "all") return true;
+        return dias <= diasLimite;
+      })
+      .sort((a: any, b: any) => {
+        const dA = diasHasta(a.expiration_date || a.fecha_vencimiento);
+        const dB = diasHasta(b.expiration_date || b.fecha_vencimiento);
+        return dA - dB;
+      });
   }, [lotes, ventanaDias]);
 
   const medicamentoById = useMemo(
-    () => new Map((medicamentos ?? []).map((m) => [m.id_medicamento || m.id, m])),
+    () => new Map((medicamentos ?? []).map((m) => [m.id || m.id_medicamento, m])),
     [medicamentos]
   );
 
   const medicamentoKardexSeleccionado = medicamentos?.find(
-    (m) => (m.id_medicamento || m.id) === Number(idMedicamentoKardex)
+    (m) => (m.id || m.id_medicamento) === Number(idMedicamentoKardex)
   );
 
   const chartVentasData = useMemo(() => {
@@ -189,27 +282,71 @@ export default function ReportesPage() {
     }));
   }, [stats]);
 
+  const totalUnidadesTop = useMemo(() => {
+    if (!stats?.top_productos) return 0;
+    return stats.top_productos.reduce((acc, p) => acc + Number(p.total_vendido || 0), 0);
+  }, [stats]);
+
+  const totalRecaudadoTop = useMemo(() => {
+    if (!stats?.top_productos) return 0;
+    return stats.top_productos.reduce((acc, p) => acc + Number(p.total_recaudado || 0), 0);
+  }, [stats]);
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-balance">Reportes Estadísticos</h1>
-        <p className="text-sm text-muted-foreground">
-          Apoyo a la toma de decisiones: análisis de ventas, rotación de productos, inventario, vencimientos y kardex.
-        </p>
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-balance">Reportes Estadísticos</h1>
+          <p className="text-sm text-muted-foreground">
+            Apoyo a la toma de decisiones: análisis de ventas, rotación de productos, inventario, vencimientos y kardex.
+          </p>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={loadCatalogs}
+          disabled={loadingCatalogs}
+          className="gap-1.5 text-xs w-fit"
+        >
+          <RefreshCw className={`size-3.5 ${loadingCatalogs ? "animate-spin" : ""}`} />
+          Recargar Datos
+        </Button>
       </div>
 
       <Tabs defaultValue="ventas">
         <TabsList className="flex-wrap">
           <TabsTrigger value="ventas">Tendencia de Ventas</TabsTrigger>
-          <TabsTrigger value="mas-vendidos">Más Vendidos</TabsTrigger>
-          <TabsTrigger value="stock-bajo">Stock Bajo</TabsTrigger>
-          <TabsTrigger value="por-vencer">Próximos a Vencer</TabsTrigger>
+          <TabsTrigger value="mas-vendidos">
+            Más Vendidos (Top)
+            {stats?.top_productos && stats.top_productos.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
+                {stats.top_productos.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="stock-bajo">
+            Estado de Inventario / Stock
+            {stockAnalisis && stockAnalisis.filter((i) => i.deficit > 0).length > 0 && (
+              <Badge variant="destructive" className="ml-1.5 px-1.5 py-0 text-[10px]">
+                {stockAnalisis.filter((i) => i.deficit > 0).length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="por-vencer">
+            Próximos a Vencer
+            {lotes && lotes.filter((l) => diasHasta(l.expiration_date || l.fecha_vencimiento) <= 90).length > 0 && (
+              <Badge variant="warning" className="ml-1.5 px-1.5 py-0 text-[10px]">
+                {lotes.filter((l) => diasHasta(l.expiration_date || l.fecha_vencimiento) <= 90).length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="kardex">Kardex por Medicamento</TabsTrigger>
         </TabsList>
 
         {/* PESTAÑA: VENTAS */}
         <TabsContent value="ventas" className="flex flex-col gap-4">
-          {/* Barra de Filtro de Fechas */}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -217,7 +354,7 @@ export default function ReportesPage() {
                 <span className="font-medium">Periodo:</span>
               </div>
 
-              <Select value={preset} onValueChange={handlePresetChange}>
+              <Select value={tempPreset} onValueChange={handlePresetChange}>
                 <SelectTrigger className="h-8 w-36 text-xs">
                   <SelectValue />
                 </SelectTrigger>
@@ -235,11 +372,12 @@ export default function ReportesPage() {
                 <span className="text-xs text-muted-foreground">Desde:</span>
                 <Input
                   type="date"
-                  value={startDate}
+                  value={tempStartDate}
                   onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setPreset("custom");
+                    setTempStartDate(e.target.value);
+                    setTempPreset("custom");
                   }}
+                  onKeyDown={handleKeyDown}
                   className="h-8 w-36 text-xs"
                 />
               </div>
@@ -248,14 +386,26 @@ export default function ReportesPage() {
                 <span className="text-xs text-muted-foreground">Hasta:</span>
                 <Input
                   type="date"
-                  value={endDate}
+                  value={tempEndDate}
                   onChange={(e) => {
-                    setEndDate(e.target.value);
-                    setPreset("custom");
+                    setTempEndDate(e.target.value);
+                    setTempPreset("custom");
                   }}
+                  onKeyDown={handleKeyDown}
                   className="h-8 w-36 text-xs"
                 />
               </div>
+
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 gap-1.5 text-xs font-medium"
+                onClick={handleApplyFilters}
+                disabled={loadingStats}
+              >
+                <Check className="size-3.5" />
+                Aplicar Filtros
+              </Button>
             </div>
 
             <div className="flex items-center gap-3">
@@ -295,7 +445,7 @@ export default function ReportesPage() {
                     Ingresos diarios por ventas activas (Bs.)
                   </p>
                   <span className="text-xs font-mono text-muted-foreground">
-                    {startDate ? formatDate(startDate) : ""} — {endDate ? formatDate(endDate) : ""}
+                    {appliedStartDate ? formatDate(appliedStartDate) : ""} — {appliedEndDate ? formatDate(appliedEndDate) : ""}
                   </span>
                 </div>
                 <SimpleBarChart data={chartVentasData} formatValue={(v) => formatCurrency(v)} />
@@ -306,7 +456,6 @@ export default function ReportesPage() {
 
         {/* PESTAÑA: MÁS VENDIDOS */}
         <TabsContent value="mas-vendidos" className="flex flex-col gap-4">
-          {/* Barra de Filtro de Fechas para Top Productos */}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -314,7 +463,7 @@ export default function ReportesPage() {
                 <span className="font-medium">Periodo de ventas:</span>
               </div>
 
-              <Select value={preset} onValueChange={handlePresetChange}>
+              <Select value={tempPreset} onValueChange={handlePresetChange}>
                 <SelectTrigger className="h-8 w-36 text-xs">
                   <SelectValue />
                 </SelectTrigger>
@@ -332,11 +481,12 @@ export default function ReportesPage() {
                 <span className="text-xs text-muted-foreground">Desde:</span>
                 <Input
                   type="date"
-                  value={startDate}
+                  value={tempStartDate}
                   onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setPreset("custom");
+                    setTempStartDate(e.target.value);
+                    setTempPreset("custom");
                   }}
+                  onKeyDown={handleKeyDown}
                   className="h-8 w-36 text-xs"
                 />
               </div>
@@ -345,14 +495,26 @@ export default function ReportesPage() {
                 <span className="text-xs text-muted-foreground">Hasta:</span>
                 <Input
                   type="date"
-                  value={endDate}
+                  value={tempEndDate}
                   onChange={(e) => {
-                    setEndDate(e.target.value);
-                    setPreset("custom");
+                    setTempEndDate(e.target.value);
+                    setTempPreset("custom");
                   }}
+                  onKeyDown={handleKeyDown}
                   className="h-8 w-36 text-xs"
                 />
               </div>
+
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 gap-1.5 text-xs font-medium"
+                onClick={handleApplyFilters}
+                disabled={loadingStats}
+              >
+                <Check className="size-3.5" />
+                Aplicar Filtros
+              </Button>
             </div>
 
             <Button
@@ -375,46 +537,145 @@ export default function ReportesPage() {
               <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
                 <TrendingUp className="size-6 text-muted-foreground" aria-hidden />
                 <p className="text-sm font-medium">No se registraron ventas en el periodo seleccionado</p>
+                <p className="text-xs text-muted-foreground">
+                  Prueba ampliando el rango de fechas en la barra superior o ejecutando una simulación.
+                </p>
               </CardContent>
             </Card>
           ) : (
             <div className="flex flex-col gap-4">
+              {/* Tarjetas de Métricas Rápidas del Top */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-lg border bg-card flex items-center gap-3">
+                  <div className="size-10 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                    <Trophy className="size-5" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[11px] text-muted-foreground">Producto Más Vendido (#1)</span>
+                    <strong className="text-sm font-bold truncate">
+                      {stats.top_productos[0]?.name}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      {stats.top_productos[0]?.total_vendido} unidades ({formatCurrency(Number(stats.top_productos[0]?.total_recaudado))})
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-lg border bg-card flex items-center gap-3">
+                  <div className="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <Package className="size-5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[11px] text-muted-foreground">Total Unidades Top 10</span>
+                    <strong className="text-base font-bold font-mono text-foreground">
+                      {totalUnidadesTop} uds
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground">Volumen en el periodo</span>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-lg border bg-card flex items-center gap-3">
+                  <div className="size-10 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                    <DollarSign className="size-5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[11px] text-muted-foreground">Total Recaudado Top 10</span>
+                    <strong className="text-base font-bold font-mono text-emerald-600">
+                      {formatCurrency(totalRecaudadoTop)}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground">Ingreso por productos líderes</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gráfica de Barras */}
               <Card>
                 <CardContent className="py-6">
                   <div className="flex items-center justify-between mb-4">
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Top 10 medicamentos por unidades vendidas
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <Flame className="size-4 text-amber-500" />
+                      <p className="text-sm font-semibold">
+                        Top 10 medicamentos por unidades vendidas
+                      </p>
+                    </div>
                     <span className="text-xs font-mono text-muted-foreground">
-                      {startDate ? formatDate(startDate) : ""} — {endDate ? formatDate(endDate) : ""}
+                      {appliedStartDate ? formatDate(appliedStartDate) : ""} — {appliedEndDate ? formatDate(appliedEndDate) : ""}
                     </span>
                   </div>
                   <SimpleBarChart data={topProductosChartData} />
                 </CardContent>
               </Card>
 
-              <TopProductosTable items={stats.top_productos} />
+              {/* Tabla Detallada con Ranking */}
+              <TopProductosTable items={stats.top_productos} totalUnidades={totalUnidadesTop} />
             </div>
           )}
         </TabsContent>
 
-        {/* PESTAÑA: STOCK BAJO */}
+        {/* PESTAÑA: STOCK BAJO / ESTADO DE INVENTARIO */}
         <TabsContent value="stock-bajo" className="flex flex-col gap-4">
-          {stockBajo === null ? (
-            <div className="flex flex-col gap-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
+          {stockAnalisis && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 rounded-lg border bg-card flex flex-col gap-0.5">
+                <span className="text-[11px] text-muted-foreground">Medicamentos Evaluados</span>
+                <strong className="text-base font-bold font-mono">{stockAnalisis.length}</strong>
+              </div>
+              <div className="p-3 rounded-lg border bg-card flex flex-col gap-0.5">
+                <span className="text-[11px] text-muted-foreground">Stock Total en Unidades</span>
+                <strong className="text-base font-bold font-mono text-primary">
+                  {stockAnalisis.reduce((acc, i) => acc + i.stock, 0)} uds
+                </strong>
+              </div>
+              <div className="p-3 rounded-lg border bg-card flex flex-col gap-0.5">
+                <span className="text-[11px] text-muted-foreground">Bajo Stock Mínimo</span>
+                <strong className="text-base font-bold font-mono text-amber-600">
+                  {stockAnalisis.filter((i) => i.status === "bajo" || i.status === "critico").length}
+                </strong>
+              </div>
+              <div className="p-3 rounded-lg border bg-card flex flex-col gap-0.5">
+                <span className="text-[11px] text-muted-foreground">Agotados (0 Stock)</span>
+                <strong className="text-base font-bold font-mono text-destructive">
+                  {stockAnalisis.filter((i) => i.status === "agotado").length}
+                </strong>
+              </div>
             </div>
-          ) : stockBajo.length === 0 ? (
-            <Card className="border-dashed border-border/60 bg-background/60">
-              <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
-                <BarChart3 className="size-6 text-muted-foreground" aria-hidden />
-                <p className="text-sm font-medium">Todos los medicamentos cuentan con stock suficiente por encima de su mínimo</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Filtrar vista:</span>
+              <div className="flex items-center rounded-lg border bg-muted/20 p-0.5">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant={stockFiltroVista === "todos" ? "default" : "ghost"}
+                  onClick={() => setStockFiltroVista("todos")}
+                  className="text-xs h-7"
+                >
+                  Todos ({stockAnalisis?.length ?? 0})
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant={stockFiltroVista === "bajos" ? "default" : "ghost"}
+                  onClick={() => setStockFiltroVista("bajos")}
+                  className="text-xs h-7 gap-1"
+                >
+                  Stock Bajo / Crítico ({stockAnalisis?.filter((i) => i.deficit > 0).length ?? 0})
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant={stockFiltroVista === "agotados" ? "default" : "ghost"}
+                  onClick={() => setStockFiltroVista("agotados")}
+                  className="text-xs h-7"
+                >
+                  Agotados ({stockAnalisis?.filter((i) => i.stock === 0).length ?? 0})
+                </Button>
+              </div>
+            </div>
+
+            {stockFiltrado && stockFiltrado.length > 0 && (
               <Button
                 type="button"
                 variant="outline"
@@ -425,8 +686,24 @@ export default function ReportesPage() {
                 <Printer className="size-4" aria-hidden />
                 Imprimir Reporte
               </Button>
-              <StockBajoTable items={stockBajo} />
-            </>
+            )}
+          </div>
+
+          {loadingCatalogs || stockFiltrado === null ? (
+            <div className="flex flex-col gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : stockFiltrado.length === 0 ? (
+            <Card className="border-dashed border-border/60 bg-background/60">
+              <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
+                <CheckCircle2 className="size-6 text-success" aria-hidden />
+                <p className="text-sm font-medium">No se encontraron medicamentos en esta categoría de filtro</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <StockBajoTable items={stockFiltrado} />
           )}
         </TabsContent>
 
@@ -435,20 +712,23 @@ export default function ReportesPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <CalendarClock className="size-4 text-muted-foreground" aria-hidden />
-              <span className="text-xs text-muted-foreground">Ventana de alerta:</span>
-              <Select value={ventanaDias} onValueChange={(v) => setVentanaDias(v ?? "30")}>
-                <SelectTrigger className="h-8 w-32 text-xs">
+              <span className="text-xs text-muted-foreground font-medium">Ventana de vencimiento:</span>
+              <Select value={ventanaDias} onValueChange={(v) => setVentanaDias(v ?? "90")}>
+                <SelectTrigger className="h-8 w-44 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="15">15 días</SelectItem>
-                  <SelectItem value="30">30 días</SelectItem>
-                  <SelectItem value="60">60 días</SelectItem>
-                  <SelectItem value="90">90 días</SelectItem>
+                  <SelectItem value="15">Próximos 15 días</SelectItem>
+                  <SelectItem value="30">Próximos 30 días</SelectItem>
+                  <SelectItem value="60">Próximos 60 días</SelectItem>
+                  <SelectItem value="90">Próximos 90 días (3 meses)</SelectItem>
+                  <SelectItem value="180">Próximos 180 días (6 meses)</SelectItem>
+                  <SelectItem value="365">Próximo 1 año</SelectItem>
+                  <SelectItem value="all">Todos los lotes</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {proximosAVencer && proximosAVencer.length > 0 ? (
+            {lotesAnalisis && lotesAnalisis.length > 0 ? (
               <Button
                 type="button"
                 variant="outline"
@@ -462,41 +742,46 @@ export default function ReportesPage() {
             ) : null}
           </div>
 
-          {proximosAVencer === null ? (
+          {loadingCatalogs || lotesAnalisis === null ? (
             <div className="flex flex-col gap-2">
-              {Array.from({ length: 3 }).map((_, i) => (
+              {Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
-          ) : proximosAVencer.length === 0 ? (
+          ) : lotesAnalisis.length === 0 ? (
             <Card className="border-dashed border-border/60 bg-background/60">
               <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
-                <CalendarClock className="size-6 text-muted-foreground" aria-hidden />
+                <CheckCircle2 className="size-6 text-success" aria-hidden />
                 <p className="text-sm font-medium">Ningún lote vence dentro de esta ventana de tiempo ({ventanaDias} días)</p>
               </CardContent>
             </Card>
           ) : (
-            <ProximosAVencerTable items={proximosAVencer} medicamentoById={medicamentoById} />
+            <ProximosAVencerTable items={lotesAnalisis} medicamentoById={medicamentoById} />
           )}
         </TabsContent>
 
         {/* PESTAÑA: KARDEX */}
         <TabsContent value="kardex" className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 max-w-sm flex-1 flex-col gap-1">
-              <Select value={idMedicamentoKardex} onValueChange={(v) => setIdMedicamentoKardex(v ?? "")}>
+            <div className="flex min-w-0 max-w-md flex-1 items-center gap-2">
+              <Pill className="size-4 text-primary shrink-0" />
+              <Select
+                value={idMedicamentoKardex}
+                onValueChange={(v) => setIdMedicamentoKardex(v ?? "")}
+              >
                 <SelectTrigger className="h-9 w-full text-xs">
                   <SelectValue placeholder="Selecciona un medicamento para ver su kardex..." />
                 </SelectTrigger>
                 <SelectContent>
                   {(medicamentos ?? []).map((m: any) => (
-                    <SelectItem key={m.id_medicamento || m.id} value={String(m.id_medicamento || m.id)}>
-                      {m.nombre || m.name} ({m.codigo || m.code})
+                    <SelectItem key={m.id || m.id_medicamento} value={String(m.id || m.id_medicamento)}>
+                      {m.name || m.nombre} ({m.code || m.codigo})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
             {idMedicamentoKardex ? (
               <Button
                 type="button"
@@ -527,11 +812,11 @@ export default function ReportesPage() {
       <PrintDialog
         open={printOpen === "ventas"}
         onOpenChange={(open) => !open && setPrintOpen(null)}
-        title={`Reporte de Ventas — ${startDate ? formatDate(startDate) : ""} al ${endDate ? formatDate(endDate) : ""}`}
+        title={`Reporte de Ventas — ${appliedStartDate ? formatDate(appliedStartDate) : ""} al ${appliedEndDate ? formatDate(appliedEndDate) : ""}`}
       >
         <div className="flex flex-col gap-4 p-4 text-xs">
           <div className="flex justify-between border-b pb-2">
-            <span>Rango: <strong>{startDate} al {endDate}</strong></span>
+            <span>Rango: <strong>{appliedStartDate} al {appliedEndDate}</strong></span>
             <span>Total Recaudado: <strong>{formatCurrency(stats?.ventas_rango_total ?? 0)}</strong></span>
           </div>
           <DataTable
@@ -554,33 +839,35 @@ export default function ReportesPage() {
       <PrintDialog
         open={printOpen === "mas-vendidos"}
         onOpenChange={(open) => !open && setPrintOpen(null)}
-        title={`Top Productos Más Vendidos — ${startDate ? formatDate(startDate) : ""} al ${endDate ? formatDate(endDate) : ""}`}
+        title={`Top Productos Más Vendidos — ${appliedStartDate ? formatDate(appliedStartDate) : ""} al ${appliedEndDate ? formatDate(appliedEndDate) : ""}`}
       >
-        {stats?.top_productos ? <TopProductosTable items={stats.top_productos} /> : null}
+        {stats?.top_productos ? (
+          <TopProductosTable items={stats.top_productos} totalUnidades={totalUnidadesTop} />
+        ) : null}
       </PrintDialog>
 
       <PrintDialog
         open={printOpen === "stock-bajo"}
         onOpenChange={(open) => !open && setPrintOpen(null)}
-        title="Reporte: Medicamentos con Stock Bajo"
+        title="Reporte: Estado de Inventario y Stock"
       >
-        {stockBajo ? <StockBajoTable items={stockBajo} /> : null}
+        {stockFiltrado ? <StockBajoTable items={stockFiltrado} /> : null}
       </PrintDialog>
 
       <PrintDialog
         open={printOpen === "por-vencer"}
         onOpenChange={(open) => !open && setPrintOpen(null)}
-        title={`Reporte: Lotes Próximos a Vencer (${ventanaDias} días)`}
+        title={`Reporte: Lotes Próximos a Vencer (${ventanaDias === "all" ? "Todos" : ventanaDias + " días"})`}
       >
-        {proximosAVencer ? (
-          <ProximosAVencerTable items={proximosAVencer} medicamentoById={medicamentoById} />
+        {lotesAnalisis ? (
+          <ProximosAVencerTable items={lotesAnalisis} medicamentoById={medicamentoById} />
         ) : null}
       </PrintDialog>
 
       <PrintDialog
         open={printOpen === "kardex"}
         onOpenChange={(open) => !open && setPrintOpen(null)}
-        title={`Kardex de Inventario — ${(medicamentoKardexSeleccionado as any)?.nombre || (medicamentoKardexSeleccionado as any)?.name || ""}`}
+        title={`Kardex de Inventario — ${medicamentoKardexSeleccionado?.name || medicamentoKardexSeleccionado?.nombre || ""}`}
       >
         {idMedicamentoKardex ? <KardexTabla idMedicamento={Number(idMedicamentoKardex)} /> : null}
       </PrintDialog>
@@ -588,41 +875,96 @@ export default function ReportesPage() {
   );
 }
 
-function TopProductosTable({ items }: { items: any[] }) {
+function TopProductosTable({
+  items,
+  totalUnidades = 0,
+}: {
+  items: any[];
+  totalUnidades?: number;
+}) {
+  const rankedItems = useMemo(
+    () => items.map((it, idx) => ({ ...it, rank: idx + 1 })),
+    [items]
+  );
+
   const columns: DataTableColumn<any>[] = [
+    {
+      key: "rank",
+      header: "# Ranking",
+      accessor: (i) => i.rank,
+      resizable: true,
+      width: 100,
+      render: (val) => {
+        const r = Number(val);
+        if (r === 1) return <Badge className="bg-amber-500 text-white font-bold text-[10px]">🥇 #1</Badge>;
+        if (r === 2) return <Badge className="bg-slate-400 text-white font-bold text-[10px]">🥈 #2</Badge>;
+        if (r === 3) return <Badge className="bg-amber-700 text-white font-bold text-[10px]">🥉 #3</Badge>;
+        return <span className="font-mono text-muted-foreground font-semibold">#{r}</span>;
+      },
+    },
     {
       key: "code",
       header: "Código",
       accessor: (i) => i.code || "-",
-      className: "w-28 font-mono text-xs",
+      resizable: true,
+      width: 120,
+      render: (val) => <span className="font-mono text-xs">{String(val)}</span>,
     },
     {
       key: "name",
       header: "Medicamento",
       accessor: (i) => i.name,
-      className: "font-medium text-xs",
+      resizable: true,
+      width: 220,
+      render: (val) => <span className="font-semibold text-xs">{String(val)}</span>,
     },
     {
       key: "total_vendido",
       header: "Uds. Vendidas",
       accessor: (i) => Number(i.total_vendido),
-      className: "w-32 text-right font-mono text-xs font-semibold",
+      resizable: true,
+      width: 130,
+      render: (_, i) => <span className="font-mono text-xs font-semibold">{i.total_vendido} uds</span>,
+    },
+    {
+      key: "porcentaje",
+      header: "% del Top",
+      accessor: (i) => totalUnidades > 0 ? (Number(i.total_vendido) / totalUnidades) * 100 : 0,
+      resizable: true,
+      width: 110,
+      render: (_, i) => {
+        const pct = totalUnidades > 0 ? Math.round((Number(i.total_vendido) / totalUnidades) * 100) : 0;
+        return (
+          <div className="flex items-center gap-1.5 justify-center">
+            <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-[10px]">{pct}%</span>
+          </div>
+        );
+      },
     },
     {
       key: "total_recaudado",
       header: "Total Recaudado",
       accessor: (i) => Number(i.total_recaudado),
-      className: "w-36 text-right font-mono text-xs font-bold text-primary",
-      render: (_, i) => formatCurrency(Number(i.total_recaudado)),
+      resizable: true,
+      width: 150,
+      render: (_, i) => <span className="font-mono text-xs font-bold text-primary">{formatCurrency(Number(i.total_recaudado))}</span>,
     },
   ];
 
   return (
     <DataTable
-      data={items}
+      data={rankedItems}
       columns={columns}
       searchPlaceholder="Buscar producto..."
       emptyMessage="No se encontraron productos."
+      enableColumnDrag={true}
+      persistPreferences={true}
+      storageKey="reporte-mas-vendidos-table"
+      minColumnWidth={80}
+      pageSizeOptions={[10, 20, 50]}
     />
   );
 }
@@ -632,45 +974,58 @@ function StockBajoTable({ items }: { items: StockBajoItem[] }) {
     {
       key: "codigo",
       header: "Código",
-      accessor: (i) => (i.medicamento as any).codigo || (i.medicamento as any).code,
-      className: "w-28 font-mono text-xs",
+      accessor: (i) => i.medicamento.code || i.medicamento.codigo || "-",
+      resizable: true,
+      width: 110,
+      render: (val) => <span className="font-mono text-xs">{String(val)}</span>,
     },
     {
       key: "medicamento",
       header: "Medicamento",
-      accessor: (i) => i.medicamento.nombre || (i.medicamento as any).name,
-      className: "font-medium text-xs",
+      accessor: (i) => i.medicamento.name || i.medicamento.nombre,
+      resizable: true,
+      width: 240,
+      render: (val) => <span className="font-medium text-xs">{String(val)}</span>,
     },
     {
       key: "stock",
       header: "Stock Actual",
       accessor: (i) => i.stock,
-      className: "w-28 text-center font-mono text-xs",
+      resizable: true,
+      width: 130,
       render: (_, i) => (
-        <span className={i.stock === 0 ? "text-destructive font-bold" : "text-amber-600 font-semibold"}>
+        <span
+          className={
+            i.stock === 0
+              ? "text-destructive font-bold text-xs font-mono"
+              : i.status === "critico"
+              ? "text-amber-600 font-bold text-xs font-mono"
+              : "text-foreground text-xs font-mono"
+          }
+        >
           {i.stock} uds
         </span>
       ),
     },
     {
-      key: "stock_minimo",
+      key: "minStock",
       header: "Stock Mínimo",
-      accessor: (i) => Number((i.medicamento as any).stock_minimo || (i.medicamento as any).min_stock || 0),
-      className: "w-28 text-center font-mono text-xs text-muted-foreground",
-      render: (_, i) => `${(i.medicamento as any).stock_minimo || (i.medicamento as any).min_stock || 0} uds`,
+      accessor: (i) => i.minStock,
+      resizable: true,
+      width: 130,
+      render: (_, i) => <span className="font-mono text-xs text-muted-foreground">{i.minStock} uds</span>,
     },
     {
-      key: "deficit",
-      header: "Déficit",
-      accessor: (i) => {
-        const min = Number((i.medicamento as any).stock_minimo || (i.medicamento as any).min_stock || 0);
-        return Math.max(0, min - i.stock);
-      },
-      className: "w-28 text-center",
+      key: "status",
+      header: "Estado",
+      accessor: (i) => i.status,
+      resizable: true,
+      width: 140,
       render: (_, i) => {
-        const min = Number((i.medicamento as any).stock_minimo || (i.medicamento as any).min_stock || 0);
-        const def = Math.max(0, min - i.stock);
-        return <Badge variant="destructive">-{def} uds</Badge>;
+        if (i.status === "agotado") return <Badge variant="destructive">Agotado</Badge>;
+        if (i.status === "critico") return <Badge variant="destructive">Crítico (-{i.deficit})</Badge>;
+        if (i.status === "bajo") return <Badge variant="warning">Bajo (-{i.deficit})</Badge>;
+        return <Badge variant="secondary" className="text-success border-success/30">Óptimo</Badge>;
       },
     },
   ];
@@ -679,8 +1034,13 @@ function StockBajoTable({ items }: { items: StockBajoItem[] }) {
     <DataTable
       data={items}
       columns={columns}
-      searchPlaceholder="Buscar medicamento…"
+      searchPlaceholder="Buscar producto…"
       emptyMessage="No se encontraron medicamentos."
+      enableColumnDrag={true}
+      persistPreferences={true}
+      storageKey="reporte-stock-bajo-table"
+      minColumnWidth={80}
+      pageSizeOptions={[10, 20, 50, 100]}
     />
   );
 }
@@ -689,39 +1049,45 @@ function ProximosAVencerTable({
   items,
   medicamentoById,
 }: {
-  items: Lote[];
-  medicamentoById: Map<number, Medicamento>;
+  items: any[];
+  medicamentoById: Map<number, any>;
 }) {
-  const columns: DataTableColumn<Lote>[] = [
+  const columns: DataTableColumn<any>[] = [
     {
       key: "medicamento",
       header: "Medicamento",
       accessor: (l) => {
-        const m = medicamentoById.get(l.id_medicamento || (l as any).medicament_id);
-        return m?.nombre || (m as any)?.name || `Medicamento #${l.id_medicamento || (l as any).medicament_id}`;
+        const m = medicamentoById.get(l.medicament_id || l.id_medicamento);
+        return m?.name || m?.nombre || `Medicamento #${l.medicament_id || l.id_medicamento}`;
       },
-      className: "font-medium text-xs",
+      resizable: true,
+      width: 220,
+      render: (val) => <span className="font-medium text-xs">{String(val)}</span>,
     },
     {
-      key: "numero_lote",
+      key: "batch_number",
       header: "N° Lote",
-      accessor: (l) => l.numero_lote || (l as any).batch_number,
-      className: "w-32 font-mono text-xs",
+      accessor: (l) => l.batch_number || l.numero_lote,
+      resizable: true,
+      width: 130,
+      render: (val) => <span className="font-mono text-xs">{String(val ?? "—")}</span>,
     },
     {
-      key: "fecha_vencimiento",
+      key: "expiration_date",
       header: "Vencimiento",
-      accessor: (l) => l.fecha_vencimiento || (l as any).expiration_date,
-      className: "w-32 text-xs",
-      render: (_, l) => formatDate(l.fecha_vencimiento || (l as any).expiration_date),
+      accessor: (l) => l.expiration_date || l.fecha_vencimiento,
+      resizable: true,
+      width: 130,
+      render: (_, l) => <span className="font-mono text-xs">{formatDate(l.expiration_date || l.fecha_vencimiento)}</span>,
     },
     {
       key: "dias",
       header: "Tiempo Restante",
-      accessor: (l) => diasHasta(l.fecha_vencimiento || (l as any).expiration_date),
-      className: "w-36 text-center",
+      accessor: (l) => diasHasta(l.expiration_date || l.fecha_vencimiento),
+      resizable: true,
+      width: 150,
       render: (_, l) => {
-        const dias = diasHasta(l.fecha_vencimiento || (l as any).expiration_date);
+        const dias = diasHasta(l.expiration_date || l.fecha_vencimiento);
         return (
           <Badge variant={dias <= 0 ? "destructive" : dias <= 30 ? "warning" : "secondary"}>
             {dias < 0 ? `Venció hace ${Math.abs(dias)} d.` : dias === 0 ? "Vence hoy" : `${dias} días`}
@@ -730,11 +1096,12 @@ function ProximosAVencerTable({
       },
     },
     {
-      key: "cantidad_actual",
+      key: "current_quantity",
       header: "Stock Lote",
-      accessor: (l) => Number(l.cantidad_actual ?? (l as any).current_quantity ?? 0),
-      className: "w-28 text-right font-mono text-xs",
-      render: (_, l) => `${l.cantidad_actual ?? (l as any).current_quantity ?? 0} uds`,
+      accessor: (l) => Number(l.current_quantity ?? l.cantidad_actual ?? 0),
+      resizable: true,
+      width: 120,
+      render: (_, l) => <span className="font-mono text-xs font-semibold">{l.current_quantity ?? l.cantidad_actual ?? 0} uds</span>,
     },
   ];
 
@@ -744,21 +1111,39 @@ function ProximosAVencerTable({
       columns={columns}
       searchPlaceholder="Buscar por medicamento o N° de lote…"
       emptyMessage="No se encontraron lotes."
+      enableColumnDrag={true}
+      persistPreferences={true}
+      storageKey="reporte-por-vencer-table"
+      minColumnWidth={80}
+      pageSizeOptions={[10, 20, 50, 100]}
     />
   );
 }
 
 function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
   const [kardex, setKardex] = useState<KardexMovimientoConLote[] | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchKardexByMedicamento(idMedicamento).then(setKardex);
+    const controller = new AbortController();
+    setLoading(true);
+    setKardex(null);
+    fetchKardexByMedicamento(idMedicamento, controller.signal)
+      .then(setKardex)
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setKardex([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, [idMedicamento]);
 
-  if (kardex === null) {
+  if (loading || kardex === null) {
     return (
       <div className="flex flex-col gap-2">
-        {Array.from({ length: 3 }).map((_, i) => (
+        {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-10 w-full" />
         ))}
       </div>
@@ -767,9 +1152,11 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
 
   if (kardex.length === 0) {
     return (
-      <div className="rounded-lg border p-8 text-center text-xs text-muted-foreground">
-        Sin movimientos registrados para este medicamento.
-      </div>
+      <Card className="border-dashed border-border/60 bg-background/60">
+        <CardContent className="py-12 text-center text-xs text-muted-foreground">
+          Sin movimientos registrados para este medicamento.
+        </CardContent>
+      </Card>
     );
   }
 
@@ -778,7 +1165,8 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
       key: "tipo",
       header: "Tipo",
       accessor: (k: any) => TIPO_META[k.tipo || k.type]?.label || k.tipo || k.type,
-      className: "w-28",
+      resizable: true,
+      width: 120,
       render: (_, k: any) => {
         const meta = TIPO_META[k.tipo || k.type] || { label: k.tipo || k.type, icon: SlidersHorizontal, className: "text-muted-foreground" };
         const Icon = meta.icon;
@@ -794,18 +1182,21 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
       key: "numero_lote",
       header: "N° Lote",
       accessor: (k: any) => k.numero_lote || k.batch_number || "—",
-      className: "w-28 font-mono text-xs",
+      resizable: true,
+      width: 130,
+      render: (val) => <span className="font-mono text-xs">{String(val)}</span>,
     },
     {
       key: "cantidad",
       header: "Cantidad",
       accessor: (k: any) => k.cantidad ?? k.quantity,
-      className: "w-24 text-right font-mono text-xs",
+      resizable: true,
+      width: 110,
       render: (_, k: any) => {
         const cant = Number(k.cantidad ?? k.quantity ?? 0);
         const isEntry = k.tipo === "in" || k.tipo === "entrada" || k.type === "in" || k.type === "entrada";
         return (
-          <span className={isEntry ? "text-success font-semibold" : "text-destructive font-semibold"}>
+          <span className={`font-mono text-xs font-semibold ${isEntry ? "text-success" : "text-destructive"}`}>
             {isEntry ? "+" : "-"}{Math.abs(cant)}
           </span>
         );
@@ -815,24 +1206,27 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
       key: "saldo",
       header: "Saldo Resultante",
       accessor: (k: any) => k.saldo ?? k.balance,
-      className: "w-28 text-right font-mono text-xs font-bold",
-      render: (_, k: any) => `${k.saldo ?? k.balance ?? 0} uds`,
+      resizable: true,
+      width: 150,
+      render: (_, k: any) => <span className="font-mono text-xs font-bold">{k.saldo ?? k.balance ?? 0} uds</span>,
     },
     {
       key: "motivo",
       header: "Motivo / Detalle",
       accessor: (k: any) => k.motivo || k.reason || "—",
-      className: "text-xs",
+      resizable: true,
+      width: 200,
       render: (_, k: any) => (
-        <span className="text-muted-foreground">{k.motivo || k.reason || "—"}</span>
+        <span className="text-muted-foreground text-xs">{k.motivo || k.reason || "—"}</span>
       ),
     },
     {
       key: "fecha",
       header: "Fecha y Hora",
       accessor: (k: any) => k.fecha || k.fecha_hora || k.occurred_at || k.created_at || "",
-      className: "w-36 text-xs text-muted-foreground",
-      render: (_, k: any) => formatDateTime(k.fecha || k.fecha_hora || k.occurred_at || k.created_at),
+      resizable: true,
+      width: 160,
+      render: (_, k: any) => <span className="text-xs text-muted-foreground font-mono">{formatDateTime(k.fecha || k.fecha_hora || k.occurred_at || k.created_at)}</span>,
     },
   ];
 
@@ -842,6 +1236,11 @@ function KardexTabla({ idMedicamento }: { idMedicamento: number }) {
       columns={columns}
       searchPlaceholder="Buscar por N° de lote o motivo…"
       emptyMessage="No se encontraron movimientos."
+      enableColumnDrag={true}
+      persistPreferences={true}
+      storageKey="reporte-kardex-table"
+      minColumnWidth={80}
+      pageSizeOptions={[10, 20, 50, 100]}
     />
   );
 }

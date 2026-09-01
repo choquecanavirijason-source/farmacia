@@ -127,10 +127,46 @@ class RoleSeeder extends Seeder
         }
 
         $admin = Role::findOrCreate('administrator', 'api');
+        $supervisor = Role::findOrCreate('supervisor', 'api');
         $seller = Role::findOrCreate('seller', 'api');
 
         // Admin gets all permissions
         $admin->syncPermissions(Permission::where('guard_name', 'api')->get());
+
+        // Supervisor gets operational and management permissions
+        $supervisorPermissions = [
+            'view dashboard',
+            'view clients',
+            'create clients',
+            'edit clients',
+            'export clients',
+            'view categories',
+            'view presentations',
+            'view laboratories',
+            'view suppliers',
+            'view medicaments',
+            'view batches',
+            'dispose batches',
+            'view sales',
+            'create sales',
+            'void sales',
+            'export sales',
+            'view purchases',
+            'view cash registers',
+            'open cash registers',
+            'close cash registers',
+            'create cash movements',
+            'export cash registers',
+            'view inventory',
+            'view reports',
+            'view audits',
+        ];
+
+        $supervisor->syncPermissions(
+            Permission::where('guard_name', 'api')
+                ->whereIn('name', $supervisorPermissions)
+                ->get()
+        );
 
         // Seller gets daily operation permissions
         $sellerPermissions = [

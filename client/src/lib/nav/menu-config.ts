@@ -165,6 +165,13 @@ export const MENU_GROUPS: MenuGroup[] = [
             permission: PERMISSIONS.VIEW_AUDITS,
             roles: ["ADMINISTRADOR"],
           },
+          {
+            href: "/simulacion",
+            label: "Simulador de Datos",
+            iconName: "flask-conical",
+            permission: PERMISSIONS.VIEW_SETTINGS,
+            roles: ["ADMINISTRADOR"],
+          },
         ],
       },
       {

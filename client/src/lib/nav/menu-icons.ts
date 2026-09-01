@@ -16,6 +16,8 @@ import {
   LayoutDashboard,
   Package,
   CircleDot,
+  Sparkles,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -37,6 +39,8 @@ export const ICON_MAP = {
   shield: ShieldCheck,
   settings: Settings,
   dot: CircleDot,
+  sparkles: Sparkles,
+  "flask-conical": FlaskConical,
 } satisfies Record<string, LucideIcon>;
 
 export type MenuIconName = keyof typeof ICON_MAP;

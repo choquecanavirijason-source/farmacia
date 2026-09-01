@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/context/auth-context";
+import { DndAppProvider } from "@/components/dnd-provider";
 
 const fontSans = Inter({
   variable: "--font-sans",
@@ -29,10 +30,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <AuthProvider>
-            <div id="app-shell">{children}</div>
-            <Toaster richColors position="top-right" />
-          </AuthProvider>
+          <DndAppProvider>
+            <AuthProvider>
+              <div id="app-shell">{children}</div>
+              <Toaster richColors position="top-right" />
+            </AuthProvider>
+          </DndAppProvider>
         </ThemeProvider>
       </body>
     </html>
