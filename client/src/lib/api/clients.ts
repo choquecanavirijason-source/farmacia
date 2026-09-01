@@ -27,7 +27,7 @@ export const getPaginated = async (
 ): Promise<IPaginatedResponse<IClient>> => {
   const query = {
     page: params.page,
-    per_page: params.pageSize ?? params.per_page,
+    per_page: params.per_page ?? params.pageSize,
     search: params.search,
     sort_by: params.sort?.key ?? params.sort_by,
     sort_dir: params.sort?.direction ?? params.sort_dir,
@@ -62,9 +62,12 @@ export const restore = async (id: number): Promise<IApiResponse<IClient>> => {
   return response.data;
 };
 
-export const exportResource = async (format: "excel" | "pdf", status?: string): Promise<Blob> => {
+export const exportResource = async (
+  format: "excel" | "pdf",
+  filters: Record<string, any> = {}
+): Promise<Blob> => {
   const res = await apiClient.get<Blob>("/clients/export", {
-    params: { format, status },
+    params: { format, ...filters },
     responseType: "blob",
   });
   return res.data;

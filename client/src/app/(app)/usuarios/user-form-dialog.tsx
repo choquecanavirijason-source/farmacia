@@ -1,36 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { Shield, Users } from "lucide-react";
 import { FormDialog } from "@/components/layout/form-dialog";
-import { InputTextField, PasswordField } from "@/components/form";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { InputTextField, PasswordField, Select2Field } from "@/components/form";
 import { create, update } from "@/lib/api/users";
 import { fetchRoles } from "@/lib/api/roles";
 import type { IUser, IUserRequest } from "@/lib/types/user";
 import type { IRole } from "@/lib/types/role";
 
-// Esquema de validación con Zod para Usuarios
 const userSchema = z
   .object({
-    name: z.string().trim().min(1, "El nombre es obligatorio."),
+    firstname: z.string().trim().min(1, "El nombre es obligatorio."),
+    lastname: z.string().trim().min(1, "El apellido es obligatorio."),
+    username: z.string().trim().optional(),
     email: z
       .string()
       .trim()
       .min(1, "El correo electrónico es obligatorio.")
       .email("El correo electrónico no es válido."),
     password: z.string().optional(),
-    role: z.string().min(1, "Selecciona un rol."),
-    state: z.enum(["active", "inactive"]),
+    roles: z.array(z.string()).min(1, "Selecciona al menos un rol para el usuario."),
   })
   .superRefine((data, ctx) => {
     if (data.password && data.password.length > 0 && data.password.length < 6) {
@@ -50,6 +43,7 @@ interface UserFormDialogProps {
   user?: IUser | null;
   currentUserId?: number | null;
   onSaved?: (user?: IUser) => void;
+  availableRoles?: IRole[];
 }
 
 function UserFormBody({
@@ -57,33 +51,44 @@ function UserFormBody({
   onOpenChange,
   user,
   onSaved,
+  availableRoles: propRoles,
 }: UserFormDialogProps) {
   const isEditing = Boolean(user);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [availableRoles, setAvailableRoles] = useState<IRole[]>([]);
+  const [rolesList, setRolesList] = useState<IRole[]>(propRoles || []);
 
   useEffect(() => {
-    fetchRoles()
-      .then(setAvailableRoles)
-      .catch(() => setAvailableRoles([]));
-  }, []);
+    if (propRoles && propRoles.length > 0) {
+      setRolesList(propRoles);
+      return;
+    }
 
-  const userRole = user?.roles?.[0]?.name || "seller";
+    fetchRoles()
+      .then(setRolesList)
+      .catch(() => setRolesList([]));
+  }, [propRoles]);
+
+  const defaultRoles =
+    user?.roles?.map((r) => r.name) ||
+    (user?.role_names && user.role_names.length > 0 ? user.role_names : ["seller"]);
+
+  const defaultFirstname = user?.firstname || (user?.name ? user.name.split(" ")[0] : "");
+  const defaultLastname = user?.lastname || (user?.name ? user.name.split(" ").slice(1).join(" ") : "");
 
   const methods = useForm<UserFormValues>({
     resolver: zodResolver(userSchema as any),
     defaultValues: {
-      name: user?.name ?? "",
+      firstname: defaultFirstname,
+      lastname: defaultLastname,
+      username: user?.username ?? "",
       email: user?.email ?? "",
       password: "",
-      role: userRole,
-      state: user?.state ?? "active",
+      roles: defaultRoles,
     },
   });
 
   const {
     handleSubmit,
-    control,
     setError,
     formState: { isSubmitting },
   } = methods;
@@ -92,10 +97,11 @@ function UserFormBody({
     setServerError(null);
 
     const payload: IUserRequest = {
-      name: data.name.trim(),
+      firstname: data.firstname.trim(),
+      lastname: data.lastname.trim(),
+      username: data.username ? data.username.trim() : undefined,
       email: data.email.trim(),
-      state: data.state,
-      role: data.role,
+      roles: data.roles,
       password: data.password || undefined,
     };
 
@@ -105,10 +111,7 @@ function UserFormBody({
     }
 
     try {
-      const response = user
-        ? await update(user.id, payload)
-        : await create(payload);
-
+      const response = user ? await update(user.id, payload) : await create(payload);
       onSaved?.(response.data);
       onOpenChange(false);
     } catch (err: any) {
@@ -122,12 +125,43 @@ function UserFormBody({
       }
 
       const message =
-        err?.response?.data?.message ||
-        err?.message ||
-        "No se pudo guardar el usuario.";
+        err?.response?.data?.message || err?.message || "No se pudo guardar el usuario.";
       setServerError(message);
     }
   }
+
+  const roleOptions =
+    rolesList.length > 0
+      ? rolesList.map((r) => ({
+          value: r.name,
+          label: r.name === "administrator" ? "Administrador" : r.name === "seller" ? "Vendedor" : r.name,
+          sublabel:
+            r.name === "administrator"
+              ? "Control y acceso total al sistema"
+              : r.name === "seller"
+              ? "Ventas, inventario y caja"
+              : undefined,
+          icon:
+            r.name === "administrator" ? (
+              <Shield className="size-3.5 text-primary" />
+            ) : (
+              <Users className="size-3.5 text-muted-foreground" />
+            ),
+        }))
+      : [
+          {
+            value: "administrator",
+            label: "Administrador",
+            sublabel: "Control y acceso total al sistema",
+            icon: <Shield className="size-3.5 text-primary" />,
+          },
+          {
+            value: "seller",
+            label: "Vendedor",
+            sublabel: "Ventas, inventario y caja",
+            icon: <Users className="size-3.5 text-muted-foreground" />,
+          },
+        ];
 
   return (
     <FormDialog
@@ -137,8 +171,8 @@ function UserFormBody({
       isEditing={isEditing}
       title={{ create: "Nuevo Usuario", edit: "Editar Usuario" }}
       description={{
-        create: "Completa los campos para registrar un nuevo usuario con acceso al sistema.",
-        edit: "Actualiza los datos y accesos del usuario.",
+        create: "Completa los datos del usuario, credenciales de inicio de sesión y asignación de roles.",
+        edit: "Actualiza los datos personales, usuario, contraseña o roles asignados.",
       }}
       submitLabel={{ create: "Crear Usuario", edit: "Guardar Cambios" }}
       isSubmitting={isSubmitting}
@@ -146,15 +180,28 @@ function UserFormBody({
       onSubmit={handleSubmit(onSubmit)}
     >
       <div className="flex flex-col gap-4">
-        <InputTextField
-          name="name"
-          label="Nombre Completo"
-          required
-          placeholder="Ej. Juan Pérez"
-          autoFocus
-        />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <InputTextField
+            name="firstname"
+            label="Nombres"
+            required
+            placeholder="Ej. Juan"
+            autoFocus
+          />
+          <InputTextField
+            name="lastname"
+            label="Apellidos"
+            required
+            placeholder="Ej. Pérez Gómez"
+          />
+        </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <InputTextField
+            name="username"
+            label="Nombre de Usuario (Username)"
+            placeholder="Ej. jperez (Opcional)"
+          />
           <InputTextField
             name="email"
             label="Correo Electrónico (Login)"
@@ -162,81 +209,42 @@ function UserFormBody({
             type="email"
             placeholder="juan@farmacia.com"
           />
+        </div>
+
+        <div className="w-full">
           <PasswordField
             name="password"
             label={isEditing ? "Nueva Contraseña (Opcional)" : "Contraseña"}
-            placeholder={isEditing ? "Dejar en blanco para conservar" : "Mínimo 6 caracteres"}
+            required={!isEditing}
+            placeholder={isEditing ? "Dejar en blanco para conservar contraseña actual" : "Mínimo 6 caracteres"}
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="role">Rol en el Sistema</Label>
-            <Controller
-              name="role"
-              control={control}
-              render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                >
-                  <SelectTrigger id="role" className="w-full">
-                    <SelectValue placeholder="Selecciona un rol" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableRoles.length > 0 ? (
-                      availableRoles.map((r) => (
-                        <SelectItem key={r.id} value={r.name} className="capitalize">
-                          {r.name === "administrator" ? "Administrador" : r.name === "seller" ? "Vendedor" : r.name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <>
-                        <SelectItem value="administrator">Administrador</SelectItem>
-                        <SelectItem value="seller">Vendedor</SelectItem>
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="state">Estado</Label>
-            <Controller
-              name="state"
-              control={control}
-              render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                >
-                  <SelectTrigger id="state" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Activo</SelectItem>
-                    <SelectItem value="inactive">Inactivo</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
+        <div className="w-full">
+          <Select2Field
+            name="roles"
+            label="Roles Asignados en el Sistema"
+            required
+            isMulti={true}
+            options={roleOptions}
+            placeholder="Selecciona uno o más roles para este usuario…"
+          />
         </div>
       </div>
     </FormDialog>
   );
 }
 
-// Componente modal para crear y editar usuarios
 export function UserFormDialog({
   open,
   onOpenChange,
   user,
   currentUserId,
   onSaved,
+  availableRoles,
 }: UserFormDialogProps) {
+  if (!open) return null;
+
   return (
     <UserFormBody
       key={user ? `edit-${user.id}` : "new"}
@@ -245,9 +253,9 @@ export function UserFormDialog({
       user={user}
       currentUserId={currentUserId}
       onSaved={onSaved}
+      availableRoles={availableRoles}
     />
   );
 }
 
-// Alias de compatibilidad
 export const UsuarioFormDialog = UserFormDialog;

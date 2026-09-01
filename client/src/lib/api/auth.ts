@@ -18,6 +18,8 @@ interface LoginApiResponse {
   };
 }
 
+let mePromise: Promise<any> | null = null;
+
 export async function login(loginVal: string, passwordVal: string): Promise<LoginApiResponse["data"]> {
   const response = await apiClient.post<LoginApiResponse>("/auth/login", {
     login: loginVal,
@@ -37,6 +39,7 @@ export async function logout(): Promise<void> {
   } catch {
   } finally {
     removeAuthToken();
+    mePromise = null;
   }
 }
 
@@ -46,8 +49,18 @@ export function isAuthenticated(): boolean {
 }
 
 export async function getCurrentUser() {
-  const response = await apiClient.get("/auth/me");
-  return (response.data as any)?.data ?? response.data;
+  if (mePromise) return mePromise;
+
+  mePromise = apiClient
+    .get("/auth/me")
+    .then((response) => (response.data as any)?.data ?? response.data)
+    .finally(() => {
+      setTimeout(() => {
+        mePromise = null;
+      }, 500);
+    });
+
+  return mePromise;
 }
 
 export { apiClient };

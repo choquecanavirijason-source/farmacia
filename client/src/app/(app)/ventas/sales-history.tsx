@@ -298,7 +298,19 @@ export function SalesHistory() {
         emptyMessage="No se encontraron ventas con los criterios seleccionados."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="historial_ventas.csv"
-        onExport={can(PERMISSIONS.EXPORT_SALES) ? exportSales : undefined}
+        onExport={
+          can(PERMISSIONS.EXPORT_SALES)
+            ? (format) =>
+                exportSales(format, {
+                  status: statusFilter,
+                  start_date: startDate,
+                  end_date: endDate,
+                  search: params.search,
+                  sort_by: params.sort?.key,
+                  sort_dir: params.sort?.direction,
+                })
+            : undefined
+        }
         onRefresh={refresh}
         getRowId={(s) => s.id}
         storageKey="ventas-history-table"

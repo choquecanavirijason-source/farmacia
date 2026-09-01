@@ -40,12 +40,29 @@ class Purchase extends Model implements Auditable
 
     public function scopeSearch(Builder $query, string $search): Builder
     {
-        return $query->where('invoice_number', 'like', "%{$search}%");
+        return $query->where(function ($q) use ($search) {
+            $q->where('invoice_number', 'ilike', "%{$search}%")
+              ->orWhereHas('supplier', function ($sq) use ($search) {
+                  $sq->where('name', 'ilike', "%{$search}%")
+                     ->orWhere('nit', 'like', "%{$search}%");
+              });
+        });
+    }
+
+    public function scopeFilter(Builder $query, array $filters): Builder
+    {
+        return $query
+            ->when(!empty($filters['supplier_id']), fn ($q) => $q->where('supplier_id', $filters['supplier_id']))
+            ->when(!empty($filters['start_date']), fn ($q) => $q->whereDate('purchase_date', '>=', $filters['start_date']))
+            ->when(!empty($filters['end_date']), fn ($q) => $q->whereDate('purchase_date', '<=', $filters['end_date']));
     }
 
     public function scopeSort(Builder $query, string $column = 'purchase_date', string $direction = 'desc'): Builder
     {
-        return $query->orderBy(in_array($column, ['id', 'invoice_number', 'purchase_date', 'total', 'created_at'], true) ? $column : 'purchase_date', strtolower($direction) === 'asc' ? 'asc' : 'desc');
+        return $query->orderBy(
+            in_array($column, ['id', 'invoice_number', 'purchase_date', 'total', 'created_at'], true) ? $column : 'purchase_date',
+            strtolower($direction) === 'asc' ? 'asc' : 'desc'
+        );
     }
 
     public function supplier()

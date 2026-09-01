@@ -1,7 +1,8 @@
 import apiClient from "@/config/axios";
 import type { IMedicament, IMedicamentRequest } from "@/lib/types/medicament";
-import type { IPaginatedResponse, IPaginationRequest } from "@/lib/types/pagination";
+import type { IPaginatedResponse } from "@/lib/types/pagination";
 import type { IApiResponse } from "@/lib/types/api";
+import type { ServerFetchParams } from "@/components/ui/table";
 import {
   fetchCategories,
   fetchLaboratories,
@@ -26,10 +27,19 @@ export const fetchMedicaments = async (): Promise<IMedicament[]> => {
 };
 
 export const getPaginated = async (
-  params: IPaginationRequest,
-  signal?: AbortSignal
+  params: ServerFetchParams | any,
+  signal?: AbortSignal,
+  filters?: { category_id?: string; laboratory_id?: string; status?: string }
 ): Promise<IPaginatedResponse<IMedicament>> => {
-  const res = await apiClient.get<IPaginatedResponse<IMedicament>>("/medicaments", { params, signal });
+  const query = {
+    page: params.page,
+    per_page: params.per_page ?? params.pageSize,
+    search: params.search,
+    sort_by: params.sort?.key ?? params.sort_by,
+    sort_dir: params.sort?.direction ?? params.sort_dir,
+    ...filters,
+  };
+  const res = await apiClient.get<IPaginatedResponse<IMedicament>>("/medicaments", { params: query, signal });
   return res.data;
 };
 
@@ -61,15 +71,17 @@ export const restore = async (id: number): Promise<IApiResponse<IMedicament>> =>
   return response.data;
 };
 
-export const exportResource = async (format: "excel" | "pdf"): Promise<Blob> => {
+export const exportResource = async (
+  format: "excel" | "pdf",
+  filters: Record<string, any> = {}
+): Promise<Blob> => {
   const res = await apiClient.get<Blob>("/medicaments/export", {
-    params: { format },
+    params: { format, ...filters },
     responseType: "blob",
   });
   return res.data;
 };
 
-// Aliases de compatibilidad
 export const deleteMedicamento = remove;
 export const fetchMedicamentos = async () => {
   const list = await fetchMedicaments();

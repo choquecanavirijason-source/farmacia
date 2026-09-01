@@ -449,7 +449,16 @@ export default function MedicamentosPage() {
         emptyMessage="No se encontraron medicamentos."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="medicamentos.csv"
-        onExport={can(PERMISSIONS.EXPORT_MEDICAMENTS) ? exportResource : undefined}
+        onExport={
+          can(PERMISSIONS.EXPORT_MEDICAMENTS)
+            ? (format) =>
+                exportResource(format, {
+                  search: params.search,
+                  sort_by: params.sort?.key,
+                  sort_dir: params.sort?.direction,
+                })
+            : undefined
+        }
         onRefresh={refresh}
         getRowId={(m) => m.id}
         onSelectionChange={can(PERMISSIONS.DELETE_MEDICAMENTS) ? setSelectedRows : undefined}

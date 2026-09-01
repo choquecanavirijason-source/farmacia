@@ -122,39 +122,37 @@ class RoleSeeder extends Seeder
             'export audits',
         ];
 
-        foreach (['api', 'web'] as $guard) {
-            foreach ($permissions as $perm) {
-                Permission::findOrCreate($perm, $guard);
-            }
-
-            $admin = Role::findOrCreate('administrator', $guard);
-            $seller = Role::findOrCreate('seller', $guard);
-
-            // Admin gets all permissions
-            $admin->syncPermissions(Permission::where('guard_name', $guard)->get());
-
-            // Seller gets daily operation permissions
-            $sellerPermissions = [
-                'view dashboard',
-                'view clients',
-                'create clients',
-                'edit clients',
-                'view medicaments',
-                'view batches',
-                'view sales',
-                'create sales',
-                'view cash registers',
-                'open cash registers',
-                'close cash registers',
-                'create cash movements',
-                'view inventory',
-            ];
-
-            $seller->syncPermissions(
-                Permission::where('guard_name', $guard)
-                    ->whereIn('name', $sellerPermissions)
-                    ->get()
-            );
+        foreach ($permissions as $perm) {
+            Permission::findOrCreate($perm, 'api');
         }
+
+        $admin = Role::findOrCreate('administrator', 'api');
+        $seller = Role::findOrCreate('seller', 'api');
+
+        // Admin gets all permissions
+        $admin->syncPermissions(Permission::where('guard_name', 'api')->get());
+
+        // Seller gets daily operation permissions
+        $sellerPermissions = [
+            'view dashboard',
+            'view clients',
+            'create clients',
+            'edit clients',
+            'view medicaments',
+            'view batches',
+            'view sales',
+            'create sales',
+            'view cash registers',
+            'open cash registers',
+            'close cash registers',
+            'create cash movements',
+            'view inventory',
+        ];
+
+        $seller->syncPermissions(
+            Permission::where('guard_name', 'api')
+                ->whereIn('name', $sellerPermissions)
+                ->get()
+        );
     }
 }

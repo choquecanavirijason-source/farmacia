@@ -1,5 +1,5 @@
 import apiClient from "@/config/axios";
-import type { ISale, IInvoice, ISaleRequest } from "@/lib/types/sale";
+import type { ISale, IInvoice } from "@/lib/types/sale";
 import type { IPaginatedResponse, IPaginationRequest } from "@/lib/types/pagination";
 import type { IApiResponse } from "@/lib/types/api";
 import type { ServerFetchParams } from "@/components/ui/table";
@@ -14,11 +14,11 @@ export const fetchSales = async (
 export const getSalesPaginated = async (
   params: ServerFetchParams,
   signal?: AbortSignal,
-  filters?: { status?: string; start_date?: string; end_date?: string }
+  filters?: { status?: string; start_date?: string; end_date?: string; client_id?: string }
 ): Promise<IPaginatedResponse<ISale>> => {
   const query: Record<string, any> = {
     page: params.page,
-    per_page: params.pageSize,
+    per_page: params.per_page ?? params.pageSize,
     search: params.search || undefined,
     sort_by: params.sort?.key || undefined,
     sort_dir: params.sort?.direction || undefined,
@@ -31,18 +31,19 @@ export const getSalesPaginated = async (
   return res.data;
 };
 
-export const exportSales = async (format: "csv" | "excel" | "pdf" = "csv") => {
-  const res = await apiClient.get(`/sales/export?format=${format === "excel" ? "xlsx" : format}`, {
+export const exportSales = async (
+  format: "excel" | "pdf" | "csv" = "excel",
+  filters: Record<string, any> = {}
+): Promise<Blob> => {
+  const exportFormat = format === "csv" ? "excel" : format;
+  const res = await apiClient.get<Blob>("/sales/export", {
+    params: { format: exportFormat, ...filters },
     responseType: "blob",
   });
-  const url = window.URL.createObjectURL(new Blob([res.data]));
-  const link = document.createElement("a");
-  link.href = url;
-  link.setAttribute("download", `ventas.${format === "excel" ? "xlsx" : format}`);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  return res.data;
 };
+
+export const exportResource = exportSales;
 
 export const createSale = async (data: any): Promise<ISale> => {
   const paymentMethod = data.forma_pago || data.payment_method || "Efectivo";
@@ -91,7 +92,6 @@ export const fetchSaleDetails = async (saleId: number): Promise<any[]> => {
   return res.data.data;
 };
 
-// Aliases de compatibilidad
 export const fetchVentas = async (): Promise<any[]> => {
   const res = await apiClient.get<IPaginatedResponse<ISale>>("/sales?per_page=100");
   return res.data.data.map((s) => ({

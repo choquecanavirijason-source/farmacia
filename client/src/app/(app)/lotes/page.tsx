@@ -141,7 +141,7 @@ export default function LotesPage() {
     getPaginated(
       {
         page: params.page,
-        pageSize: params.pageSize,
+        per_page: params.pageSize,
         search: params.search,
         sort_by: params.sort?.key || "expiration_date",
         sort_dir: params.sort?.direction || "asc",

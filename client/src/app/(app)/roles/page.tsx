@@ -90,7 +90,7 @@ export default function RolesPage() {
     getPaginated(
       {
         page: params.page,
-        pageSize: params.pageSize,
+        per_page: params.pageSize,
         search: params.search,
         sort_by: params.sort?.key || "id",
         sort_dir: params.sort?.direction || "asc",
@@ -366,7 +366,16 @@ export default function RolesPage() {
         emptyMessage="No se encontraron roles configurados."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="roles.csv"
-        onExport={can(PERMISSIONS.VIEW_ROLES) ? exportResource : undefined}
+        onExport={
+          can(PERMISSIONS.VIEW_ROLES)
+            ? (format) =>
+                exportResource(format, {
+                  search: params.search,
+                  sort_by: params.sort?.key,
+                  sort_dir: params.sort?.direction,
+                })
+            : undefined
+        }
         onRefresh={refresh}
         getRowId={(r) => r.id}
         onSelectionChange={can(PERMISSIONS.DELETE_ROLES) ? setSelectedRows : undefined}

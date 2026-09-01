@@ -431,7 +431,17 @@ export default function CajaPage() {
           emptyMessage="No se encontraron cajas registradas."
           pageSizeOptions={[10, 20, 50]}
           exportFilename="historial_cajas.csv"
-          onExport={can(PERMISSIONS.EXPORT_CASH_REGISTERS) ? exportCashRegisters : undefined}
+          onExport={
+            can(PERMISSIONS.EXPORT_CASH_REGISTERS)
+              ? (format) =>
+                  exportCashRegisters(format, {
+                    status: statusFilter !== "all" ? statusFilter : undefined,
+                    search: historyParams.search,
+                    sort_by: historyParams.sort?.key,
+                    sort_dir: historyParams.sort?.direction,
+                  })
+              : undefined
+          }
           onRefresh={refreshHistory}
           getRowId={(c) => c.id}
           storageKey="cajas-history-table"

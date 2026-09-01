@@ -108,7 +108,7 @@ export default function ClientesPage() {
     return () => controller.abort();
   }, [params, refreshKey, statusFilter]);
 
-  const handleRowReorder = useCallback(async () => {}, []);
+  const handleRowReorder = useCallback(async () => { }, []);
 
   function openCreate() {
     setEditing(null);
@@ -369,8 +369,8 @@ export default function ClientesPage() {
                 {statusFilter === "active"
                   ? "Solo clientes activos"
                   : statusFilter === "trashed"
-                  ? "Clientes eliminados (Papelera)"
-                  : "Todos los clientes"}
+                    ? "Clientes eliminados (Papelera)"
+                    : "Todos los clientes"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent className="min-w-60 sm:min-w-64">
@@ -423,7 +423,13 @@ export default function ClientesPage() {
         exportFilename="clientes.csv"
         onExport={
           can(PERMISSIONS.EXPORT_CLIENTS)
-            ? (format) => exportResource(format, statusFilter)
+            ? (format) =>
+                exportResource(format, {
+                  status: statusFilter,
+                  search: params.search,
+                  sort_by: params.sort?.key,
+                  sort_dir: params.sort?.direction,
+                })
             : undefined
         }
         onRefresh={refresh}

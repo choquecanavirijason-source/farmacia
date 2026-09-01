@@ -27,6 +27,7 @@ function DataTable<T>({
     className,
     getRowId,
     getRowClassName,
+    enableSelection,
     onSelectionChange,
     clearSelectionKey,
     exportFilename = "tabla.csv",
@@ -40,8 +41,8 @@ function DataTable<T>({
     storageKey = "datatable",
 }: DataTableProps<T>) {
     const isServerMode = Boolean(server)
-    const selectable = Boolean(getRowId)
-    const canDragRows = enableRowDrag && selectable && !!onRowReorder
+    const selectable = enableSelection !== undefined ? enableSelection : Boolean(onSelectionChange)
+    const canDragRows = enableRowDrag && !!getRowId && !!onRowReorder
     const showGripColumn = canDragRows
     const isMobile = useMediaQuery("(max-width: 640px)")
     const columnDragEnabled = enableColumnDrag && !isMobile

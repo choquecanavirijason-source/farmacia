@@ -88,7 +88,7 @@ export function TablePagination({
           </div>
         )}
       </div>
-      {pageCount > 1 && (
+      {pageCount >= 1 && (
         <div className="flex items-center gap-1">
           <Button
             type="button"

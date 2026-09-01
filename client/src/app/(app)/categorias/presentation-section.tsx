@@ -84,7 +84,7 @@ export function PresentationSection() {
     getPaginated(
       {
         page: params.page,
-        pageSize: params.pageSize,
+        per_page: params.pageSize,
         search: params.search,
         sort_by: params.sort?.key || "name",
         sort_dir: params.sort?.direction || "asc",

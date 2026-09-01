@@ -22,7 +22,7 @@ export const getCashRegistersPaginated = async (
 ): Promise<IPaginatedResponse<ICashRegister>> => {
   const query: Record<string, any> = {
     page: params.page,
-    per_page: params.pageSize,
+    per_page: params.per_page ?? params.pageSize,
     search: params.search || undefined,
     sort_by: params.sort?.key || undefined,
     sort_dir: params.sort?.direction || undefined,
@@ -35,18 +35,19 @@ export const getCashRegistersPaginated = async (
   return res.data;
 };
 
-export const exportCashRegisters = async (format: "csv" | "excel" | "pdf" = "csv") => {
-  const res = await apiClient.get(`/cash-registers/export?format=${format === "excel" ? "xlsx" : format}`, {
+export const exportCashRegisters = async (
+  format: "excel" | "pdf" | "csv" = "excel",
+  filters: Record<string, any> = {}
+): Promise<Blob> => {
+  const exportFormat = format === "csv" ? "excel" : format;
+  const res = await apiClient.get<Blob>("/cash-registers/export", {
+    params: { format: exportFormat, ...filters },
     responseType: "blob",
   });
-  const url = window.URL.createObjectURL(new Blob([res.data]));
-  const link = document.createElement("a");
-  link.href = url;
-  link.setAttribute("download", `cajas.${format === "excel" ? "xlsx" : format}`);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  return res.data;
 };
+
+export const exportResource = exportCashRegisters;
 
 export const fetchCurrentCashRegister = async (): Promise<ICashRegister | null> => {
   try {
@@ -98,7 +99,6 @@ export function montoEsperado(caja: any, movimientos: any[]): number {
   return apertura + movTotal;
 }
 
-// Aliases de compatibilidad
 export const fetchCajas = async (): Promise<any[]> => {
   const list = await fetchCashRegisters();
   return list.map((c) => ({

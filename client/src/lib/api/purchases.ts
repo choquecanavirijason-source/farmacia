@@ -1,12 +1,30 @@
 import apiClient from "@/config/axios";
 import type { IPurchase, IPurchaseDetail, IPurchaseRequest } from "@/lib/types/purchase";
-import type { IPaginatedResponse, IPaginationRequest } from "@/lib/types/pagination";
+import type { IPaginatedResponse } from "@/lib/types/pagination";
 import type { IApiResponse } from "@/lib/types/api";
+import type { ServerFetchParams } from "@/components/ui/table";
 
 export const fetchPurchases = async (
-  params?: IPaginationRequest
+  params?: any
 ): Promise<IPaginatedResponse<IPurchase>> => {
   const res = await apiClient.get<IPaginatedResponse<IPurchase>>("/purchases", { params });
+  return res.data;
+};
+
+export const getPurchasesPaginated = async (
+  params: ServerFetchParams | any,
+  signal?: AbortSignal,
+  filters?: { supplier_id?: string; start_date?: string; end_date?: string }
+): Promise<IPaginatedResponse<IPurchase>> => {
+  const query = {
+    page: params.page,
+    per_page: params.per_page ?? params.pageSize,
+    search: params.search,
+    sort_by: params.sort?.key ?? params.sort_by,
+    sort_dir: params.sort?.direction ?? params.sort_dir,
+    ...filters,
+  };
+  const res = await apiClient.get<IPaginatedResponse<IPurchase>>("/purchases", { params: query, signal });
   return res.data;
 };
 
@@ -32,7 +50,20 @@ export const fetchPurchaseDetails = async (purchaseId: number): Promise<IPurchas
   return res.data.data;
 };
 
-// Aliases de compatibilidad
+export const exportPurchases = async (
+  format: "excel" | "pdf" | "csv" = "excel",
+  filters: Record<string, any> = {}
+): Promise<Blob> => {
+  const exportFormat = format === "csv" ? "excel" : format;
+  const res = await apiClient.get<Blob>("/purchases/export", {
+    params: { format: exportFormat, ...filters },
+    responseType: "blob",
+  });
+  return res.data;
+};
+
+export const exportResource = exportPurchases;
+
 export const fetchCompras = async (): Promise<any[]> => {
   const res = await apiClient.get<IPaginatedResponse<IPurchase>>("/purchases?per_page=100");
   return res.data.data.map((p) => ({
