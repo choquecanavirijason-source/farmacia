@@ -7,13 +7,16 @@ import {
   PackageX,
   Wallet,
   TrendingUp,
+  TrendingDown,
   Boxes,
   Users,
   Plus,
   ArrowUpRight,
   ChevronRight,
-  ShieldCheck,
   CalendarClock,
+  Receipt,
+  Percent,
+  ShoppingCart,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -23,6 +26,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fetchDashboardStats, type IDashboardStats } from "@/lib/api/dashboard";
 import { formatCurrency } from "@/lib/format";
 import { PERMISSIONS } from "@/lib/constants/permissions";
+import { ChartCard } from "./charts/chart-card";
+import { AreaChart } from "./charts/area-chart";
+import { DonutChart } from "./charts/donut-chart";
+import { BarChart } from "./charts/bar-chart";
+import { ComboChart } from "./charts/combo-chart";
+import { HeatmapChart } from "./charts/heatmap-chart";
+import { SEMAFORO_PALETTE } from "./charts/chart-theme";
 
 function formatFechaCorta(iso?: string): string {
   if (!iso) return "—";
@@ -61,6 +71,12 @@ export default function DashboardPage() {
       isMounted = false;
     };
   }, []);
+
+  const stockSaludablePct = stats && stats.total_medicamentos
+    ? Math.round(((stats.total_medicamentos_stock_saludable ?? 0) / stats.total_medicamentos) * 100)
+    : null;
+
+  const variacion = stats?.variacion_mensual_pct ?? null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -107,7 +123,39 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Métricas y KPIs Principales */}
+      {/* Estado Operativo — lo primero que se quiere ver de un vistazo */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <KpiCard
+          icon={Wallet}
+          label="Caja de Turno"
+          value={stats ? (stats.caja_abierta ? "Abierta" : "Cerrada") : null}
+          subtext={
+            stats?.caja_abierta
+              ? `Monto inicial: ${formatCurrency(stats.caja_abierta.opening_amount)}`
+              : "Sin caja abierta en este momento"
+          }
+          tone={stats?.caja_abierta ? "success" : "muted"}
+          href="/caja"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          icon={Users}
+          label="Clientes Registrados"
+          value={stats ? String(stats.total_clientes) : null}
+          subtext="Base de clientes activa"
+          tone="primary"
+          href="/clientes"
+          isLoading={isLoading}
+        />
+      </div>
+
+      {/* ============ SECCIÓN: VENTAS ============ */}
+      <SectionHeader
+        icon={ShoppingBag}
+        title="Ventas"
+        description="Facturación, tendencia y desempeño comercial"
+      />
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={ShoppingBag}
@@ -126,32 +174,25 @@ export default function DashboardPage() {
           isLoading={isLoading}
         />
         <KpiCard
-          icon={PackageX}
-          label="Stock Bajo"
-          value={stats ? String(stats.stock_bajo_count) : null}
-          subtext={stats && stats.stock_bajo_count > 0 ? "Requiere reposición urgente" : "Niveles de stock óptimos"}
-          tone={stats && stats.stock_bajo_count > 0 ? "warning" : "muted"}
-          href="/medicamentos"
+          icon={Receipt}
+          label="Ticket Promedio (Hoy)"
+          value={stats ? formatCurrency(stats.ticket_promedio_hoy ?? 0) : null}
+          subtext="Promedio por venta del día"
+          tone="primary"
           isLoading={isLoading}
         />
         <KpiCard
-          icon={Wallet}
-          label="Caja de Turno"
-          value={stats ? (stats.caja_abierta ? "Abierta" : "Cerrada") : null}
-          subtext={
-            stats?.caja_abierta
-              ? `Monto inicial: ${formatCurrency(stats.caja_abierta.opening_amount)}`
-              : "Sin caja abierta en este momento"
-          }
-          tone={stats?.caja_abierta ? "success" : "muted"}
-          href="/caja"
+          icon={variacion !== null && variacion < 0 ? TrendingDown : TrendingUp}
+          label="Variación Mensual"
+          value={stats ? (variacion === null ? "N/A" : `${variacion > 0 ? "+" : ""}${variacion}%`) : null}
+          subtext="Vs. mismo periodo del mes anterior"
+          tone={variacion === null ? "muted" : variacion >= 0 ? "success" : "warning"}
           isLoading={isLoading}
         />
       </div>
 
       {/* Paneles Informativos: Ventas Recientes y Medicamentos Más Vendidos */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Últimas Ventas Procesadas */}
         <Card className="lg:col-span-2 border-border/60">
           <CardHeader className="flex-row items-center justify-between pb-3">
             <div>
@@ -201,7 +242,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Medicamentos Más Vendidos */}
         <Card className="border-border/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">Más Vendidos</CardTitle>
@@ -239,64 +279,271 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Resumen Operativo de Catálogo y Alertas Preventivas */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card className="border-border/60">
-          <CardContent className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <span className="flex size-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
-                <Boxes className="size-4.5" />
-              </span>
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Medicamentos Registrados</span>
-                <span className="text-base font-bold">
-                  {isLoading || !stats ? <Skeleton className="h-5 w-12 my-0.5" /> : stats.total_medicamentos}
-                </span>
-              </div>
-            </div>
-            <Button nativeButton={false} render={<Link href="/medicamentos" />} variant="ghost" size="icon" className="size-8">
-              <ChevronRight className="size-4" />
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <ChartCard
+          title="Tendencia de Ventas"
+          description="Ingresos por ventas activas en el periodo"
+          className="lg:col-span-2"
+          isLoading={isLoading}
+          isEmpty={!stats?.ventas_por_rango?.length}
+        >
+          {(height) => (
+            <AreaChart
+              categories={stats?.ventas_por_rango?.map((d) => d.label) ?? []}
+              series={[{ name: "Ventas", data: stats?.ventas_por_rango?.map((d) => d.value) ?? [] }]}
+              formatValue={formatCurrency}
+              height={height}
+            />
+          )}
+        </ChartCard>
 
-        <Card className="border-border/60">
-          <CardContent className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
-                <Users className="size-4.5" />
-              </span>
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Clientes Registrados</span>
-                <span className="text-base font-bold">
-                  {isLoading || !stats ? <Skeleton className="h-5 w-12 my-0.5" /> : stats.total_clientes}
-                </span>
-              </div>
-            </div>
-            <Button nativeButton={false} render={<Link href="/clientes" />} variant="ghost" size="icon" className="size-8">
-              <ChevronRight className="size-4" />
-            </Button>
-          </CardContent>
-        </Card>
+        <ChartCard
+          title="Ventas por Método de Pago"
+          description="Distribución de ingresos por forma de cobro"
+          isLoading={isLoading}
+          isEmpty={!stats?.ventas_por_metodo_pago?.length}
+        >
+          {(height) => (
+            <DonutChart
+              labels={stats?.ventas_por_metodo_pago?.map((d) => d.name) ?? []}
+              series={stats?.ventas_por_metodo_pago?.map((d) => d.total) ?? []}
+              formatValue={formatCurrency}
+              height={height}
+            />
+          )}
+        </ChartCard>
+      </div>
 
-        <Card className="border-border/60">
-          <CardContent className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <span className="flex size-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
-                <CalendarClock className="size-4.5" />
-              </span>
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Lotes por Vencer (&lt;90d)</span>
-                <span className="text-base font-bold">
-                  {isLoading || !stats ? <Skeleton className="h-5 w-12 my-0.5" /> : stats.lotes_por_vencer_count}
-                </span>
-              </div>
-            </div>
-            <Button nativeButton={false} render={<Link href="/lotes" />} variant="ghost" size="icon" className="size-8">
-              <ChevronRight className="size-4" />
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <ChartCard
+          title="Ventas por Categoría"
+          description="Qué categorías generan más ingresos"
+          isLoading={isLoading}
+          isEmpty={!stats?.ventas_por_categoria?.length}
+        >
+          {(height) => (
+            <DonutChart
+              labels={stats?.ventas_por_categoria?.map((d) => d.name) ?? []}
+              series={stats?.ventas_por_categoria?.map((d) => d.total) ?? []}
+              formatValue={formatCurrency}
+              height={height}
+            />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          title="Ranking de Vendedores"
+          description="Total vendido por cajero/vendedor en el periodo"
+          isLoading={isLoading}
+          isEmpty={!stats?.ranking_vendedores?.length}
+        >
+          {(height) => (
+            <BarChart
+              categories={stats?.ranking_vendedores?.map((d) => d.name) ?? []}
+              series={stats?.ranking_vendedores?.map((d) => d.total_vendido) ?? []}
+              formatValue={formatCurrency}
+              color="#6366f1"
+              height={height}
+            />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          title="Ventas por Día de la Semana"
+          description="Últimos 30 días"
+          isLoading={isLoading}
+          isEmpty={!stats?.ventas_por_dia_semana?.some((d) => d.value > 0)}
+        >
+          {(height) => (
+            <BarChart
+              categories={stats?.ventas_por_dia_semana?.map((d) => d.label.slice(0, 3)) ?? []}
+              series={stats?.ventas_por_dia_semana?.map((d) => d.value) ?? []}
+              formatValue={formatCurrency}
+              horizontal={false}
+              color="#f59e0b"
+              height={height}
+            />
+          )}
+        </ChartCard>
+      </div>
+
+      <ChartCard
+        title="Horas Pico de Venta"
+        description="Ingresos por hora del día × día de la semana — últimos 30 días"
+        isLoading={isLoading}
+        isEmpty={!stats?.ventas_por_hora_dia?.length}
+        height={340}
+      >
+        {(height) => (
+          <HeatmapChart data={stats?.ventas_por_hora_dia ?? []} formatValue={formatCurrency} height={height} />
+        )}
+      </ChartCard>
+
+      {/* ============ SECCIÓN: INVENTARIO ============ */}
+      <SectionHeader
+        icon={Boxes}
+        title="Inventario"
+        description="Catálogo, niveles de stock y vencimientos"
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          icon={Boxes}
+          label="Medicamentos Registrados"
+          value={stats ? String(stats.total_medicamentos) : null}
+          subtext="Catálogo activo"
+          tone="primary"
+          href="/medicamentos"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          icon={PackageX}
+          label="Stock Bajo"
+          value={stats ? String(stats.stock_bajo_count) : null}
+          subtext={stats && stats.stock_bajo_count > 0 ? "Requiere reposición urgente" : "Niveles de stock óptimos"}
+          tone={stats && stats.stock_bajo_count > 0 ? "warning" : "muted"}
+          href="/medicamentos"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          icon={CalendarClock}
+          label="Lotes por Vencer (<90d)"
+          value={stats ? String(stats.lotes_por_vencer_count) : null}
+          subtext="Requieren rotación prioritaria"
+          tone={stats && stats.lotes_por_vencer_count > 0 ? "warning" : "muted"}
+          href="/lotes"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          icon={Percent}
+          label="Stock Saludable"
+          value={stockSaludablePct === null ? null : `${stockSaludablePct}%`}
+          subtext="Medicamentos sobre su mínimo"
+          tone={stockSaludablePct !== null && stockSaludablePct < 70 ? "warning" : "success"}
+          isLoading={isLoading}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ChartCard
+          title="Semáforo de Vencimiento"
+          description="Lotes con stock, por proximidad a vencer"
+          isLoading={isLoading}
+          isEmpty={!stats?.lotes_semaforo?.some((d) => d.value > 0)}
+        >
+          {(height) => (
+            <DonutChart
+              labels={stats?.lotes_semaforo?.map((d) => d.label) ?? []}
+              series={stats?.lotes_semaforo?.map((d) => d.value) ?? []}
+              colors={SEMAFORO_PALETTE}
+              formatValue={(v) => `${v} lote${v === 1 ? "" : "s"}`}
+              height={height}
+            />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          title="Productos de Baja Rotación"
+          description="Con stock disponible, pero poco vendidos (últimos 90 días)"
+          isLoading={isLoading}
+          isEmpty={!stats?.productos_baja_rotacion?.length}
+        >
+          {(height) => (
+            <BarChart
+              categories={stats?.productos_baja_rotacion?.map((d) => d.name) ?? []}
+              series={stats?.productos_baja_rotacion?.map((d) => d.vendido_90_dias) ?? []}
+              formatValue={(v) => `${v} uds.`}
+              color="#f43f5e"
+              height={height}
+            />
+          )}
+        </ChartCard>
+      </div>
+
+      {/* ============ SECCIÓN: COMPRAS Y RENTABILIDAD ============ */}
+      <SectionHeader
+        icon={ShoppingCart}
+        title="Compras y Rentabilidad"
+        description="Abastecimiento, proveedores y margen bruto"
+      />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <ChartCard
+          title="Compras vs. Ventas"
+          description="Comparativa mensual — últimos 6 meses"
+          className="lg:col-span-2"
+          isLoading={isLoading}
+          isEmpty={!stats?.compras_vs_ventas?.length}
+        >
+          {(height) => (
+            <ComboChart
+              categories={stats?.compras_vs_ventas?.map((d) => d.label) ?? []}
+              series={[
+                { name: "Ventas", data: stats?.compras_vs_ventas?.map((d) => d.ventas) ?? [] },
+                { name: "Compras", data: stats?.compras_vs_ventas?.map((d) => d.compras) ?? [] },
+              ]}
+              formatValue={formatCurrency}
+              height={height}
+            />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          title="Compras por Proveedor"
+          description="Participación de cada proveedor — últimos 90 días"
+          isLoading={isLoading}
+          isEmpty={!stats?.compras_por_proveedor?.length}
+        >
+          {(height) => (
+            <DonutChart
+              labels={stats?.compras_por_proveedor?.map((d) => d.name) ?? []}
+              series={stats?.compras_por_proveedor?.map((d) => d.total) ?? []}
+              formatValue={formatCurrency}
+              height={height}
+            />
+          )}
+        </ChartCard>
+      </div>
+
+      <ChartCard
+        title="Margen Bruto"
+        description="Ingreso vs. costo de lo vendido en el periodo"
+        isLoading={isLoading}
+        isEmpty={!stats?.margen_por_rango?.length}
+      >
+        {(height) => (
+          <AreaChart
+            categories={stats?.margen_por_rango?.map((d) => d.label) ?? []}
+            series={[
+              { name: "Ingreso", data: stats?.margen_por_rango?.map((d) => d.ingreso) ?? [], color: "#2dd4bf" },
+              { name: "Costo", data: stats?.margen_por_rango?.map((d) => d.costo) ?? [], color: "#f43f5e" },
+            ]}
+            formatValue={formatCurrency}
+            height={height}
+          />
+        )}
+      </ChartCard>
+    </div>
+  );
+}
+
+function SectionHeader({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-t border-border/60 pt-6 first:border-t-0 first:pt-0">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="size-4" aria-hidden />
+      </span>
+      <div className="flex flex-col">
+        <h2 className="text-lg font-bold tracking-tight">{title}</h2>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
     </div>
   );

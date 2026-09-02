@@ -56,6 +56,20 @@ export function AuditDetailDialog({
   const newKeys = Object.keys(audit.new_values || {});
   const allKeys = Array.from(new Set([...oldKeys, ...newKeys]));
 
+  // "created" y "restored" no tienen un "antes" real que comparar: el registro
+  // simplemente pasa a existir (o vuelve a existir) con esos valores. Mostrar
+  // "Valor Anterior: (Vacío)" en cada fila confunde, como si todo hubiera estado
+  // vacío antes — se muestra solo el estado final, igual que para "created".
+  const showOldValue = audit.event !== "created" && audit.event !== "restored";
+  const showArrow = audit.event === "updated";
+  const sectionTitle = audit.event === "restored"
+    ? "Datos Restaurados"
+    : audit.event === "created"
+      ? "Valores Registrados"
+      : audit.event === "deleted"
+        ? "Valores Eliminados"
+        : "Valores Modificados";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -109,7 +123,7 @@ export function AuditDetailDialog({
         {/* Tabla de cambios y valores modificados */}
         <div className="mt-3 space-y-2">
           <h4 className="text-sm font-semibold tracking-tight">
-            Valores Modificados ({allKeys.length})
+            {sectionTitle} ({allKeys.length})
           </h4>
 
           {allKeys.length === 0 ? (
@@ -122,14 +136,18 @@ export function AuditDetailDialog({
                 <thead className="bg-muted/60 text-muted-foreground uppercase text-[10px] tracking-wider border-b">
                   <tr>
                     <th className="p-2.5 text-left font-medium">Campo</th>
-                    {audit.event !== "created" && (
-                      <th className="p-2.5 text-left font-medium">Valor Anterior</th>
+                    {showOldValue && (
+                      <th className="p-2.5 text-left font-medium">
+                        {audit.event === "deleted" ? "Valor Eliminado" : "Valor Anterior"}
+                      </th>
                     )}
-                    {audit.event === "updated" && (
+                    {showArrow && (
                       <th className="p-2.5 text-center w-6 font-medium"></th>
                     )}
                     {audit.event !== "deleted" && (
-                      <th className="p-2.5 text-left font-medium">Valor Nuevo</th>
+                      <th className="p-2.5 text-left font-medium">
+                        {audit.event === "restored" ? "Valor Restaurado" : "Valor Nuevo"}
+                      </th>
                     )}
                   </tr>
                 </thead>
@@ -144,12 +162,12 @@ export function AuditDetailDialog({
                         <td className="p-2.5 font-medium text-foreground">
                           {getFieldLabel(key)}
                         </td>
-                        {audit.event !== "created" && (
+                        {showOldValue && (
                           <td className="p-2.5 text-rose-600 dark:text-rose-400 max-w-[200px] break-all">
                             {formatValueForDisplay(oldVal)}
                           </td>
                         )}
-                        {audit.event === "updated" && (
+                        {showArrow && (
                           <td className="p-2.5 text-center text-muted-foreground">
                             <ArrowRight className="size-3.5 mx-auto" />
                           </td>

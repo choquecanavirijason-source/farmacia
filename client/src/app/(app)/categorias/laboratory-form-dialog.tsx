@@ -8,6 +8,7 @@ import { FormDialog } from "@/components/layout/form-dialog";
 import { InputTextField } from "@/components/form";
 import { create, update } from "@/lib/api/laboratories";
 import type { ILaboratory, ILaboratoryRequest } from "@/lib/types/laboratory";
+import { setFormErrorsFromServer } from "@/lib/utils/form-errors";
 
 // Esquema de validación con Zod para Laboratorios
 const laboratorySchema = z.object({
@@ -46,6 +47,7 @@ function LaboratoryFormBody({
   const {
     handleSubmit,
     setError,
+    setFocus,
     formState: { isSubmitting },
   } = methods;
 
@@ -66,14 +68,7 @@ function LaboratoryFormBody({
       onSaved?.(response.data);
       onOpenChange(false);
     } catch (err: any) {
-      const fieldErrors = err?.response?.data?.errors;
-      if (fieldErrors && typeof fieldErrors === "object") {
-        Object.keys(fieldErrors).forEach((key) => {
-          const field = key as keyof LaboratoryFormValues;
-          const msg = Array.isArray(fieldErrors[key]) ? fieldErrors[key][0] : fieldErrors[key];
-          setError(field, { type: "server", message: msg });
-        });
-      }
+      setFormErrorsFromServer<LaboratoryFormValues>(err, setError, setFocus);
 
       const message =
         err?.response?.data?.message ||

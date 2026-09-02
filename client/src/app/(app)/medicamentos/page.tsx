@@ -31,11 +31,15 @@ import {
   restore,
   update,
   exportResource,
+  fetchCategorias,
+  fetchPresentaciones,
+  fetchLaboratorios,
 } from "@/lib/api/medicaments";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IMedicament, MedicamentTableEditableField } from "@/lib/types/medicament";
+import type { Categoria, Laboratorio, Presentacion } from "@/lib/types";
 import { MedicamentFormDialog } from "./medicament-form-dialog";
 import { cn } from "@/lib/utils";
 
@@ -64,6 +68,18 @@ export default function MedicamentosPage() {
   const [selectedRows, setSelectedRows] = useState<IMedicament[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [selectionClearKey, setSelectionClearKey] = useState(0);
+
+  // Catálogos de apoyo (categoría/presentación/laboratorio) para el formulario.
+  // Se cargan una sola vez al entrar a la página, no cada vez que se abre el diálogo.
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [presentaciones, setPresentaciones] = useState<Presentacion[]>([]);
+  const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
+
+  useEffect(() => {
+    fetchCategorias().then(setCategorias).catch(() => setCategorias([]));
+    fetchPresentaciones().then(setPresentaciones).catch(() => setPresentaciones([]));
+    fetchLaboratorios().then(setLaboratorios).catch(() => setLaboratorios([]));
+  }, []);
 
   // Función para recargar la tabla
   const refresh = useCallback(() => {
@@ -481,6 +497,9 @@ export default function MedicamentosPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         medicament={editing}
+        categorias={categorias}
+        presentaciones={presentaciones}
+        laboratorios={laboratorios}
         onSaved={handleSaved}
       />
 

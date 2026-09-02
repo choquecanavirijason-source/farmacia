@@ -8,6 +8,7 @@ import { FormDialog } from "@/components/layout/form-dialog";
 import { InputTextField, NumericField } from "@/components/form";
 import { create, update as updateClient } from "@/lib/api/clients";
 import type { IClient, IClientRequest } from "@/lib/types/client";
+import { setFormErrorsFromServer } from "@/lib/utils/form-errors";
 
 // Esquema de validación con Zod para Clientes
 const clientSchema = z.object({
@@ -84,6 +85,7 @@ function ClientFormBody({
   const {
     handleSubmit,
     setError,
+    setFocus,
     formState: { isSubmitting },
   } = methods;
 
@@ -107,14 +109,7 @@ function ClientFormBody({
       onSaved(response.data);
       onOpenChange(false);
     } catch (err: any) {
-      const fieldErrors = err?.response?.data?.errors;
-      if (fieldErrors && typeof fieldErrors === "object") {
-        Object.keys(fieldErrors).forEach((key) => {
-          const field = key as keyof ClientFormData;
-          const msg = Array.isArray(fieldErrors[key]) ? fieldErrors[key][0] : fieldErrors[key];
-          setError(field, { type: "server", message: msg });
-        });
-      }
+      setFormErrorsFromServer<ClientFormData>(err, setError, setFocus);
 
       const message =
         err?.response?.data?.message ||

@@ -8,6 +8,7 @@ import { FormDialog } from "@/components/layout/form-dialog";
 import { InputTextField, TextAreaField } from "@/components/form";
 import { create, update } from "@/lib/api/presentations";
 import type { IPresentation, IPresentationRequest } from "@/lib/types/presentation";
+import { setFormErrorsFromServer } from "@/lib/utils/form-errors";
 
 // Esquema de validación con Zod para Presentaciones
 const presentationSchema = z.object({
@@ -44,6 +45,7 @@ function PresentationFormBody({
   const {
     handleSubmit,
     setError,
+    setFocus,
     formState: { isSubmitting },
   } = methods;
 
@@ -63,14 +65,7 @@ function PresentationFormBody({
       onSaved?.(response.data);
       onOpenChange(false);
     } catch (err: any) {
-      const fieldErrors = err?.response?.data?.errors;
-      if (fieldErrors && typeof fieldErrors === "object") {
-        Object.keys(fieldErrors).forEach((key) => {
-          const field = key as keyof PresentationFormValues;
-          const msg = Array.isArray(fieldErrors[key]) ? fieldErrors[key][0] : fieldErrors[key];
-          setError(field, { type: "server", message: msg });
-        });
-      }
+      setFormErrorsFromServer<PresentationFormValues>(err, setError, setFocus);
 
       const message =
         err?.response?.data?.message ||

@@ -87,10 +87,13 @@ export function DraggableRow<T>({
             ref={rowRef}
             style={style}
             className={cn(
-                "border-b transition-colors hover:bg-muted/50 even:bg-muted/40 data-[state=selected]:bg-muted/60",
+                "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted/60",
+                // El "cebreado" de filas pares (:nth-child) tiene más especificidad CSS que un
+                // simple bg-*, así que ganaría sobre el color de estado (ej. stock bajo) en
+                // filas pares. Se omite cuando la fila ya trae su propio color semántico.
+                !rowClassName && "even:bg-muted/40",
                 isSelected && "bg-muted/50",
                 isDragging && "shadow-lg ring-2 ring-primary",
-                isDisabled && "pointer-events-none opacity-60",
                 rowClassName
             )}
             data-state={isSelected ? "selected" : undefined}

@@ -499,6 +499,7 @@ export default function CajaPage() {
           onOpenChange={(open) => !open && setMovimientoTipo(null)}
           idCaja={cajaAbierta.id_caja}
           onMovimientoRegistrado={handleMovimientoCreado}
+          initialTipo={movimientoTipo ?? "egreso"}
         />
       ) : null}
 

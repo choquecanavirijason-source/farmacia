@@ -66,7 +66,7 @@ export function PurchaseDetailSheet({
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="flex flex-col gap-4 mt-4 text-xs">
+          <div className="flex flex-col gap-4 text-xs">
             <div className="border rounded-lg p-3">
               <table className="w-full text-left">
                 <thead>

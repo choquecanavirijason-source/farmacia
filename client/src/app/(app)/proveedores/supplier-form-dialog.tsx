@@ -8,6 +8,7 @@ import { FormDialog } from "@/components/layout/form-dialog";
 import { InputTextField, NumericField } from "@/components/form";
 import { create, update } from "@/lib/api/suppliers";
 import type { ISupplier, ISupplierRequest } from "@/lib/types/supplier";
+import { setFormErrorsFromServer } from "@/lib/utils/form-errors";
 
 // Esquema de validación con Zod para Proveedores
 const supplierSchema = z.object({
@@ -56,6 +57,7 @@ function SupplierFormBody({
   const {
     handleSubmit,
     setError,
+    setFocus,
     formState: { isSubmitting },
   } = methods;
 
@@ -78,14 +80,7 @@ function SupplierFormBody({
       onSaved?.(response.data);
       onOpenChange(false);
     } catch (err: any) {
-      const fieldErrors = err?.response?.data?.errors;
-      if (fieldErrors && typeof fieldErrors === "object") {
-        Object.keys(fieldErrors).forEach((key) => {
-          const field = key as keyof SupplierFormValues;
-          const msg = Array.isArray(fieldErrors[key]) ? fieldErrors[key][0] : fieldErrors[key];
-          setError(field, { type: "server", message: msg });
-        });
-      }
+      setFormErrorsFromServer<SupplierFormValues>(err, setError, setFocus);
 
       const message =
         err?.response?.data?.message ||

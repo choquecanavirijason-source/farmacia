@@ -11,6 +11,7 @@ import { SearchableSelect } from "@/components/ui/combobox";
 import { create, update } from "@/lib/api/batches";
 import type { IBatch, IBatchRequest } from "@/lib/types/batch";
 import type { Medicamento } from "@/lib/types";
+import { setFormErrorsFromServer } from "@/lib/utils/form-errors";
 
 // Esquema de validación con Zod para Lotes
 const batchSchema = z.object({
@@ -56,6 +57,7 @@ function BatchFormBody({
     handleSubmit,
     control,
     setError,
+    setFocus,
     formState: { isSubmitting },
   } = methods;
 
@@ -78,14 +80,7 @@ function BatchFormBody({
       onSaved?.(response.data);
       onOpenChange(false);
     } catch (err: any) {
-      const fieldErrors = err?.response?.data?.errors;
-      if (fieldErrors && typeof fieldErrors === "object") {
-        Object.keys(fieldErrors).forEach((key) => {
-          const field = key as keyof BatchFormValues;
-          const msg = Array.isArray(fieldErrors[key]) ? fieldErrors[key][0] : fieldErrors[key];
-          setError(field, { type: "server", message: msg });
-        });
-      }
+      setFormErrorsFromServer<BatchFormValues>(err, setError, setFocus);
 
       const message =
         err?.response?.data?.message ||

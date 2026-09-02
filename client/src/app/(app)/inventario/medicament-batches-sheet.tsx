@@ -45,7 +45,7 @@ export function MedicamentBatchesSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-4 flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Lotes Registrados ({lotesDelMedicamento.length})
           </p>

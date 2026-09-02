@@ -161,7 +161,8 @@ export function TableBody<T>({
                     <tr
                         key={id ?? index}
                         className={cn(
-                            "border-b transition-colors hover:bg-muted/50 even:bg-muted/40 data-[state=selected]:bg-muted/60",
+                            "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted/60",
+                            !rowClassName && "even:bg-muted/40",
                             isSelected && "bg-muted/50",
                             rowClassName
                         )}

@@ -29,6 +29,7 @@ interface CashMovementDialogProps {
   onOpenChange: (open: boolean) => void;
   idCaja: number;
   onMovimientoRegistrado: (movimiento: MovimientoCaja) => void;
+  initialTipo?: MovimientoCajaTipo;
 }
 
 export function CashMovementDialog({
@@ -36,8 +37,9 @@ export function CashMovementDialog({
   onOpenChange,
   idCaja,
   onMovimientoRegistrado,
+  initialTipo = "egreso",
 }: CashMovementDialogProps) {
-  const [tipo, setTipo] = useState<MovimientoCajaTipo>("egreso");
+  const [tipo, setTipo] = useState<MovimientoCajaTipo>(initialTipo);
   const [monto, setMonto] = useState("");
   const [motivo, setMotivo] = useState("");
   const [loading, setLoading] = useState(false);
@@ -45,12 +47,12 @@ export function CashMovementDialog({
 
   useEffect(() => {
     if (open) {
-      setTipo("egreso");
+      setTipo(initialTipo);
       setMonto("");
       setMotivo("");
       setError(null);
     }
-  }, [open]);
+  }, [open, initialTipo]);
 
   if (!open) return null;
 
@@ -101,7 +103,7 @@ export function CashMovementDialog({
           <div className="flex flex-col gap-2">
             <Label htmlFor="tipo">Tipo de Movimiento</Label>
             <Select value={tipo} onValueChange={(val) => setTipo(val as MovimientoCajaTipo)}>
-              <SelectTrigger id="tipo">
+              <SelectTrigger id="tipo" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

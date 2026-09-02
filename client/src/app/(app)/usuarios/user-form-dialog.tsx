@@ -11,6 +11,7 @@ import { create, update } from "@/lib/api/users";
 import { fetchRoles } from "@/lib/api/roles";
 import type { IUser, IUserRequest } from "@/lib/types/user";
 import type { IRole } from "@/lib/types/role";
+import { setFormErrorsFromServer } from "@/lib/utils/form-errors";
 
 const userSchema = z
   .object({
@@ -90,6 +91,7 @@ function UserFormBody({
   const {
     handleSubmit,
     setError,
+    setFocus,
     formState: { isSubmitting },
   } = methods;
 
@@ -115,14 +117,7 @@ function UserFormBody({
       onSaved?.(response.data);
       onOpenChange(false);
     } catch (err: any) {
-      const fieldErrors = err?.response?.data?.errors;
-      if (fieldErrors && typeof fieldErrors === "object") {
-        Object.keys(fieldErrors).forEach((key) => {
-          const field = key as keyof UserFormValues;
-          const msg = Array.isArray(fieldErrors[key]) ? fieldErrors[key][0] : fieldErrors[key];
-          setError(field, { type: "server", message: msg });
-        });
-      }
+      setFormErrorsFromServer<UserFormValues>(err, setError, setFocus);
 
       const message =
         err?.response?.data?.message || err?.message || "No se pudo guardar el usuario.";

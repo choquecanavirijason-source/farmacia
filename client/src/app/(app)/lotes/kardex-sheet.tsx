@@ -40,7 +40,7 @@ function KardexBody({ lote }: { lote: Lote }) {
   }, [lote.id_lote, lote.id]);
 
   return (
-    <div className="flex flex-col gap-3 overflow-y-auto px-4 pb-4">
+    <div className="flex flex-col gap-3">
       {movimientos === null ? (
         Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)
       ) : movimientos.length === 0 ? (

@@ -50,6 +50,37 @@ export interface IDashboardStats {
   ventas_rango_total?: number;
   rango_inicio?: string;
   rango_fin?: string;
+  ventas_mes_anterior?: number;
+  variacion_mensual_pct?: number | null;
+  ticket_promedio_hoy?: number;
+  total_medicamentos_stock_saludable?: number;
+
+  ventas_por_metodo_pago?: { id: number; name: string; total: number }[];
+  ventas_por_categoria?: { id: number; name: string; total: number }[];
+  margen_por_rango?: {
+    date: string;
+    label: string;
+    ingreso: number;
+    costo: number;
+    margen: number;
+  }[];
+  compras_por_proveedor?: { id: number; name: string; total: number }[];
+  ranking_vendedores?: {
+    id: number;
+    name: string;
+    total_vendido: number;
+    cantidad_ventas: number;
+  }[];
+  lotes_semaforo?: { label: string; value: number }[];
+  compras_vs_ventas?: { label: string; ventas: number; compras: number }[];
+  productos_baja_rotacion?: {
+    id: number;
+    name: string;
+    code?: string;
+    vendido_90_dias: number;
+  }[];
+  ventas_por_dia_semana?: { label: string; value: number }[];
+  ventas_por_hora_dia?: { day: string; horas: number[] }[];
 }
 
 export interface DashboardFilterParams {

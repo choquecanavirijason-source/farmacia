@@ -39,6 +39,7 @@ import {
   computeProximosAVencer,
   computeStockBajo,
   diasHasta,
+  fetchBatches,
   DIAS_ALERTA_VENCIMIENTO,
 } from "@/lib/api/batches";
 import { fetchMedicamentos } from "@/lib/api/medicaments";
@@ -73,6 +74,11 @@ export default function LotesPage() {
   // Catálogo de medicamentos para referencias y alertas
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
 
+  // Lotes completos (sin paginar) — las alertas deben mirar TODO el inventario,
+  // no solo la página actual de la tabla, o darían falsos positivos.
+  const [allBatches, setAllBatches] = useState<IBatch[]>([]);
+  const [batchesLoaded, setBatchesLoaded] = useState(false);
+
   // Estados de formularios y acciones
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<IBatch | null>(null);
@@ -88,15 +94,25 @@ export default function LotesPage() {
     fetchMedicamentos().then(setMedicamentos);
   }, []);
 
+  // Recarga el inventario completo de lotes cada vez que algo cambia (crear/editar/
+  // eliminar/dar de baja), para que las alertas de stock bajo y vencimiento reflejen
+  // el estado real, no solo la página visible de la tabla.
+  useEffect(() => {
+    fetchBatches(true)
+      .then(setAllBatches)
+      .finally(() => setBatchesLoaded(true));
+  }, [refreshKey]);
+
   // Mapeo para búsqueda rápida de medicamento por ID
   const medicamentoById = useMemo(
     () => new Map(medicamentos.map((m) => [m.id_medicamento, m])),
     [medicamentos]
   );
 
-  // Adaptación de lotes para cálculo de alertas en frontend
+  // Adaptación de lotes para cálculo de alertas en frontend.
+  // Usa allBatches (inventario completo), no items (solo la página visible de la tabla).
   const lotesParaAlertas = useMemo<Lote[]>(() => {
-    return items
+    return allBatches
       .filter((b) => !b.deleted_at)
       .map((b) => ({
         ...b,
@@ -107,7 +123,7 @@ export default function LotesPage() {
         precio_compra: Number(b.purchase_price),
         id_medicamento: b.medicament_id,
       }));
-  }, [items]);
+  }, [allBatches]);
 
   const alertaVencimiento = useMemo(
     () => computeProximosAVencer(lotesParaAlertas),
@@ -467,7 +483,8 @@ export default function LotesPage() {
       </div>
 
       {/* Tarjetas informativas de alertas de inventario */}
-      {(alertaVencimiento.length > 0 || alertaStockBajo.length > 0) && (
+      {/* batchesLoaded evita el falso "todo con stock bajo" mientras allBatches aún está vacío */}
+      {batchesLoaded && (alertaVencimiento.length > 0 || alertaStockBajo.length > 0) && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {alertaVencimiento.length > 0 && (
             <Card className="border-warning/30 bg-warning/5">

@@ -8,6 +8,7 @@ import { FormDialog } from "@/components/layout/form-dialog";
 import { InputTextField, TextAreaField } from "@/components/form";
 import { create, update } from "@/lib/api/categories";
 import type { ICategory, ICategoryRequest } from "@/lib/types/category";
+import { setFormErrorsFromServer } from "@/lib/utils/form-errors";
 
 // Esquema de validación con Zod para Categorías
 const categorySchema = z.object({
@@ -44,6 +45,7 @@ function CategoryFormBody({
   const {
     handleSubmit,
     setError,
+    setFocus,
     formState: { isSubmitting },
   } = methods;
 
@@ -63,14 +65,7 @@ function CategoryFormBody({
       onSaved?.(response.data);
       onOpenChange(false);
     } catch (err: any) {
-      const fieldErrors = err?.response?.data?.errors;
-      if (fieldErrors && typeof fieldErrors === "object") {
-        Object.keys(fieldErrors).forEach((key) => {
-          const field = key as keyof CategoryFormValues;
-          const msg = Array.isArray(fieldErrors[key]) ? fieldErrors[key][0] : fieldErrors[key];
-          setError(field, { type: "server", message: msg });
-        });
-      }
+      setFormErrorsFromServer<CategoryFormValues>(err, setError, setFocus);
 
       const message =
         err?.response?.data?.message ||

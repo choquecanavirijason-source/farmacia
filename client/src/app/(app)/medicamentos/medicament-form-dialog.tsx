@@ -25,6 +25,7 @@ import {
 } from "@/lib/api/medicaments";
 import type { IMedicament, IMedicamentRequest } from "@/lib/types/medicament";
 import type { Categoria, Laboratorio, Presentacion } from "@/lib/types";
+import { setFormErrorsFromServer } from "@/lib/utils/form-errors";
 
 const medicamentSchema = z.object({
   code: z.string().trim().min(1, "El código es obligatorio."),
@@ -98,6 +99,7 @@ function MedicamentFormBody({
     handleSubmit,
     control,
     setError,
+    setFocus,
     formState: { isSubmitting },
   } = methods;
 
@@ -125,16 +127,7 @@ function MedicamentFormBody({
       onSaved?.(response.data);
       onOpenChange(false);
     } catch (err: any) {
-      const fieldErrors = err?.response?.data?.errors;
-      if (fieldErrors && typeof fieldErrors === "object") {
-        Object.keys(fieldErrors).forEach((key) => {
-          const field = key as keyof MedicamentFormValues;
-          const msg = Array.isArray(fieldErrors[key])
-            ? fieldErrors[key][0]
-            : fieldErrors[key];
-          setError(field, { type: "server", message: msg });
-        });
-      }
+      setFormErrorsFromServer<MedicamentFormValues>(err, setError, setFocus);
 
       const message =
         err?.response?.data?.message ||

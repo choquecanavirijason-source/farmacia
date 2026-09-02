@@ -34,9 +34,10 @@ function getPageRange(page: number, pageCount: number, siblingCount: number = 1)
   }
 
   if (shouldShowLeftDots && !shouldShowRightDots) {
+    const rightLength = 3 + siblingCount * 2;
     const rightRange = Array.from(
-      { length: 3 + siblingCount * 2 },
-      (_, i) => pageCount - (2 + siblingCount * 2) + i + 1
+      { length: rightLength },
+      (_, i) => pageCount - rightLength + 1 + i
     );
     return [1, "…", ...rightRange];
   }
