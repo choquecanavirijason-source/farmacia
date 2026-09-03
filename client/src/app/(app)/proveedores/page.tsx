@@ -93,7 +93,8 @@ export default function ProveedoresPage() {
         sort_by: params.sort?.key || "name",
         sort_dir: params.sort?.direction || "asc",
       },
-      controller.signal
+      controller.signal,
+      { status: "all" }
     )
       .then((result) => {
         setItems(result.data);
@@ -389,7 +390,11 @@ export default function ProveedoresPage() {
         emptyMessage="No se encontraron proveedores."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="proveedores.csv"
-        onExport={can(PERMISSIONS.EXPORT_SUPPLIERS) ? exportResource : undefined}
+        onExport={
+          can(PERMISSIONS.EXPORT_SUPPLIERS)
+            ? (format) => exportResource(format, { status: "all" })
+            : undefined
+        }
         onRefresh={refresh}
         getRowId={(p) => p.id}
         onSelectionChange={can(PERMISSIONS.DELETE_SUPPLIERS) ? setSelectedRows : undefined}

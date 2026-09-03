@@ -19,7 +19,7 @@ class PurchaseService
 {
     public function getPaginated(array $filters, int $perPage = 10, string $sortBy = 'purchase_date', string $sortDir = 'desc'): LengthAwarePaginator
     {
-        return Purchase::with(['supplier', 'details.medicament'])
+        return Purchase::with(['supplier', 'details.medicament', 'branch'])
             ->when(!empty($filters['search']), fn ($q) => $q->search((string) $filters['search']))
             ->filter($filters)
             ->sort($sortBy, $sortDir)
@@ -75,6 +75,7 @@ class PurchaseService
                 'invoice_number' => $data['invoice_number'],
                 'purchase_date'  => $data['purchase_date'],
                 'total'          => $total,
+                'branch_id'      => $data['branch_id'],
             ]);
 
             foreach ($data['items'] as $item) {
@@ -84,6 +85,7 @@ class PurchaseService
                     'purchase_price'   => $item['unit_price'],
                     'medicament_id'    => $item['medicament_id'],
                     'current_quantity' => $item['quantity'],
+                    'branch_id'        => $data['branch_id'],
                 ]);
 
                 InventoryMovement::create([

@@ -108,7 +108,8 @@ export default function MedicamentosPage() {
         sort_by: params.sort?.key || "name",
         sort_dir: params.sort?.direction || "asc",
       },
-      controller.signal
+      controller.signal,
+      { deleted: "all" }
     )
       .then((result) => {
         setItems(result.data);
@@ -478,6 +479,7 @@ export default function MedicamentosPage() {
                   search: params.search,
                   sort_by: params.sort?.key,
                   sort_dir: params.sort?.direction,
+                  deleted: "all",
                 })
             : undefined
         }

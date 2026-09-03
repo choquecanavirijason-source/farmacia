@@ -51,6 +51,8 @@ export interface ISale {
   user?: IUser;
   details?: ISaleDetail[];
   invoice?: IInvoice;
+  branch_id?: number;
+  branch?: { id: number; name: string };
   created_id?: number | null;
   updated_id?: number | null;
   deleted_id?: number | null;

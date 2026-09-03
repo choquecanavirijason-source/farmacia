@@ -5,9 +5,13 @@ import type { IApiResponse } from "@/lib/types/api";
 
 export const getPaginated = async (
   params: IPaginationRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  filters?: { status?: string }
 ): Promise<IPaginatedResponse<ILaboratory>> => {
-  const res = await apiClient.get<IPaginatedResponse<ILaboratory>>("/laboratories", { params, signal });
+  const res = await apiClient.get<IPaginatedResponse<ILaboratory>>("/laboratories", {
+    params: { ...params, ...filters },
+    signal,
+  });
   return res.data;
 };
 
@@ -36,9 +40,9 @@ export const restore = async (id: number): Promise<IApiResponse<ILaboratory>> =>
   return response.data;
 };
 
-export const exportResource = async (format: "excel" | "pdf"): Promise<Blob> => {
+export const exportResource = async (format: "excel" | "pdf", filters: Record<string, any> = {}): Promise<Blob> => {
   const res = await apiClient.get<Blob>("/laboratories/export", {
-    params: { format },
+    params: { format, ...filters },
     responseType: "blob",
   });
   return res.data;

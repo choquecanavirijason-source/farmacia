@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/context/auth-context";
+import { BranchViewProvider } from "@/context/branch-view-context";
 import { DndAppProvider } from "@/components/dnd-provider";
 
 const fontSans = Inter({
@@ -32,8 +33,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <DndAppProvider>
             <AuthProvider>
-              <div id="app-shell">{children}</div>
-              <Toaster richColors position="top-right" />
+              <BranchViewProvider>
+                <div id="app-shell">{children}</div>
+                <Toaster richColors position="top-right" />
+              </BranchViewProvider>
             </AuthProvider>
           </DndAppProvider>
         </ThemeProvider>

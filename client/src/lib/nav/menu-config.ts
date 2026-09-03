@@ -152,6 +152,13 @@ export const MENU_GROUPS: MenuGroup[] = [
             permission: PERMISSIONS.VIEW_ROLES,
             roles: ["ADMINISTRADOR"],
           },
+          {
+            href: "/sucursales",
+            label: "Sucursales",
+            iconName: "building",
+            permission: PERMISSIONS.VIEW_BRANCHES,
+            roles: ["ADMINISTRADOR"],
+          },
         ],
       },
       {

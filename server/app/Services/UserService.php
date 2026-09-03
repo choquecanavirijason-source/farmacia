@@ -37,7 +37,7 @@ class UserService
         }
 
         return $query
-            ->with('roles')
+            ->with('roles', 'branches')
             ->when($search !== '', fn ($q) => $q->search($search))
             ->sort($sortBy, $sortDir)
             ->paginate($perPage);
@@ -46,7 +46,9 @@ class UserService
     public function create(array $data): User
     {
         $roles = $data['roles'] ?? (!empty($data['role']) ? [$data['role']] : []);
-        unset($data['role'], $data['roles']);
+        $branchIds = $data['branch_ids'] ?? [];
+        $defaultBranchId = $data['default_branch_id'] ?? null;
+        unset($data['role'], $data['roles'], $data['branch_ids'], $data['default_branch_id']);
         $data['password'] = Hash::make($data['password']);
         $data['state'] = 'active';
 
@@ -55,13 +57,17 @@ class UserService
             $user->syncRoles((array) $roles);
         }
 
-        return $user->load('roles');
+        $this->syncBranches($user, $branchIds, $defaultBranchId);
+
+        return $user->refresh()->load('roles', 'branches');
     }
 
     public function update(User $user, array $data): User
     {
         $roles = $data['roles'] ?? ($data['role'] ?? null);
-        unset($data['role'], $data['roles']);
+        $branchIds = $data['branch_ids'] ?? null;
+        $defaultBranchId = $data['default_branch_id'] ?? null;
+        unset($data['role'], $data['roles'], $data['branch_ids'], $data['default_branch_id']);
 
         if (!empty($data['password'])) {
             $data['password'] = Hash::make($data['password']);
@@ -79,7 +85,33 @@ class UserService
             $user->syncRoles($rolesList);
         }
 
-        return $user->refresh()->load('roles');
+        if ($branchIds !== null) {
+            $this->syncBranches($user, $branchIds, $defaultBranchId);
+        }
+
+        return $user->refresh()->load('roles', 'branches');
+    }
+
+    /** Sincroniza las sucursales asignadas a un usuario y su sucursal por defecto/activa. */
+    private function syncBranches(User $user, array $branchIds, ?int $defaultBranchId): void
+    {
+        if (empty($branchIds)) {
+            return;
+        }
+
+        if (!$defaultBranchId || !in_array($defaultBranchId, $branchIds, true)) {
+            $defaultBranchId = $branchIds[0];
+        }
+
+        $pivotData = [];
+        foreach ($branchIds as $branchId) {
+            $pivotData[$branchId] = ['is_default' => $branchId === $defaultBranchId];
+        }
+        $user->branches()->sync($pivotData);
+
+        if (!$user->active_branch_id || !in_array($user->active_branch_id, $branchIds, true)) {
+            $user->update(['active_branch_id' => $defaultBranchId]);
+        }
     }
 
     public function delete(int $id, ?int $currentAuthId = null): void

@@ -9,11 +9,12 @@ use App\Http\Resources\Sales\SaleResource;
 use App\Models\Sale;
 use App\Services\SaleService;
 use App\Traits\ApiResponseTrait;
+use App\Traits\ResolvesBranchScope;
 use Illuminate\Http\Request;
 
 class SaleController
 {
-    use ApiResponseTrait;
+    use ApiResponseTrait, ResolvesBranchScope;
 
     public function __construct(
         protected SaleService $saleService
@@ -22,6 +23,7 @@ class SaleController
     public function index(PaginationRequest $request)
     {
         $filters = $request->getFilters(['status', 'client_id', 'start_date', 'end_date', 'search']);
+        $filters['branch_id'] = $this->resolveBranchScope($request);
 
         $result = $this->saleService->getPaginated(
             $filters,
@@ -41,7 +43,10 @@ class SaleController
 
     public function store(StoreSaleRequest $request)
     {
-        $saleData = $this->saleService->create($request->validated(), $request->user());
+        $data = $request->validated();
+        $data['branch_id'] = $request->user()->active_branch_id;
+
+        $saleData = $this->saleService->create($data, $request->user());
         return $this->createdResponse($saleData, 'Venta registrada con éxito con factura y movimientos de caja/inventario.');
     }
 

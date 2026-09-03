@@ -17,6 +17,9 @@ export interface IAudit {
     auditable_type: string;
     auditable_type_full?: string;
     auditable_id: number;
+    subject_label?: string | null;
+    branch_id?: number | null;
+    branch?: { id: number; name: string | null } | null;
     old_values: Record<string, any>;
     new_values: Record<string, any>;
     url?: string;
@@ -39,4 +42,5 @@ export interface IAuditFilterParams {
     date_to?: string;
     event?: string;
     model?: string;
+    branch_id?: string | number;
 }

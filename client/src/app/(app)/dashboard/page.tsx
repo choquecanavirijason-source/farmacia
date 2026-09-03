@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fetchDashboardStats, type IDashboardStats } from "@/lib/api/dashboard";
 import { formatCurrency } from "@/lib/format";
 import { PERMISSIONS } from "@/lib/constants/permissions";
+import { useBranchView } from "@/context/branch-view-context";
 import { ChartCard } from "./charts/chart-card";
 import { AreaChart } from "./charts/area-chart";
 import { DonutChart } from "./charts/donut-chart";
@@ -41,6 +42,7 @@ function formatFechaCorta(iso?: string): string {
 
 export default function DashboardPage() {
   const { user, can } = useAuth();
+  const { branchScope } = useBranchView();
   const [stats, setStats] = useState<IDashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,7 +54,7 @@ export default function DashboardPage() {
     let isMounted = true;
     setIsLoading(true);
 
-    fetchDashboardStats()
+    fetchDashboardStats(branchScope ? { branch_id: branchScope } : undefined)
       .then((data) => {
         if (isMounted) {
           setStats(data);
@@ -70,7 +72,7 @@ export default function DashboardPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [branchScope]);
 
   const stockSaludablePct = stats && stats.total_medicamentos
     ? Math.round(((stats.total_medicamentos_stock_saludable ?? 0) / stats.total_medicamentos) * 100)

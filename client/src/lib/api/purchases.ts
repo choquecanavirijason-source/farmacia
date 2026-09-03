@@ -14,7 +14,7 @@ export const fetchPurchases = async (
 export const getPurchasesPaginated = async (
   params: ServerFetchParams | any,
   signal?: AbortSignal,
-  filters?: { supplier_id?: string; start_date?: string; end_date?: string }
+  filters?: { supplier_id?: string; start_date?: string; end_date?: string; branch_id?: string | number }
 ): Promise<IPaginatedResponse<IPurchase>> => {
   const query = {
     page: params.page,

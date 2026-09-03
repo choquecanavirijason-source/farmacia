@@ -25,7 +25,8 @@ class SupplierController
             $request->getSearch(),
             $request->getPerPage(10),
             $request->getSortBy('name'),
-            $request->getSortDir('asc')
+            $request->getSortDir('asc'),
+            (string) $request->query('status', 'active')
         );
 
         return $this->collectionResponse(SupplierResource::collection($result), 'Proveedores obtenidos con éxito.');
@@ -74,7 +75,8 @@ class SupplierController
         $search = trim((string) $request->query('search'));
         $sortBy = (string) $request->query('sort_by', 'name');
         $sortDir = (string) $request->query('sort_dir', 'asc');
+        $status = (string) $request->query('status', 'all');
 
-        return $this->supplierService->export($format, $search, $sortBy, $sortDir);
+        return $this->supplierService->export($format, $search, $sortBy, $sortDir, $status);
     }
 }

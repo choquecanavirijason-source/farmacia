@@ -35,6 +35,17 @@ class AuthController
             ]);
         }
 
+        if (!$user->active_branch_id) {
+            $defaultBranch = $user->branches()->wherePivot('is_default', true)->first()
+                ?? $user->branches()->first();
+
+            if ($defaultBranch) {
+                $user->update(['active_branch_id' => $defaultBranch->id]);
+            }
+        }
+
+        $user->load('branches');
+
         return $this->_generateTokenAndResponse_($user);
     }
 
@@ -47,7 +58,10 @@ class AuthController
 
     public function me(Request $request)
     {
-        return $this->_generateResponse_($request->user());
+        $user = $request->user();
+        $user->load('branches');
+
+        return $this->_generateResponse_($user);
     }
 
     public function updateProfile(UpdateProfileRequest $request)

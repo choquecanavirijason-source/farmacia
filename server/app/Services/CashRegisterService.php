@@ -15,29 +15,34 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CashRegisterService
 {
-    public function getCurrent(): ?CashRegister
+    public function getCurrent(?int $branchId = null): ?CashRegister
     {
-        return CashRegister::with('movements')->where('status', 'open')->latest('opened_at')->first();
+        return CashRegister::with('movements')
+            ->where('status', 'open')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->latest('opened_at')
+            ->first();
     }
 
     public function getPaginated(array $filters, int $perPage = 10, string $sortBy = 'opened_at', string $sortDir = 'desc'): LengthAwarePaginator
     {
-        return CashRegister::query()
+        return CashRegister::with('branch')
             ->filter($filters)
             ->sort($sortBy, $sortDir)
             ->paginate($perPage);
     }
 
-    public function open(float $openingAmount): CashRegister
+    public function open(float $openingAmount, int $branchId): CashRegister
     {
-        if (CashRegister::where('status', 'open')->exists()) {
-            throw new HttpException(409, 'Ya hay una caja abierta.');
+        if (CashRegister::where('status', 'open')->where('branch_id', $branchId)->exists()) {
+            throw new HttpException(409, 'Ya hay una caja abierta en esta sucursal.');
         }
 
         return CashRegister::create([
             'opened_at'      => now(),
             'opening_amount' => $openingAmount,
             'status'         => 'open',
+            'branch_id'      => $branchId,
         ]);
     }
 

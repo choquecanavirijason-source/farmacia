@@ -15,33 +15,53 @@ class DashboardService
 {
     public function getStats(array $filters = []): array
     {
+        $branchId = !empty($filters['branch_id']) ? (int) $filters['branch_id'] : null;
+
         $today = Carbon::today();
         $startOfMonth = Carbon::now()->startOfMonth();
 
-        $salesTodayQuery = Sale::where('status', 'active')->whereDate('sold_at', $today);
+        $salesTodayQuery = Sale::where('status', 'active')
+            ->whereDate('sold_at', $today)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
         $totalSalesToday = (float) $salesTodayQuery->sum('total');
         $salesCountToday = (int) $salesTodayQuery->count();
 
         $totalSalesMonth = (float) Sale::where('status', 'active')
             ->where('sold_at', '>=', $startOfMonth)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->sum('total');
 
         $totalClients = Client::count();
         $totalMedicaments = Medicament::count();
 
+        // En modo "una sucursal", solo cuenta medicamentos que ya tienen al menos un lote
+        // registrado ahí (activo o agotado): uno que nunca se cargó en esa sucursal no es
+        // "stock bajo", simplemente no se ha traspasado/comprado todavía para ella.
         $lowStockCount = Medicament::where('status', 'active')
-            ->whereRaw('(SELECT COALESCE(SUM(current_quantity), 0) FROM batches WHERE batches.medicament_id = medicaments.id AND batches.deleted_at IS NULL) <= medicaments.min_stock')
+            ->whereRaw(
+                '(SELECT COALESCE(SUM(current_quantity), 0) FROM batches WHERE batches.medicament_id = medicaments.id AND batches.deleted_at IS NULL'
+                . ($branchId ? ' AND batches.branch_id = ' . $branchId : '')
+                . ') <= medicaments.min_stock'
+            )
+            ->when($branchId, fn ($q) => $q->whereRaw(
+                'EXISTS (SELECT 1 FROM batches WHERE batches.medicament_id = medicaments.id AND batches.deleted_at IS NULL AND batches.branch_id = ' . $branchId . ')'
+            ))
             ->count();
 
         $in90Days = Carbon::now()->addDays(90);
         $expiringBatchesCount = Batch::where('current_quantity', '>', 0)
             ->where('expiration_date', '<=', $in90Days)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->count();
 
-        $openCashRegister = CashRegister::where('status', 'open')->latest('opened_at')->first();
+        $openCashRegister = CashRegister::where('status', 'open')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->latest('opened_at')
+            ->first();
 
         $recentSales = Sale::with('client')
             ->where('status', 'active')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->latest('sold_at')
             ->limit(5)
             ->get()
@@ -59,6 +79,7 @@ class DashboardService
             $date = Carbon::today()->subDays($i);
             $total = (float) Sale::where('status', 'active')
                 ->whereDate('sold_at', $date)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->sum('total');
             $ventasPorDia7[] = [
                 'date'  => $date->format('Y-m-d'),
@@ -73,6 +94,7 @@ class DashboardService
             $date = Carbon::today()->subDays($i);
             $total = (float) Sale::where('status', 'active')
                 ->whereDate('sold_at', $date)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->sum('total');
             $ventasPorDia30[] = [
                 'date'  => $date->format('Y-m-d'),
@@ -86,16 +108,18 @@ class DashboardService
 
         $totalRango = (float) Sale::where('status', 'active')
             ->whereBetween('sold_at', [$startDate, $endDate])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->sum('total');
 
-        $ventasPorRango = $this->getVentasPorRango($startDate, $endDate);
-        $topProducts = $this->getTopProductos($startDate, $endDate);
+        $ventasPorRango = $this->getVentasPorRango($startDate, $endDate, $branchId);
+        $topProducts = $this->getTopProductos($startDate, $endDate, $branchId);
 
         // Comparativa mes actual vs. mes anterior
         $startOfLastMonth = Carbon::now()->subMonthNoOverflow()->startOfMonth();
         $endOfLastMonth = Carbon::now()->subMonthNoOverflow()->endOfMonth();
         $totalSalesLastMonth = (float) Sale::where('status', 'active')
             ->whereBetween('sold_at', [$startOfLastMonth, $endOfLastMonth])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->sum('total');
 
         $variacionMensual = $totalSalesLastMonth > 0
@@ -136,16 +160,16 @@ class DashboardService
             'total_medicamentos_stock_saludable' => max(0, $totalMedicaments - $lowStockCount),
 
             // Gráficas adicionales del panel
-            'ventas_por_metodo_pago' => $this->getVentasPorMetodoPago($startDate, $endDate),
-            'ventas_por_categoria'   => $this->getVentasPorCategoria($startDate, $endDate),
-            'margen_por_rango'       => $this->getMargenPorRango($startDate, $endDate),
-            'compras_por_proveedor'  => $this->getComprasPorProveedor(Carbon::now()->subDays(90), Carbon::now()->endOfDay()),
-            'ranking_vendedores'     => $this->getRankingVendedores($startDate, $endDate),
-            'lotes_semaforo'         => $this->getLotesSemaforo(),
-            'compras_vs_ventas'      => $this->getComprasVsVentas(),
-            'productos_baja_rotacion' => $this->getProductosBajaRotacion(),
-            'ventas_por_dia_semana'  => $this->getVentasPorDiaSemana(),
-            'ventas_por_hora_dia'    => $this->getVentasPorHoraDia(),
+            'ventas_por_metodo_pago' => $this->getVentasPorMetodoPago($startDate, $endDate, $branchId),
+            'ventas_por_categoria'   => $this->getVentasPorCategoria($startDate, $endDate, $branchId),
+            'margen_por_rango'       => $this->getMargenPorRango($startDate, $endDate, $branchId),
+            'compras_por_proveedor'  => $this->getComprasPorProveedor(Carbon::now()->subDays(90), Carbon::now()->endOfDay(), $branchId),
+            'ranking_vendedores'     => $this->getRankingVendedores($startDate, $endDate, $branchId),
+            'lotes_semaforo'         => $this->getLotesSemaforo($branchId),
+            'compras_vs_ventas'      => $this->getComprasVsVentas($branchId),
+            'productos_baja_rotacion' => $this->getProductosBajaRotacion($branchId),
+            'ventas_por_dia_semana'  => $this->getVentasPorDiaSemana($branchId),
+            'ventas_por_hora_dia'    => $this->getVentasPorHoraDia($branchId),
         ];
     }
 
@@ -156,18 +180,21 @@ class DashboardService
      */
     public function getSalesSummary(array $filters = []): array
     {
+        $branchId = !empty($filters['branch_id']) ? (int) $filters['branch_id'] : null;
+
         [$startDate, $endDate] = $this->resolveDateRange($filters);
 
         $totalRango = (float) Sale::where('status', 'active')
             ->whereBetween('sold_at', [$startDate, $endDate])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->sum('total');
 
         return [
-            'ventas_por_rango'   => $this->getVentasPorRango($startDate, $endDate),
+            'ventas_por_rango'   => $this->getVentasPorRango($startDate, $endDate, $branchId),
             'ventas_rango_total' => $totalRango,
             'rango_inicio'       => $startDate->format('Y-m-d'),
             'rango_fin'          => $endDate->format('Y-m-d'),
-            'top_productos'      => $this->getTopProductos($startDate, $endDate),
+            'top_productos'      => $this->getTopProductos($startDate, $endDate, $branchId),
         ];
     }
 
@@ -191,7 +218,7 @@ class DashboardService
         return [$startDate, $endDate];
     }
 
-    private function getVentasPorRango(Carbon $startDate, Carbon $endDate): array
+    private function getVentasPorRango(Carbon $startDate, Carbon $endDate, ?int $branchId = null): array
     {
         $ventasPorRango = [];
         $diffDays = $startDate->diffInDays($endDate);
@@ -201,6 +228,7 @@ class DashboardService
             while ($curr->lte($endDate)) {
                 $total = (float) Sale::where('status', 'active')
                     ->whereDate('sold_at', $curr)
+                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                     ->sum('total');
                 $ventasPorRango[] = [
                     'date'  => $curr->format('Y-m-d'),
@@ -214,6 +242,7 @@ class DashboardService
             while ($curr->lte($endDate)) {
                 $total = (float) Sale::where('status', 'active')
                     ->whereBetween('sold_at', [$curr->copy()->startOfMonth(), $curr->copy()->endOfMonth()])
+                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                     ->sum('total');
                 $ventasPorRango[] = [
                     'date'  => $curr->format('Y-m'),
@@ -227,7 +256,7 @@ class DashboardService
         return $ventasPorRango;
     }
 
-    private function getTopProductos(Carbon $startDate, Carbon $endDate)
+    private function getTopProductos(Carbon $startDate, Carbon $endDate, ?int $branchId = null)
     {
         try {
             return DB::table('sale_details')
@@ -237,6 +266,7 @@ class DashboardService
                 ->whereNull('sales.deleted_at')
                 ->whereNull('medicaments.deleted_at')
                 ->whereBetween('sales.sold_at', [$startDate, $endDate])
+                ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
                 ->select(
                     'medicaments.id',
                     'medicaments.name',
@@ -254,7 +284,7 @@ class DashboardService
         }
     }
 
-    private function getVentasPorMetodoPago(Carbon $startDate, Carbon $endDate): array
+    private function getVentasPorMetodoPago(Carbon $startDate, Carbon $endDate, ?int $branchId = null): array
     {
         try {
             return DB::table('sale_payments')
@@ -263,6 +293,7 @@ class DashboardService
                 ->where('sales.status', 'active')
                 ->whereNull('sales.deleted_at')
                 ->whereBetween('sales.sold_at', [$startDate, $endDate])
+                ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
                 ->select(
                     'payment_methods.id',
                     'payment_methods.name',
@@ -279,7 +310,7 @@ class DashboardService
         }
     }
 
-    private function getVentasPorCategoria(Carbon $startDate, Carbon $endDate): array
+    private function getVentasPorCategoria(Carbon $startDate, Carbon $endDate, ?int $branchId = null): array
     {
         try {
             return DB::table('sale_details')
@@ -289,6 +320,7 @@ class DashboardService
                 ->where('sales.status', 'active')
                 ->whereNull('sales.deleted_at')
                 ->whereBetween('sales.sold_at', [$startDate, $endDate])
+                ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
                 ->select(
                     'categories.id',
                     'categories.name',
@@ -306,7 +338,7 @@ class DashboardService
         }
     }
 
-    private function getMargenPorRango(Carbon $startDate, Carbon $endDate): array
+    private function getMargenPorRango(Carbon $startDate, Carbon $endDate, ?int $branchId = null): array
     {
         try {
             $rows = DB::table('sale_details')
@@ -315,6 +347,7 @@ class DashboardService
                 ->where('sales.status', 'active')
                 ->whereNull('sales.deleted_at')
                 ->whereBetween('sales.sold_at', [$startDate, $endDate])
+                ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
                 ->select(
                     DB::raw('DATE(sales.sold_at) as fecha'),
                     DB::raw('SUM(sale_details.subtotal) as ingreso'),
@@ -349,13 +382,14 @@ class DashboardService
         }
     }
 
-    private function getComprasPorProveedor(Carbon $startDate, Carbon $endDate): array
+    private function getComprasPorProveedor(Carbon $startDate, Carbon $endDate, ?int $branchId = null): array
     {
         try {
             return DB::table('purchases')
                 ->join('suppliers', 'suppliers.id', '=', 'purchases.supplier_id')
                 ->whereNull('purchases.deleted_at')
                 ->whereBetween('purchases.purchase_date', [$startDate, $endDate])
+                ->when($branchId, fn ($q) => $q->where('purchases.branch_id', $branchId))
                 ->select(
                     'suppliers.id',
                     'suppliers.name',
@@ -373,7 +407,7 @@ class DashboardService
         }
     }
 
-    private function getRankingVendedores(Carbon $startDate, Carbon $endDate): array
+    private function getRankingVendedores(Carbon $startDate, Carbon $endDate, ?int $branchId = null): array
     {
         try {
             return DB::table('sales')
@@ -381,6 +415,7 @@ class DashboardService
                 ->where('sales.status', 'active')
                 ->whereNull('sales.deleted_at')
                 ->whereBetween('sales.sold_at', [$startDate, $endDate])
+                ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
                 ->select(
                     'users.id',
                     DB::raw("TRIM(CONCAT(users.firstname, ' ', users.lastname)) as name"),
@@ -404,12 +439,13 @@ class DashboardService
         }
     }
 
-    private function getLotesSemaforo(): array
+    private function getLotesSemaforo(?int $branchId = null): array
     {
         try {
             $today = Carbon::today();
 
-            $base = fn () => Batch::where('current_quantity', '>', 0);
+            $base = fn () => Batch::where('current_quantity', '>', 0)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
 
             $vencidos = (clone $base())->where('expiration_date', '<', $today)->count();
             $dias30 = (clone $base())->whereBetween('expiration_date', [$today, $today->copy()->addDays(30)])->count();
@@ -430,7 +466,7 @@ class DashboardService
         }
     }
 
-    private function getComprasVsVentas(): array
+    private function getComprasVsVentas(?int $branchId = null): array
     {
         try {
             $result = [];
@@ -441,11 +477,13 @@ class DashboardService
 
                 $ventas = (float) Sale::where('status', 'active')
                     ->whereBetween('sold_at', [$start, $end])
+                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                     ->sum('total');
 
                 $compras = (float) DB::table('purchases')
                     ->whereNull('deleted_at')
                     ->whereBetween('purchase_date', [$start, $end])
+                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                     ->sum('total');
 
                 $result[] = [
@@ -462,7 +500,7 @@ class DashboardService
         }
     }
 
-    private function getProductosBajaRotacion(): array
+    private function getProductosBajaRotacion(?int $branchId = null): array
     {
         try {
             $since = Carbon::now()->subDays(90);
@@ -473,12 +511,17 @@ class DashboardService
                 ->where('sales.status', 'active')
                 ->whereNull('sales.deleted_at')
                 ->where('sales.sold_at', '>=', $since)
+                ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
                 ->selectRaw('COALESCE(SUM(sale_details.quantity), 0)');
 
             return DB::table('medicaments')
                 ->where('medicaments.status', 'active')
                 ->whereNull('medicaments.deleted_at')
-                ->whereRaw('(SELECT COALESCE(SUM(current_quantity), 0) FROM batches WHERE batches.medicament_id = medicaments.id AND batches.deleted_at IS NULL) > 0')
+                ->whereRaw(
+                    '(SELECT COALESCE(SUM(current_quantity), 0) FROM batches WHERE batches.medicament_id = medicaments.id AND batches.deleted_at IS NULL'
+                    . ($branchId ? ' AND batches.branch_id = ' . $branchId : '')
+                    . ') > 0'
+                )
                 ->select('medicaments.id', 'medicaments.name', 'medicaments.code')
                 ->selectSub($ventasSub, 'vendido_90_dias')
                 ->orderBy('vendido_90_dias')
@@ -497,7 +540,7 @@ class DashboardService
         }
     }
 
-    private function getVentasPorDiaSemana(): array
+    private function getVentasPorDiaSemana(?int $branchId = null): array
     {
         try {
             $since = Carbon::now()->subDays(30);
@@ -507,6 +550,7 @@ class DashboardService
                 ->where('status', 'active')
                 ->whereNull('deleted_at')
                 ->where('sold_at', '>=', $since)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->select(
                     DB::raw('EXTRACT(DOW FROM sold_at) as dow'),
                     DB::raw('SUM(total) as total')
@@ -531,7 +575,7 @@ class DashboardService
         }
     }
 
-    private function getVentasPorHoraDia(): array
+    private function getVentasPorHoraDia(?int $branchId = null): array
     {
         try {
             $since = Carbon::now()->subDays(30);
@@ -541,6 +585,7 @@ class DashboardService
                 ->where('status', 'active')
                 ->whereNull('deleted_at')
                 ->where('sold_at', '>=', $since)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->select(
                     DB::raw('EXTRACT(DOW FROM sold_at) as dow'),
                     DB::raw('EXTRACT(HOUR FROM sold_at) as hour'),

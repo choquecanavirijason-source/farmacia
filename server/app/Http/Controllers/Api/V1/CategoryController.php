@@ -25,7 +25,8 @@ class CategoryController
             $request->getSearch(),
             $request->getPerPage(10),
             $request->getSortBy('name'),
-            $request->getSortDir('asc')
+            $request->getSortDir('asc'),
+            (string) $request->query('status', 'active')
         );
 
         return $this->collectionResponse(CategoryResource::collection($result), 'Categorías obtenidas con éxito.');
@@ -74,7 +75,8 @@ class CategoryController
         $search = trim((string) $request->query('search'));
         $sortBy = (string) $request->query('sort_by', 'name');
         $sortDir = (string) $request->query('sort_dir', 'asc');
+        $status = (string) $request->query('status', 'all');
 
-        return $this->categoryService->export($format, $search, $sortBy, $sortDir);
+        return $this->categoryService->export($format, $search, $sortBy, $sortDir, $status);
     }
 }

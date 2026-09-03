@@ -86,7 +86,14 @@ export function AuditDetailDialog({
             Detalle de Actividad en {getModelLabel(audit.auditable_type)} #{audit.auditable_id}
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Información registrada de la acción realizada por el usuario en el sistema.
+            {audit.subject_label ? (
+              <>
+                <strong className="text-foreground">{audit.subject_label}</strong>
+                {audit.branch?.name ? ` — ${audit.branch.name}` : ""}
+              </>
+            ) : (
+              "Información registrada de la acción realizada por el usuario en el sistema."
+            )}
           </DialogDescription>
         </DialogHeader>
 

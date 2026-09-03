@@ -120,6 +120,18 @@ class RoleSeeder extends Seeder
             // Auditorías
             'view audits',
             'export audits',
+
+            // Sucursales
+            'view branches',
+            'create branches',
+            'edit branches',
+            'delete branches',
+            'restore branches',
+            'export branches',
+            'manage branch users',
+            'create branch transfers',
+            'view branch transfers',
+            'export branch transfers',
         ];
 
         foreach ($permissions as $perm) {

@@ -22,9 +22,13 @@ export const fetchSuppliers = async (forceRefresh = false): Promise<ISupplier[]>
 
 export const getPaginated = async (
   params: IPaginationRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  filters?: { status?: string }
 ): Promise<IPaginatedResponse<ISupplier>> => {
-  const res = await apiClient.get<IPaginatedResponse<ISupplier>>("/suppliers", { params, signal });
+  const res = await apiClient.get<IPaginatedResponse<ISupplier>>("/suppliers", {
+    params: { ...params, ...filters },
+    signal,
+  });
   return res.data;
 };
 

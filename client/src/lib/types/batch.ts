@@ -9,6 +9,8 @@ export interface IBatch {
   purchase_price: number | string;
   medicament_id: number;
   medicament?: IMedicament;
+  branch_id?: number;
+  branch?: { id: number; name: string };
   created_id?: number | null;
   updated_id?: number | null;
   deleted_id?: number | null;

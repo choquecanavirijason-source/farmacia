@@ -41,7 +41,7 @@ export const fetchMedicaments = async (forceRefresh = false): Promise<IMedicamen
 export const getPaginated = async (
   params: ServerFetchParams | any,
   signal?: AbortSignal,
-  filters?: { category_id?: string; laboratory_id?: string; status?: string }
+  filters?: { category_id?: string; laboratory_id?: string; status?: string; deleted?: string }
 ): Promise<IPaginatedResponse<IMedicament>> => {
   const query = {
     page: params.page,

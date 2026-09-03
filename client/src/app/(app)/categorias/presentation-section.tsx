@@ -90,7 +90,8 @@ export function PresentationSection() {
         sort_by: params.sort?.key || "name",
         sort_dir: params.sort?.direction || "asc",
       },
-      controller.signal
+      controller.signal,
+      { status: "all" }
     )
       .then((result) => {
         setItems(result.data);
@@ -336,7 +337,11 @@ export function PresentationSection() {
         emptyMessage="No se encontraron presentaciones."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="presentaciones.csv"
-        onExport={can(PERMISSIONS.EXPORT_PRESENTATIONS) ? exportResource : undefined}
+        onExport={
+          can(PERMISSIONS.EXPORT_PRESENTATIONS)
+            ? (format) => exportResource(format, { status: "all" })
+            : undefined
+        }
         onRefresh={refresh}
         getRowId={(p) => p.id}
         onSelectionChange={can(PERMISSIONS.DELETE_PRESENTATIONS) ? setSelectedRows : undefined}

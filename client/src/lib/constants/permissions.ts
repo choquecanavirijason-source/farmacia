@@ -108,6 +108,18 @@ export const PERMISSIONS = {
   // Auditorías
   VIEW_AUDITS: "view audits",
   EXPORT_AUDITS: "export audits",
+
+  // Sucursales
+  VIEW_BRANCHES: "view branches",
+  CREATE_BRANCHES: "create branches",
+  EDIT_BRANCHES: "edit branches",
+  DELETE_BRANCHES: "delete branches",
+  RESTORE_BRANCHES: "restore branches",
+  EXPORT_BRANCHES: "export branches",
+  MANAGE_BRANCH_USERS: "manage branch users",
+  CREATE_BRANCH_TRANSFERS: "create branch transfers",
+  VIEW_BRANCH_TRANSFERS: "view branch transfers",
+  EXPORT_BRANCH_TRANSFERS: "export branch transfers",
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -218,6 +230,18 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   // Auditorías
   [PERMISSIONS.VIEW_AUDITS]: "Ver registros de auditoría",
   [PERMISSIONS.EXPORT_AUDITS]: "Exportar auditorías",
+
+  // Sucursales
+  [PERMISSIONS.VIEW_BRANCHES]: "Ver sucursales",
+  [PERMISSIONS.CREATE_BRANCHES]: "Crear sucursales",
+  [PERMISSIONS.EDIT_BRANCHES]: "Editar sucursales",
+  [PERMISSIONS.DELETE_BRANCHES]: "Eliminar sucursales",
+  [PERMISSIONS.RESTORE_BRANCHES]: "Restaurar sucursales eliminadas",
+  [PERMISSIONS.EXPORT_BRANCHES]: "Exportar sucursales",
+  [PERMISSIONS.MANAGE_BRANCH_USERS]: "Asignar usuarios a sucursales",
+  [PERMISSIONS.CREATE_BRANCH_TRANSFERS]: "Traspasar stock entre sucursales",
+  [PERMISSIONS.VIEW_BRANCH_TRANSFERS]: "Ver historial de traspasos",
+  [PERMISSIONS.EXPORT_BRANCH_TRANSFERS]: "Exportar traspasos",
 };
 
 /**
@@ -397,6 +421,23 @@ export const PERMISSION_MODULES: IPermissionModuleDefinition[] = [
     permissions: [
       { code: PERMISSIONS.VIEW_AUDITS, label: PERMISSION_LABELS[PERMISSIONS.VIEW_AUDITS] },
       { code: PERMISSIONS.EXPORT_AUDITS, label: PERMISSION_LABELS[PERMISSIONS.EXPORT_AUDITS] },
+    ],
+  },
+  {
+    id: "branches",
+    title: "Sucursales",
+    description: "Gestión de sucursales y asignación de usuarios",
+    permissions: [
+      { code: PERMISSIONS.VIEW_BRANCHES, label: PERMISSION_LABELS[PERMISSIONS.VIEW_BRANCHES] },
+      { code: PERMISSIONS.CREATE_BRANCHES, label: PERMISSION_LABELS[PERMISSIONS.CREATE_BRANCHES] },
+      { code: PERMISSIONS.EDIT_BRANCHES, label: PERMISSION_LABELS[PERMISSIONS.EDIT_BRANCHES] },
+      { code: PERMISSIONS.DELETE_BRANCHES, label: PERMISSION_LABELS[PERMISSIONS.DELETE_BRANCHES] },
+      { code: PERMISSIONS.RESTORE_BRANCHES, label: PERMISSION_LABELS[PERMISSIONS.RESTORE_BRANCHES] },
+      { code: PERMISSIONS.EXPORT_BRANCHES, label: PERMISSION_LABELS[PERMISSIONS.EXPORT_BRANCHES] },
+      { code: PERMISSIONS.MANAGE_BRANCH_USERS, label: PERMISSION_LABELS[PERMISSIONS.MANAGE_BRANCH_USERS] },
+      { code: PERMISSIONS.CREATE_BRANCH_TRANSFERS, label: PERMISSION_LABELS[PERMISSIONS.CREATE_BRANCH_TRANSFERS] },
+      { code: PERMISSIONS.VIEW_BRANCH_TRANSFERS, label: PERMISSION_LABELS[PERMISSIONS.VIEW_BRANCH_TRANSFERS] },
+      { code: PERMISSIONS.EXPORT_BRANCH_TRANSFERS, label: PERMISSION_LABELS[PERMISSIONS.EXPORT_BRANCH_TRANSFERS] },
     ],
   },
 ];

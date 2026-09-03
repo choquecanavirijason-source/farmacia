@@ -60,11 +60,17 @@ export function MedicamentBatchesSheet({
                 const currentQty = Number(l.cantidad_actual ?? l.current_quantity ?? 0);
                 const expDate = l.fecha_vencimiento || l.expiration_date;
                 const buyPrice = Number(l.precio_compra ?? l.purchase_price ?? 0);
+                const branchName = l.branch?.name;
 
                 return (
                   <div key={l.id_lote || l.id} className="flex items-center justify-between p-3">
                     <div className="flex flex-col gap-0.5">
                       <span className="font-mono font-medium">{l.numero_lote || l.batch_number}</span>
+                      {branchName && (
+                        <span className="inline-flex w-fit items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                          {branchName}
+                        </span>
+                      )}
                       <span className="text-muted-foreground">
                         Vence: {expDate ? new Date(expDate).toLocaleDateString("es-BO") : "—"}
                       </span>

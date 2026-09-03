@@ -90,7 +90,8 @@ export function CategorySection() {
         sort_by: params.sort?.key || "name",
         sort_dir: params.sort?.direction || "asc",
       },
-      controller.signal
+      controller.signal,
+      { status: "all" }
     )
       .then((result) => {
         setItems(result.data);
@@ -340,7 +341,11 @@ export function CategorySection() {
         emptyMessage="No se encontraron categorías."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="categorias.csv"
-        onExport={can(PERMISSIONS.EXPORT_CATEGORIES) ? exportResource : undefined}
+        onExport={
+          can(PERMISSIONS.EXPORT_CATEGORIES)
+            ? (format) => exportResource(format, { status: "all" })
+            : undefined
+        }
         onRefresh={refresh}
         getRowId={(cat) => cat.id}
         onSelectionChange={can(PERMISSIONS.DELETE_CATEGORIES) ? setSelectedRows : undefined}

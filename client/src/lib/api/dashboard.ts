@@ -86,6 +86,7 @@ export interface IDashboardStats {
 export interface DashboardFilterParams {
   start_date?: string;
   end_date?: string;
+  branch_id?: number;
 }
 
 export const fetchDashboardStats = async (

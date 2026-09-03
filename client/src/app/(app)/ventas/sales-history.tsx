@@ -22,6 +22,7 @@ import { formatCurrency, formatDateTime } from "@/lib/format";
 import type { ISale } from "@/lib/types/sale";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
+import { useBranchView } from "@/context/branch-view-context";
 import { VoidSaleDialog } from "./void-sale-dialog";
 import { InvoiceSheet } from "./invoice-sheet";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,7 @@ const DEFAULT_PARAMS: ServerFetchParams = {
 
 export function SalesHistory() {
   const { can } = useAuth();
+  const { branchScope } = useBranchView();
   const [params, setParams] = useState<ServerFetchParams>(DEFAULT_PARAMS);
   const [items, setItems] = useState<ISale[]>([]);
   const [total, setTotal] = useState(0);
@@ -83,10 +85,11 @@ export function SalesHistory() {
   useEffect(() => {
     const controller = new AbortController();
 
-    const filters: { status?: string; start_date?: string; end_date?: string } = {};
+    const filters: { status?: string; start_date?: string; end_date?: string; branch_id?: string | number } = {};
     if (statusFilter !== "all") filters.status = statusFilter;
     if (startDate) filters.start_date = startDate;
     if (endDate) filters.end_date = endDate;
+    filters.branch_id = branchScope ?? "all";
 
     getSalesPaginated(params, controller.signal, filters)
       .then((result) => {
@@ -106,7 +109,7 @@ export function SalesHistory() {
       });
 
     return () => controller.abort();
-  }, [params, refreshKey, statusFilter, startDate, endDate]);
+  }, [params, refreshKey, statusFilter, startDate, endDate, branchScope]);
 
   const columns: DataTableColumn<ISale>[] = [
     {
@@ -131,6 +134,16 @@ export function SalesHistory() {
         <span className="text-xs text-muted-foreground">
           {formatDateSafe(s.sale_date || s.created_at)}
         </span>
+      ),
+    },
+    {
+      key: "branch",
+      header: "Sucursal",
+      accessor: (s) => s.branch?.name ?? "",
+      className: "w-36",
+      width: 150,
+      render: (_, s) => (
+        <span className="text-xs text-muted-foreground">{s.branch?.name ?? "—"}</span>
       ),
     },
     {
@@ -331,6 +344,7 @@ export function SalesHistory() {
                   status: statusFilter,
                   start_date: startDate,
                   end_date: endDate,
+                  branch_id: branchScope ?? "all",
                   search: params.search,
                   sort_by: params.sort?.key,
                   sort_dir: params.sort?.direction,

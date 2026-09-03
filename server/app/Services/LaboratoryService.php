@@ -11,9 +11,15 @@ use Symfony\Component\HttpFoundation\Response;
 
 class LaboratoryService
 {
-    public function getPaginated(string $search = '', int $perPage = 10, string $sortBy = 'name', string $sortDir = 'asc'): LengthAwarePaginator
+    public function getPaginated(string $search = '', int $perPage = 10, string $sortBy = 'name', string $sortDir = 'asc', string $status = 'active'): LengthAwarePaginator
     {
-        return Laboratory::withTrashed()
+        $query = match ($status) {
+            'active'             => Laboratory::withoutTrashed(),
+            'trashed', 'deleted' => Laboratory::onlyTrashed(),
+            default              => Laboratory::withTrashed(),
+        };
+
+        return $query
             ->when($search !== '', fn ($q) => $q->search($search))
             ->sort($sortBy, $sortDir)
             ->paginate($perPage);
@@ -51,9 +57,15 @@ class LaboratoryService
         return $laboratory;
     }
 
-    public function export(string $format, string $search = '', string $sortBy = 'name', string $sortDir = 'asc'): Response
+    public function export(string $format, string $search = '', string $sortBy = 'name', string $sortDir = 'asc', string $status = 'all'): Response
     {
-        $records = Laboratory::withTrashed()
+        $query = match ($status) {
+            'active'             => Laboratory::withoutTrashed(),
+            'trashed', 'deleted' => Laboratory::onlyTrashed(),
+            default              => Laboratory::withTrashed(),
+        };
+
+        $records = $query
             ->when($search !== '', fn ($q) => $q->search($search))
             ->sort($sortBy, $sortDir)
             ->get();

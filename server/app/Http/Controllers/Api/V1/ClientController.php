@@ -23,7 +23,7 @@ class ClientController
     {
         $filters = [
             'search' => $request->getSearch(),
-            'status' => $request->query('status', 'all'),
+            'status' => $request->query('status', 'active'),
         ];
 
         $result = $this->clientService->getPaginated(

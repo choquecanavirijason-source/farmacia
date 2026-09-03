@@ -22,6 +22,7 @@ class Purchase extends Model implements Auditable
         'purchase_date',
         'total',
         'supplier_id',
+        'branch_id',
         'created_id',
         'updated_id',
         'deleted_id',
@@ -54,6 +55,7 @@ class Purchase extends Model implements Auditable
     {
         return $query
             ->when(!empty($filters['supplier_id']), fn ($q) => $q->where('supplier_id', $filters['supplier_id']))
+            ->when(!empty($filters['branch_id']), fn ($q) => $q->where('branch_id', $filters['branch_id']))
             ->when(!empty($filters['start_date']), fn ($q) => $q->whereDate('purchase_date', '>=', $filters['start_date']))
             ->when(!empty($filters['end_date']), fn ($q) => $q->whereDate('purchase_date', '<=', $filters['end_date']));
     }
@@ -74,5 +76,10 @@ class Purchase extends Model implements Auditable
     public function details()
     {
         return $this->hasMany(PurchaseDetail::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

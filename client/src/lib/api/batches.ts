@@ -8,7 +8,19 @@ export const DIAS_ALERTA_VENCIMIENTO = 90;
 
 let batchesPromise: Promise<IBatch[]> | null = null;
 
-export const fetchBatches = async (forceRefresh = false): Promise<IBatch[]> => {
+export const fetchBatches = async (
+  forceRefresh = false,
+  branchId?: string | number | null
+): Promise<IBatch[]> => {
+  // El filtro explícito de sucursal (usado por la vista "todas las sucursales") no se
+  // cachea con el resto de llamadas por defecto (POS, alertas de la sucursal activa, etc.).
+  if (branchId !== undefined) {
+    const res = await apiClient.get<IPaginatedResponse<IBatch>>("/batches", {
+      params: { per_page: 100, branch_id: branchId ?? "all" },
+    });
+    return res.data.data;
+  }
+
   if (!forceRefresh && batchesPromise) return batchesPromise;
 
   batchesPromise = apiClient
@@ -25,9 +37,13 @@ export const fetchBatches = async (forceRefresh = false): Promise<IBatch[]> => {
 
 export const getPaginated = async (
   params: IPaginationRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  filters?: { branch_id?: string | number; status?: string }
 ): Promise<IPaginatedResponse<IBatch>> => {
-  const res = await apiClient.get<IPaginatedResponse<IBatch>>("/batches", { params, signal });
+  const res = await apiClient.get<IPaginatedResponse<IBatch>>("/batches", {
+    params: { ...params, ...filters },
+    signal,
+  });
   return res.data;
 };
 
@@ -133,14 +149,20 @@ export function computeStockBajo(
   lotes: any[]
 ): StockBajoItem[] {
   const porMedicamento = new Map<number, number>();
+  const medicamentosConLotes = new Set<number>();
   for (const l of lotes) {
     const mId = l.id_medicamento || l.medicament_id;
+    medicamentosConLotes.add(mId);
     porMedicamento.set(
       mId,
       (porMedicamento.get(mId) ?? 0) + Number(l.cantidad_actual ?? l.current_quantity ?? 0)
     );
   }
+  // Solo cuenta medicamentos que ya tienen al menos un lote registrado en esta sucursal
+  // (activo o agotado). Un medicamento que nunca se cargó aquí no es "stock bajo": simplemente
+  // no se ha traspasado/comprado todavía para esta sucursal.
   return medicamentos
+    .filter((m) => medicamentosConLotes.has(m.id_medicamento || m.id))
     .filter((m) => (porMedicamento.get(m.id_medicamento || m.id) ?? 0) < Number(m.stock_minimo || m.min_stock || 0))
     .map((m) => ({
       medicamento: m,

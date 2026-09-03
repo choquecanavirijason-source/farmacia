@@ -24,6 +24,7 @@ import { fetchProveedores } from "@/lib/api/suppliers";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
+import { useBranchView } from "@/context/branch-view-context";
 import type { IPurchase } from "@/lib/types/purchase";
 import type { Compra, Proveedor } from "@/lib/types";
 import { PurchaseFormDialog } from "./purchase-form-dialog";
@@ -53,6 +54,7 @@ const DEFAULT_PARAMS: ServerFetchParams = {
 
 export default function ComprasPage() {
   const { can } = useAuth();
+  const { branchScope } = useBranchView();
   const [params, setParams] = useState<ServerFetchParams>(DEFAULT_PARAMS);
   const [items, setItems] = useState<IPurchase[]>([]);
   const [total, setTotal] = useState(0);
@@ -94,10 +96,11 @@ export default function ComprasPage() {
   // Carga paginada en servidor de compras
   useEffect(() => {
     const controller = new AbortController();
-    const filters: { supplier_id?: string; start_date?: string; end_date?: string } = {};
+    const filters: { supplier_id?: string; start_date?: string; end_date?: string; branch_id?: string | number } = {};
     if (proveedorFilter) filters.supplier_id = proveedorFilter;
     if (startDate) filters.start_date = startDate;
     if (endDate) filters.end_date = endDate;
+    filters.branch_id = branchScope ?? "all";
 
     getPurchasesPaginated(params, controller.signal, filters)
       .then((result) => {
@@ -117,7 +120,7 @@ export default function ComprasPage() {
       });
 
     return () => controller.abort();
-  }, [params, refreshKey, proveedorFilter, startDate, endDate]);
+  }, [params, refreshKey, proveedorFilter, startDate, endDate, branchScope]);
 
   const handleRowReorder = useCallback(async () => {}, []);
 
@@ -172,6 +175,17 @@ export default function ComprasPage() {
           </div>
         );
       },
+    },
+    {
+      key: "branch",
+      header: "Sucursal",
+      accessor: (c) => (c as any).branch?.name ?? "",
+      className: "w-36",
+      resizable: true,
+      width: 150,
+      render: (_, c) => (
+        <span className="text-xs text-muted-foreground">{(c as any).branch?.name ?? "—"}</span>
+      ),
     },
     {
       key: "purchase_date",
@@ -377,6 +391,7 @@ export default function ComprasPage() {
             supplier_id: proveedorFilter,
             start_date: startDate,
             end_date: endDate,
+            branch_id: branchScope ?? "all",
             search: params.search,
             sort_by: params.sort?.key,
             sort_dir: params.sort?.direction,

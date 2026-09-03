@@ -86,8 +86,7 @@ export default function ClientesPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const filters: { status?: string } = {};
-    if (statusFilter !== "all") filters.status = statusFilter;
+    const filters: { status?: string } = { status: statusFilter };
 
     getPaginated(params, controller.signal, filters)
       .then((result) => {

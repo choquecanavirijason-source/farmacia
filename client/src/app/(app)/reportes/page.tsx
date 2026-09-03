@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchBatches, diasHasta } from "@/lib/api/batches";
 import { fetchMedicaments } from "@/lib/api/medicaments";
 import { fetchSalesSummary, type ISalesSummary } from "@/lib/api/dashboard";
+import { useBranchView } from "@/context/branch-view-context";
 import { SalesSection } from "./sales-section";
 import { TopProductsSection } from "./top-products-section";
 import { LowStockSection } from "./low-stock-section";
@@ -52,6 +53,7 @@ export default function ReportesPage() {
   const [appliedEndDate, setAppliedEndDate] = useState<string>(getToday());
 
   const [idMedicamentoKardex, setIdMedicamentoKardex] = useState("");
+  const { branchScope } = useBranchView();
 
   function loadCatalogs() {
     setLoadingCatalogs(true);
@@ -81,6 +83,7 @@ export default function ReportesPage() {
       {
         start_date: appliedStartDate || undefined,
         end_date: appliedEndDate || undefined,
+        branch_id: branchScope ?? undefined,
       },
       controller.signal
     )
@@ -95,7 +98,7 @@ export default function ReportesPage() {
       });
 
     return () => controller.abort();
-  }, [appliedStartDate, appliedEndDate]);
+  }, [appliedStartDate, appliedEndDate, branchScope]);
 
   function handlePresetChange(val: string | null) {
     if (!val) return;
@@ -176,17 +179,19 @@ export default function ReportesPage() {
           </p>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={loadCatalogs}
-          disabled={loadingCatalogs}
-          className="gap-1.5 text-xs w-fit"
-        >
-          <RefreshCw className={`size-3.5 ${loadingCatalogs ? "animate-spin" : ""}`} />
-          Recargar Datos
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={loadCatalogs}
+            disabled={loadingCatalogs}
+            className="gap-1.5 text-xs w-fit"
+          >
+            <RefreshCw className={`size-3.5 ${loadingCatalogs ? "animate-spin" : ""}`} />
+            Recargar Datos
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="ventas">

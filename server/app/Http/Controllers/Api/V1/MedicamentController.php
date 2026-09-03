@@ -22,6 +22,7 @@ class MedicamentController
     public function index(PaginationRequest $request)
     {
         $filters = $request->getFilters(['search', 'status', 'category_id', 'laboratory_id']);
+        $filters['deleted'] = $request->query('deleted', 'active');
 
         $result = $this->medicamentService->getPaginated(
             $filters,
@@ -80,6 +81,7 @@ class MedicamentController
     {
         $format = (string) $request->query('format', 'excel');
         $filters = $request->only(['search', 'status', 'category_id', 'laboratory_id', 'sort_by', 'sort_dir']);
+        $filters['deleted'] = $request->query('deleted', 'all');
 
         return $this->medicamentService->export($format, $filters);
     }

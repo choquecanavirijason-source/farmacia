@@ -11,9 +11,15 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SupplierService
 {
-    public function getPaginated(string $search = '', int $perPage = 10, string $sortBy = 'name', string $sortDir = 'asc'): LengthAwarePaginator
+    public function getPaginated(string $search = '', int $perPage = 10, string $sortBy = 'name', string $sortDir = 'asc', string $status = 'active'): LengthAwarePaginator
     {
-        return Supplier::withTrashed()
+        $query = match ($status) {
+            'active'             => Supplier::withoutTrashed(),
+            'trashed', 'deleted' => Supplier::onlyTrashed(),
+            default              => Supplier::withTrashed(),
+        };
+
+        return $query
             ->when($search !== '', fn ($q) => $q->search($search))
             ->sort($sortBy, $sortDir)
             ->paginate($perPage);
@@ -51,9 +57,15 @@ class SupplierService
         return $supplier;
     }
 
-    public function export(string $format, string $search = '', string $sortBy = 'name', string $sortDir = 'asc'): Response
+    public function export(string $format, string $search = '', string $sortBy = 'name', string $sortDir = 'asc', string $status = 'all'): Response
     {
-        $records = Supplier::withTrashed()
+        $query = match ($status) {
+            'active'             => Supplier::withoutTrashed(),
+            'trashed', 'deleted' => Supplier::onlyTrashed(),
+            default              => Supplier::withTrashed(),
+        };
+
+        $records = $query
             ->when($search !== '', fn ($q) => $q->search($search))
             ->sort($sortBy, $sortDir)
             ->get();

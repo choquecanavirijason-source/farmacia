@@ -18,6 +18,7 @@ import {
   CircleDot,
   Sparkles,
   FlaskConical,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -41,6 +42,7 @@ export const ICON_MAP = {
   dot: CircleDot,
   sparkles: Sparkles,
   "flask-conical": FlaskConical,
+  building: Building2,
 } satisfies Record<string, LucideIcon>;
 
 export type MenuIconName = keyof typeof ICON_MAP;

@@ -28,6 +28,7 @@ import {
 } from "@/lib/api/cash-registers";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
+import { useBranchView } from "@/context/branch-view-context";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import type { Caja, MovimientoCaja } from "@/lib/types";
 import type { ICashRegister } from "@/lib/types/cash-register";
@@ -49,6 +50,7 @@ const DEFAULT_PARAMS: ServerFetchParams = {
 
 export default function CajaPage() {
   const { can, user } = useAuth();
+  const { branchScope } = useBranchView();
   const [cajaAbierta, setCajaAbierta] = useState<Caja | null | undefined>(undefined);
   const [movimientos, setMovimientos] = useState<MovimientoCaja[]>([]);
 
@@ -113,8 +115,9 @@ export default function CajaPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const filters: { status?: string } = {};
+    const filters: { status?: string; branch_id?: string | number } = {};
     if (statusFilter !== "all") filters.status = statusFilter;
+    filters.branch_id = branchScope ?? "all";
 
     getCashRegistersPaginated(historyParams, controller.signal, filters)
       .then((result) => {
@@ -134,7 +137,7 @@ export default function CajaPage() {
       });
 
     return () => controller.abort();
-  }, [historyParams, historyRefreshKey, statusFilter]);
+  }, [historyParams, historyRefreshKey, statusFilter, branchScope]);
 
   function handleCajaAbierta(nueva: Caja) {
     setCajaAbierta(nueva);
@@ -210,6 +213,12 @@ export default function CajaPage() {
       accessor: (c) => c.id,
       className: "font-mono w-20",
       render: (_, c) => <span className="font-mono text-xs font-semibold">#{c.id}</span>,
+    },
+    {
+      key: "branch",
+      header: "Sucursal",
+      accessor: (c) => c.branch?.name ?? "",
+      render: (_, c) => <span className="text-xs text-muted-foreground">{c.branch?.name ?? "—"}</span>,
     },
     {
       key: "opening_date",
@@ -474,6 +483,7 @@ export default function CajaPage() {
               ? (format) =>
                   exportCashRegisters(format, {
                     status: statusFilter !== "all" ? statusFilter : undefined,
+                    branch_id: branchScope ?? "all",
                     search: historyParams.search,
                     sort_by: historyParams.sort?.key,
                     sort_dir: historyParams.sort?.direction,

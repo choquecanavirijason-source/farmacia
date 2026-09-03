@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -31,6 +33,7 @@ class User extends Authenticatable implements Auditable
         'lastname',
         'password',
         'state',
+        'active_branch_id',
         'created_id',
         'updated_id',
         'deleted_id',
@@ -107,5 +110,17 @@ class User extends Authenticatable implements Auditable
             in_array($column, ['id', 'name', 'email', 'username', 'firstname', 'lastname', 'created_at'], true) ? $column : 'name',
             strtolower($direction) === 'desc' ? 'desc' : 'asc'
         );
+    }
+
+    public function branches(): BelongsToMany
+    {
+        return $this->belongsToMany(Branch::class, 'branch_user')
+            ->withPivot('is_default')
+            ->withTimestamps();
+    }
+
+    public function activeBranch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class, 'active_branch_id');
     }
 }

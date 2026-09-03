@@ -16,14 +16,14 @@ class DashboardController
 
     public function stats(Request $request)
     {
-        $filters = $request->only(['start_date', 'end_date']);
+        $filters = $request->only(['start_date', 'end_date', 'branch_id']);
         $stats = $this->dashboardService->getStats($filters);
         return $this->successResponse($stats, 'Estadísticas obtenidas con éxito.');
     }
 
     public function salesSummary(Request $request)
     {
-        $filters = $request->only(['start_date', 'end_date']);
+        $filters = $request->only(['start_date', 'end_date', 'branch_id']);
         $summary = $this->dashboardService->getSalesSummary($filters);
         return $this->successResponse($summary, 'Resumen de ventas obtenido con éxito.');
     }

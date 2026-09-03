@@ -17,8 +17,16 @@ class MedicamentService
     {
         $search = trim((string) ($filters['search'] ?? ''));
 
-        return Medicament::withTrashed()
-            ->with(['category', 'presentation', 'laboratory', 'batches'])
+        // `status` ya es el campo activo/inactivo del propio medicamento; el filtro de
+        // eliminados lógicos usa una llave distinta para no chocar con ese.
+        $query = match ($filters['deleted'] ?? 'active') {
+            'active'             => Medicament::withoutTrashed(),
+            'trashed', 'deleted' => Medicament::onlyTrashed(),
+            default              => Medicament::withTrashed(),
+        };
+
+        return $query
+            ->with(['category', 'presentation', 'laboratory', 'batches.branch'])
             ->withSum('batches as total_stock', 'current_quantity')
             ->when($search !== '', fn ($q) => $q->search($search))
             ->filter($filters)
@@ -29,7 +37,7 @@ class MedicamentService
     public function getById(int $id): Medicament
     {
         return Medicament::withTrashed()
-            ->with(['category', 'presentation', 'laboratory', 'batches'])
+            ->with(['category', 'presentation', 'laboratory', 'batches.branch'])
             ->withSum('batches as total_stock', 'current_quantity')
             ->findOrFail($id);
     }
@@ -84,7 +92,13 @@ class MedicamentService
         $sortBy = $filters['sort_by'] ?? 'name';
         $sortDir = $filters['sort_dir'] ?? 'asc';
 
-        $records = Medicament::withTrashed()
+        $query = match ($filters['deleted'] ?? 'all') {
+            'active'             => Medicament::withoutTrashed(),
+            'trashed', 'deleted' => Medicament::onlyTrashed(),
+            default              => Medicament::withTrashed(),
+        };
+
+        $records = $query
             ->when($search !== '', fn ($q) => $q->search($search))
             ->filter($filters)
             ->sort($sortBy, $sortDir)

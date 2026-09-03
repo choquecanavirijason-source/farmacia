@@ -90,7 +90,8 @@ export function LaboratorySection() {
         sort_by: params.sort?.key || "name",
         sort_dir: params.sort?.direction || "asc",
       },
-      controller.signal
+      controller.signal,
+      { status: "all" }
     )
       .then((result) => {
         setItems(result.data);
@@ -351,7 +352,11 @@ export function LaboratorySection() {
         emptyMessage="No se encontraron laboratorios."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="laboratorios.csv"
-        onExport={can(PERMISSIONS.EXPORT_LABORATORIES) ? exportResource : undefined}
+        onExport={
+          can(PERMISSIONS.EXPORT_LABORATORIES)
+            ? (format) => exportResource(format, { status: "all" })
+            : undefined
+        }
         onRefresh={refresh}
         getRowId={(l) => l.id}
         onSelectionChange={can(PERMISSIONS.DELETE_LABORATORIES) ? setSelectedRows : undefined}

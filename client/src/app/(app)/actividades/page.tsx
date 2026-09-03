@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { getPaginated, exportResource } from "@/lib/api/audits";
 import type { IAudit, IAuditFilterParams } from "@/lib/types/audit";
+import { useBranchView } from "@/context/branch-view-context";
 import { AuditDetailDialog } from "./audit-detail-dialog";
 import { getFieldLabel, getModelLabel } from "@/lib/utils/audit-helpers";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ const DEFAULT_PARAMS: ServerFetchParams = {
 };
 
 export default function ActividadesPage() {
+  const { branchScope } = useBranchView();
   // Estados para la paginación y ordenamiento en servidor
   const [params, setParams] = useState<ServerFetchParams>(DEFAULT_PARAMS);
   const [items, setItems] = useState<IAudit[]>([]);
@@ -79,6 +81,7 @@ export default function ActividadesPage() {
       date_to: period === "custom" && dateTo ? dateTo : undefined,
       event: eventFilter !== "all" ? eventFilter : undefined,
       model: modelFilter !== "all" ? modelFilter : undefined,
+      branch_id: branchScope ?? "all",
     };
 
     getPaginated(queryParams, controller.signal)
@@ -99,7 +102,7 @@ export default function ActividadesPage() {
       });
 
     return () => controller.abort();
-  }, [params, period, dateFrom, dateTo, eventFilter, modelFilter, refreshKey]);
+  }, [params, period, dateFrom, dateTo, eventFilter, modelFilter, refreshKey, branchScope]);
 
   // Manejo de exportación de registros a Excel y PDF
   const handleExport = async (format: "excel" | "pdf") => {
@@ -110,6 +113,7 @@ export default function ActividadesPage() {
       date_to: period === "custom" && dateTo ? dateTo : undefined,
       event: eventFilter !== "all" ? eventFilter : undefined,
       model: modelFilter !== "all" ? modelFilter : undefined,
+      branch_id: branchScope ?? "all",
     });
   };
 
@@ -180,14 +184,31 @@ export default function ActividadesPage() {
     {
       key: "auditable",
       header: "Módulo / Registro",
-      accessor: (a) => `${getModelLabel(a.auditable_type)} #${a.auditable_id}`,
+      accessor: (a) => a.subject_label || `${getModelLabel(a.auditable_type)} #${a.auditable_id}`,
       resizable: true,
-      width: 180,
+      width: 220,
       render: (_, a) => (
-        <span className="text-xs font-medium">
-          {getModelLabel(a.auditable_type)}{" "}
-          <span className="font-mono text-muted-foreground text-[11px]">#{a.auditable_id}</span>
-        </span>
+        <div className="flex flex-col">
+          <span className="text-xs font-medium">
+            {getModelLabel(a.auditable_type)}{" "}
+            <span className="font-mono text-muted-foreground text-[11px]">#{a.auditable_id}</span>
+          </span>
+          {a.subject_label && (
+            <span className="text-[11px] text-muted-foreground truncate max-w-52" title={a.subject_label}>
+              {a.subject_label}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "branch",
+      header: "Sucursal",
+      accessor: (a) => a.branch?.name ?? "",
+      resizable: true,
+      width: 140,
+      render: (_, a) => (
+        <span className="text-xs text-muted-foreground">{a.branch?.name ?? "—"}</span>
       ),
     },
     {

@@ -39,7 +39,7 @@ class UserController
 
     public function show(int $id)
     {
-        $user = User::withTrashed()->with('roles')->findOrFail($id);
+        $user = User::withTrashed()->with('roles', 'branches')->findOrFail($id);
         return $this->resourceResponse(new UserResource($user), 'Usuario obtenido con éxito.');
     }
 

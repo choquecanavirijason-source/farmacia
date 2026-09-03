@@ -31,7 +31,7 @@ export const fetchCashRegisters = async (forceRefresh = false): Promise<ICashReg
 export const getCashRegistersPaginated = async (
   params: ServerFetchParams,
   signal?: AbortSignal,
-  filters?: { status?: string }
+  filters?: { status?: string; branch_id?: string | number }
 ): Promise<IPaginatedResponse<ICashRegister>> => {
   const query: Record<string, any> = {
     page: params.page,

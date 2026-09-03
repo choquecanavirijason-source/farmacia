@@ -9,6 +9,8 @@ export interface IUser {
   state?: "active" | "inactive";
   roles?: { id: number; name: string }[];
   role_names?: string[];
+  active_branch_id?: number | null;
+  branches?: { id: number; name: string; is_default: boolean }[];
   created_id?: number | null;
   updated_id?: number | null;
   deleted_id?: number | null;
@@ -53,4 +55,6 @@ export type IUserRequest = {
   password?: string;
   role?: string;
   roles?: string[];
+  branch_ids?: number[];
+  default_branch_id?: number | null;
 };

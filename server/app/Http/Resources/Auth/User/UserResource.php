@@ -18,6 +18,10 @@ class UserResource extends JsonResource
             'lastname' => $this->lastname,
             'state' => $this->state,
             'roles' => $this->roles ? $this->roles->map(fn ($r) => ['id' => $r->id, 'name' => $r->name]) : [],
+            'active_branch_id' => $this->active_branch_id,
+            'branches' => $this->relationLoaded('branches')
+                ? $this->branches->map(fn ($b) => ['id' => $b->id, 'name' => $b->name])
+                : [],
         ];
     }
 }
