@@ -18,13 +18,23 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, rol, isLoading, isAuthenticated, can } = useAuth();
-  const { layoutMode } = useLayout();
+  const { layoutMode, focusMode, setFocusMode } = useLayout();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
   }, [isLoading, isAuthenticated, router, pathname]);
+
+  // Salir de modo enfocado automáticamente al cambiar de página — evita quedar
+  // "atrapado" sin sidebar/topbar (ni pantalla completa del navegador) al
+  // navegar fuera del POS.
+  useEffect(() => {
+    setFocusMode(false);
+    if (typeof document !== "undefined" && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, [pathname, setFocusMode]);
 
   if (isLoading) {
     return <AppShellSkeleton />;
@@ -56,13 +66,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         layoutMode === "top" ? "flex-col" : "flex-row"
       )}
     >
-      <Sidebar groups={groups} />
+      {!focusMode && <Sidebar groups={groups} />}
       <div className="flex min-h-screen flex-1 flex-col min-w-0">
-        <Topbar sesion={sesion} groups={groups} />
+        {!focusMode && <Topbar sesion={sesion} groups={groups} />}
         <main
           className={cn(
-            "flex-1 min-w-0 px-4 py-6 sm:px-6 lg:px-8",
-            layoutMode === "top" && "max-w-7xl mx-auto w-full"
+            "flex-1 min-w-0",
+            focusMode ? "p-0" : "px-4 py-6 sm:px-6 lg:px-8",
+            layoutMode === "top" && !focusMode && "max-w-7xl mx-auto w-full"
           )}
         >
           {hasAccess ? (

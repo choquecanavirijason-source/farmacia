@@ -153,6 +153,8 @@ export function SupplierFormDialog({
   supplier,
   onSaved,
 }: SupplierFormDialogProps) {
+  if (!open) return null;
+
   return (
     <SupplierFormBody
       key={supplier ? `edit-${supplier.id}` : "new"}

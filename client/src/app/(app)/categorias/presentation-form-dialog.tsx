@@ -116,6 +116,8 @@ export function PresentationFormDialog({
   presentation,
   onSaved,
 }: PresentationFormDialogProps) {
+  if (!open) return null;
+
   return (
     <PresentationFormBody
       key={presentation ? `edit-${presentation.id}` : "new"}

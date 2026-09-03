@@ -20,4 +20,11 @@ class DashboardController
         $stats = $this->dashboardService->getStats($filters);
         return $this->successResponse($stats, 'Estadísticas obtenidas con éxito.');
     }
+
+    public function salesSummary(Request $request)
+    {
+        $filters = $request->only(['start_date', 'end_date']);
+        $summary = $this->dashboardService->getSalesSummary($filters);
+        return $this->successResponse($summary, 'Resumen de ventas obtenido con éxito.');
+    }
 }

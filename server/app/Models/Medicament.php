@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Observers\AuditObserver;
+use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,7 +15,7 @@ use OwenIt\Auditing\Contracts\Auditable;
 #[ObservedBy([AuditObserver::class])]
 class Medicament extends Model implements Auditable
 {
-    use AuditableTrait, HasFactory, SoftDeletes;
+    use AuditableTrait, HasFactory, SoftDeletes, Searchable;
 
     protected $fillable = [
         'code',
@@ -46,7 +47,7 @@ class Medicament extends Model implements Auditable
 
     public function scopeSearch(Builder $query, string $search): Builder
     {
-        return $query->where(fn (Builder $query) => $query->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"));
+        return $query->where(fn (Builder $query) => $query->whereLike('name', $search)->orWhereLike('code', $search));
     }
 
     public function scopeSort(Builder $query, string $column = 'name', string $direction = 'asc'): Builder

@@ -21,6 +21,7 @@ function DataTable<T>({
     pageSize = 10,
     pageSizeOptions = [10, 20, 50, 100],
     searchPlaceholder = "Buscar en la tabla...",
+    filtersSlot,
     emptyMessage = "No se encontraron registros.",
     className,
     getRowId,
@@ -381,6 +382,7 @@ function DataTable<T>({
                     searchValue={isServerMode && server ? server.params.search : search}
                     onSearchChange={handleSearchChange}
                     searchPlaceholder={searchPlaceholder}
+                    filtersSlot={filtersSlot}
                     hasActiveFilters={hasActiveFilters}
                     onClearFilters={clearFilters}
                     selectedCount={selectedIds.size}

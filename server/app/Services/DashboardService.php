@@ -82,80 +82,14 @@ class DashboardService
         }
 
         // Custom date range support
-        $startDate = !empty($filters['start_date'])
-            ? Carbon::parse($filters['start_date'])->startOfDay()
-            : Carbon::today()->subDays(6)->startOfDay();
-
-        $endDate = !empty($filters['end_date'])
-            ? Carbon::parse($filters['end_date'])->endOfDay()
-            : Carbon::today()->endOfDay();
-
-        if ($startDate->gt($endDate)) {
-            $temp = $startDate;
-            $startDate = $endDate->copy()->startOfDay();
-            $endDate = $temp->copy()->endOfDay();
-        }
+        [$startDate, $endDate] = $this->resolveDateRange($filters);
 
         $totalRango = (float) Sale::where('status', 'active')
             ->whereBetween('sold_at', [$startDate, $endDate])
             ->sum('total');
 
-        $ventasPorRango = [];
-        $diffDays = $startDate->diffInDays($endDate);
-
-        if ($diffDays <= 90) {
-            $curr = $startDate->copy()->startOfDay();
-            while ($curr->lte($endDate)) {
-                $total = (float) Sale::where('status', 'active')
-                    ->whereDate('sold_at', $curr)
-                    ->sum('total');
-                $ventasPorRango[] = [
-                    'date'  => $curr->format('Y-m-d'),
-                    'label' => $curr->locale('es')->isoFormat('D MMM'),
-                    'value' => round($total, 2),
-                ];
-                $curr->addDay();
-            }
-        } else {
-            $curr = $startDate->copy()->startOfMonth();
-            while ($curr->lte($endDate)) {
-                $total = (float) Sale::where('status', 'active')
-                    ->whereBetween('sold_at', [$curr->copy()->startOfMonth(), $curr->copy()->endOfMonth()])
-                    ->sum('total');
-                $ventasPorRango[] = [
-                    'date'  => $curr->format('Y-m'),
-                    'label' => $curr->locale('es')->isoFormat('MMM YYYY'),
-                    'value' => round($total, 2),
-                ];
-                $curr->addMonth();
-            }
-        }
-
-        // Top products within date range
-        $topProducts = [];
-        try {
-            $topProducts = DB::table('sale_details')
-                ->join('sales', 'sales.id', '=', 'sale_details.sale_id')
-                ->join('medicaments', 'medicaments.id', '=', 'sale_details.medicament_id')
-                ->where('sales.status', 'active')
-                ->whereNull('sales.deleted_at')
-                ->whereNull('medicaments.deleted_at')
-                ->whereBetween('sales.sold_at', [$startDate, $endDate])
-                ->select(
-                    'medicaments.id',
-                    'medicaments.name',
-                    'medicaments.code',
-                    DB::raw('SUM(sale_details.quantity) as total_vendido'),
-                    DB::raw('SUM(sale_details.subtotal) as total_recaudado')
-                )
-                ->groupBy('medicaments.id', 'medicaments.name', 'medicaments.code')
-                ->orderByDesc('total_vendido')
-                ->limit(10)
-                ->get();
-        } catch (\Throwable $e) {
-            Log::error('Error in top_productos query: ' . $e->getMessage());
-            $topProducts = [];
-        }
+        $ventasPorRango = $this->getVentasPorRango($startDate, $endDate);
+        $topProducts = $this->getTopProductos($startDate, $endDate);
 
         // Comparativa mes actual vs. mes anterior
         $startOfLastMonth = Carbon::now()->subMonthNoOverflow()->startOfMonth();
@@ -213,6 +147,111 @@ class DashboardService
             'ventas_por_dia_semana'  => $this->getVentasPorDiaSemana(),
             'ventas_por_hora_dia'    => $this->getVentasPorHoraDia(),
         ];
+    }
+
+    /**
+     * Resumen liviano de ventas para Reportes: solo tendencia por rango + top productos.
+     * A diferencia de getStats(), no calcula el resto de las métricas del panel principal
+     * (ranking de vendedores, margen, heatmap, etc.) que Reportes no usa.
+     */
+    public function getSalesSummary(array $filters = []): array
+    {
+        [$startDate, $endDate] = $this->resolveDateRange($filters);
+
+        $totalRango = (float) Sale::where('status', 'active')
+            ->whereBetween('sold_at', [$startDate, $endDate])
+            ->sum('total');
+
+        return [
+            'ventas_por_rango'   => $this->getVentasPorRango($startDate, $endDate),
+            'ventas_rango_total' => $totalRango,
+            'rango_inicio'       => $startDate->format('Y-m-d'),
+            'rango_fin'          => $endDate->format('Y-m-d'),
+            'top_productos'      => $this->getTopProductos($startDate, $endDate),
+        ];
+    }
+
+    /** @return array{0: Carbon, 1: Carbon} */
+    private function resolveDateRange(array $filters): array
+    {
+        $startDate = !empty($filters['start_date'])
+            ? Carbon::parse($filters['start_date'])->startOfDay()
+            : Carbon::today()->subDays(6)->startOfDay();
+
+        $endDate = !empty($filters['end_date'])
+            ? Carbon::parse($filters['end_date'])->endOfDay()
+            : Carbon::today()->endOfDay();
+
+        if ($startDate->gt($endDate)) {
+            $temp = $startDate;
+            $startDate = $endDate->copy()->startOfDay();
+            $endDate = $temp->copy()->endOfDay();
+        }
+
+        return [$startDate, $endDate];
+    }
+
+    private function getVentasPorRango(Carbon $startDate, Carbon $endDate): array
+    {
+        $ventasPorRango = [];
+        $diffDays = $startDate->diffInDays($endDate);
+
+        if ($diffDays <= 90) {
+            $curr = $startDate->copy()->startOfDay();
+            while ($curr->lte($endDate)) {
+                $total = (float) Sale::where('status', 'active')
+                    ->whereDate('sold_at', $curr)
+                    ->sum('total');
+                $ventasPorRango[] = [
+                    'date'  => $curr->format('Y-m-d'),
+                    'label' => $curr->locale('es')->isoFormat('D MMM'),
+                    'value' => round($total, 2),
+                ];
+                $curr->addDay();
+            }
+        } else {
+            $curr = $startDate->copy()->startOfMonth();
+            while ($curr->lte($endDate)) {
+                $total = (float) Sale::where('status', 'active')
+                    ->whereBetween('sold_at', [$curr->copy()->startOfMonth(), $curr->copy()->endOfMonth()])
+                    ->sum('total');
+                $ventasPorRango[] = [
+                    'date'  => $curr->format('Y-m'),
+                    'label' => $curr->locale('es')->isoFormat('MMM YYYY'),
+                    'value' => round($total, 2),
+                ];
+                $curr->addMonth();
+            }
+        }
+
+        return $ventasPorRango;
+    }
+
+    private function getTopProductos(Carbon $startDate, Carbon $endDate)
+    {
+        try {
+            return DB::table('sale_details')
+                ->join('sales', 'sales.id', '=', 'sale_details.sale_id')
+                ->join('medicaments', 'medicaments.id', '=', 'sale_details.medicament_id')
+                ->where('sales.status', 'active')
+                ->whereNull('sales.deleted_at')
+                ->whereNull('medicaments.deleted_at')
+                ->whereBetween('sales.sold_at', [$startDate, $endDate])
+                ->select(
+                    'medicaments.id',
+                    'medicaments.name',
+                    'medicaments.code',
+                    DB::raw('SUM(sale_details.quantity) as total_vendido'),
+                    DB::raw('SUM(sale_details.subtotal) as total_recaudado')
+                )
+                ->groupBy('medicaments.id', 'medicaments.name', 'medicaments.code')
+                ->orderByDesc('total_vendido')
+                ->limit(10)
+                ->get();
+        } catch (\Throwable $e) {
+            Log::error('Error in top_productos query: ' . $e->getMessage());
+            return [];
+        }
     }
 
     private function getVentasPorMetodoPago(Carbon $startDate, Carbon $endDate): array

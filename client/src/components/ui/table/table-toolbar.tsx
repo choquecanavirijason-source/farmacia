@@ -16,6 +16,7 @@ interface TableToolbarProps {
     searchValue: string
     onSearchChange: (value: string) => void
     searchPlaceholder: string
+    filtersSlot?: React.ReactNode
     hasActiveFilters: boolean
     onClearFilters: () => void
     selectedCount: number
@@ -31,6 +32,7 @@ export function TableToolbar({
     searchValue,
     onSearchChange,
     searchPlaceholder,
+    filtersSlot,
     hasActiveFilters,
     onClearFilters,
     selectedCount,
@@ -77,6 +79,7 @@ export function TableToolbar({
                     className="h-10 rounded-xl pl-9 bg-background/60 backdrop-blur-sm border-muted/60 focus-visible:ring-2 focus-visible:ring-primary/30"
                 />
             </div>
+            {filtersSlot}
             {hasActiveFilters && (
                 <Button type="button" variant="ghost" size="sm" onClick={onClearFilters} className="gap-1.5">
                     <X className="size-3.5" aria-hidden />

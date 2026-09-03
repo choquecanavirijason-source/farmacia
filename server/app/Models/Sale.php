@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Observers\AuditObserver;
+use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,7 +15,7 @@ use OwenIt\Auditing\Contracts\Auditable;
 #[ObservedBy([AuditObserver::class])]
 class Sale extends Model implements Auditable
 {
-    use AuditableTrait, HasFactory, SoftDeletes;
+    use AuditableTrait, HasFactory, SoftDeletes, Searchable;
 
     protected $fillable = [
         'sold_at',
@@ -56,20 +57,20 @@ class Sale extends Model implements Auditable
             ->when(!empty($filters['client_id']), fn ($query) => $query->where('client_id', $filters['client_id']))
             ->when(!empty($filters['start_date']), fn ($query) => $query->whereDate('sold_at', '>=', $filters['start_date']))
             ->when(!empty($filters['end_date']), fn ($query) => $query->whereDate('sold_at', '<=', $filters['end_date']))
-            ->when(!empty($filters['search']), function ($query) use ($filters) {
+            ->when(!empty($filters['search']), function (Builder $query) use ($filters) {
                 $search = $filters['search'];
-                $query->where(function ($q) use ($search) {
+                $query->where(function (Builder $q) use ($search) {
                     if (is_numeric($search)) {
                         $q->where('id', (int) $search);
                     }
-                    $q->orWhereHas('client', function ($cq) use ($search) {
-                        $cq->where('firstname', 'ilike', "%{$search}%")
-                            ->orWhere('lastname', 'ilike', "%{$search}%")
-                            ->orWhere('ci', 'like', "%{$search}%")
-                            ->orWhere('nit', 'like', "%{$search}%");
-                    })->orWhereHas('invoice', function ($iq) use ($search) {
-                        $iq->where('invoice_number', 'ilike', "%{$search}%")
-                            ->orWhere('business_name', 'ilike', "%{$search}%");
+                    $q->orWhereHas('client', function (Builder $cq) use ($search) {
+                        $cq->whereLike('firstname', $search)
+                            ->orWhereLike('lastname', $search)
+                            ->orWhereLike('ci', $search)
+                            ->orWhereLike('nit', $search);
+                    })->orWhereHas('invoice', function (Builder $iq) use ($search) {
+                        $iq->whereLike('invoice_number', $search)
+                            ->orWhereLike('business_name', $search);
                     });
                 });
             });

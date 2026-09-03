@@ -173,6 +173,8 @@ export function BatchFormDialog({
   medicamentos,
   onSaved,
 }: BatchFormDialogProps) {
+  if (!open) return null;
+
   return (
     <BatchFormBody
       key={batch ? `edit-${batch.id}` : "new"}

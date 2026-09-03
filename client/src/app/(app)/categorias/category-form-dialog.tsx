@@ -116,6 +116,8 @@ export function CategoryFormDialog({
   category,
   onSaved,
 }: CategoryFormDialogProps) {
+  if (!open) return null;
+
   return (
     <CategoryFormBody
       key={category ? `edit-${category.id}` : "new"}

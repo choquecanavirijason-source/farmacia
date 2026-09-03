@@ -18,7 +18,17 @@ function sanitizeNumeric(raw: string, allowDecimal: boolean, maxDigits: number):
       dotUsed = true;
     }
   }
-  return out;
+
+  // Quita ceros a la izquierda en la parte entera (050 -> 50, 00.5 -> 0.5),
+  // sin tocar el "0" solo ni la parte decimal.
+  const dotIndex = out.indexOf(".");
+  let intPart = dotIndex === -1 ? out : out.slice(0, dotIndex);
+  const rest = dotIndex === -1 ? "" : out.slice(dotIndex);
+  while (intPart.length > 1 && intPart[0] === "0") {
+    intPart = intPart.slice(1);
+  }
+
+  return intPart + rest;
 }
 
 interface NumericInputProps extends Omit<React.ComponentProps<"input">, "type" | "onChange" | "value"> {

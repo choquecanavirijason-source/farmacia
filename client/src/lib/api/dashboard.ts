@@ -98,3 +98,30 @@ export const fetchDashboardStats = async (
   });
   return res.data.data;
 };
+
+export interface ISalesSummary {
+  ventas_por_rango: { date: string; label: string; value: number }[];
+  ventas_rango_total: number;
+  rango_inicio: string;
+  rango_fin: string;
+  top_productos: {
+    id: number;
+    name: string;
+    code?: string;
+    total_vendido: number;
+    total_recaudado: number;
+  }[];
+}
+
+/** Versión liviana de fetchDashboardStats — solo tendencia de ventas + top productos,
+ * sin las demás métricas del panel principal. Úsala en vistas que no necesiten el resto. */
+export const fetchSalesSummary = async (
+  filters?: DashboardFilterParams,
+  signal?: AbortSignal
+): Promise<ISalesSummary> => {
+  const res = await apiClient.get<{ success: boolean; data: ISalesSummary }>("/dashboard/sales-summary", {
+    params: filters,
+    signal,
+  });
+  return res.data.data;
+};

@@ -124,6 +124,8 @@ export function LaboratoryFormDialog({
   laboratory,
   onSaved,
 }: LaboratoryFormDialogProps) {
+  if (!open) return null;
+
   return (
     <LaboratoryFormBody
       key={laboratory ? `edit-${laboratory.id}` : "new"}

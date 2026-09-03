@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Observers\AuditObserver;
+use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -18,7 +19,7 @@ use Spatie\Permission\Traits\HasRoles;
 #[ObservedBy([AuditObserver::class])]
 class User extends Authenticatable implements Auditable
 {
-    use AuditableTrait, HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes;
+    use AuditableTrait, HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes, Searchable;
 
     protected string $guard_name = 'api';
 
@@ -82,11 +83,11 @@ class User extends Authenticatable implements Auditable
 
     public function scopeSearch(Builder $query, string $search): Builder
     {
-        return $query->where(fn ($query) => $query->where('name', 'like', "%{$search}%")
-            ->orWhere('email', 'like', "%{$search}%")
-            ->orWhere('username', 'like', "%{$search}%")
-            ->orWhere('firstname', 'like', "%{$search}%")
-            ->orWhere('lastname', 'like', "%{$search}%"));
+        return $query->where(fn (Builder $query) => $query->whereLike('name', $search)
+            ->orWhereLike('email', $search)
+            ->orWhereLike('username', $search)
+            ->orWhereLike('firstname', $search)
+            ->orWhereLike('lastname', $search));
     }
 
     public function scopeFilter(Builder $query, array $filters): Builder

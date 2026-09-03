@@ -33,6 +33,7 @@ Route::middleware('auth:api')->group(function () {
     Route::post('simulation/run', [SimulationController::class, 'run']);
 
     Route::get('dashboard/stats', [DashboardController::class, 'stats']);
+    Route::get('dashboard/sales-summary', [DashboardController::class, 'salesSummary']);
 
     Route::get('categories/export', [CategoryController::class, 'export']);
     Route::delete('categories', [CategoryController::class, 'bulkDestroy']);

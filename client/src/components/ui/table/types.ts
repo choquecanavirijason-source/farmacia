@@ -40,6 +40,8 @@ export interface DataTableProps<T> {
   pageSize?: number;
   pageSizeOptions?: number[];
   searchPlaceholder?: string;
+  /** Filtros extra (selects, etc.) renderizados en la misma fila que el buscador. */
+  filtersSlot?: React.ReactNode;
   emptyMessage?: string;
   className?: string;
   getRowId?: (row: T) => string | number;

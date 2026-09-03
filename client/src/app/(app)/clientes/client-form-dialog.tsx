@@ -182,6 +182,8 @@ function ClientFormBody({
 
 // Componente modal para crear y editar clientes
 export function ClientFormDialog({ open, onOpenChange, client, onSaved }: ClientFormDialogProps) {
+  if (!open) return null;
+
   return (
     <ClientFormBody
       key={client ? `edit-${client.id}` : "new"}

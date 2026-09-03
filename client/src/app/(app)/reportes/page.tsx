@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchBatches, diasHasta } from "@/lib/api/batches";
 import { fetchMedicaments } from "@/lib/api/medicaments";
-import { fetchDashboardStats, type IDashboardStats } from "@/lib/api/dashboard";
+import { fetchSalesSummary, type ISalesSummary } from "@/lib/api/dashboard";
 import { SalesSection } from "./sales-section";
 import { TopProductsSection } from "./top-products-section";
 import { LowStockSection } from "./low-stock-section";
@@ -38,7 +38,7 @@ function getThirtyDaysAgo(): string {
 }
 
 export default function ReportesPage() {
-  const [stats, setStats] = useState<IDashboardStats | null>(null);
+  const [stats, setStats] = useState<ISalesSummary | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
   const [medicamentos, setMedicamentos] = useState<any[] | null>(null);
@@ -77,7 +77,7 @@ export default function ReportesPage() {
     const controller = new AbortController();
     setLoadingStats(true);
 
-    fetchDashboardStats(
+    fetchSalesSummary(
       {
         start_date: appliedStartDate || undefined,
         end_date: appliedEndDate || undefined,

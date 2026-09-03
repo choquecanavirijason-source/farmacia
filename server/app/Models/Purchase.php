@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Observers\AuditObserver;
+use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,7 +15,7 @@ use OwenIt\Auditing\Contracts\Auditable;
 #[ObservedBy([AuditObserver::class])]
 class Purchase extends Model implements Auditable
 {
-    use AuditableTrait, HasFactory, SoftDeletes;
+    use AuditableTrait, HasFactory, SoftDeletes, Searchable;
 
     protected $fillable = [
         'invoice_number',
@@ -40,11 +41,11 @@ class Purchase extends Model implements Auditable
 
     public function scopeSearch(Builder $query, string $search): Builder
     {
-        return $query->where(function ($q) use ($search) {
-            $q->where('invoice_number', 'ilike', "%{$search}%")
-              ->orWhereHas('supplier', function ($sq) use ($search) {
-                  $sq->where('name', 'ilike', "%{$search}%")
-                     ->orWhere('nit', 'like', "%{$search}%");
+        return $query->where(function (Builder $q) use ($search) {
+            $q->whereLike('invoice_number', $search)
+              ->orWhereHas('supplier', function (Builder $sq) use ($search) {
+                  $sq->whereLike('name', $search)
+                     ->orWhereLike('nit', $search);
               });
         });
     }

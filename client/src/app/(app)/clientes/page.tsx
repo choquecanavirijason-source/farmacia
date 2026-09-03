@@ -376,54 +376,6 @@ export default function ClientesPage() {
         </div>
       </div>
 
-      {/* Barra de Filtros por Estado (Activos / Eliminados / Todos) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Filter className="size-3.5" />
-            <span className="font-medium">Mostrar clientes:</span>
-          </div>
-
-          <Select
-            value={statusFilter}
-            onValueChange={(val) => {
-              setStatusFilter(val || "all");
-              setParams((p) => ({ ...p, page: 1 }));
-            }}
-          >
-            <SelectTrigger className="h-8 min-w-60 sm:min-w-64 w-auto text-xs px-3">
-              <SelectValue>
-                {statusFilter === "active"
-                  ? "Solo clientes activos"
-                  : statusFilter === "trashed"
-                    ? "Clientes eliminados (Papelera)"
-                    : "Todos los clientes"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent className="min-w-60 sm:min-w-64">
-              <SelectItem value="all">Todos los clientes</SelectItem>
-              <SelectItem value="active">Solo clientes activos</SelectItem>
-              <SelectItem value="trashed">Clientes eliminados (Papelera)</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {statusFilter !== "all" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setStatusFilter("all");
-                setParams((p) => ({ ...p, page: 1 }));
-              }}
-              className="h-8 text-xs text-muted-foreground hover:text-foreground"
-            >
-              Restablecer filtro
-            </Button>
-          )}
-        </div>
-      </div>
-
       <DataTable
         data={items}
         columns={columns}
@@ -441,6 +393,48 @@ export default function ClientesPage() {
             : undefined
         }
         searchPlaceholder="Buscar por nombre, CI, NIT o teléfono…"
+        filtersSlot={
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={statusFilter}
+              onValueChange={(val) => {
+                setStatusFilter(val || "all");
+                setParams((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger className="h-10 w-auto min-w-52 text-xs px-3">
+                <Filter className="size-3.5 text-muted-foreground" />
+                <SelectValue>
+                  {statusFilter === "active"
+                    ? "Solo clientes activos"
+                    : statusFilter === "trashed"
+                      ? "Clientes eliminados (Papelera)"
+                      : "Todos los clientes"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="min-w-60 sm:min-w-64">
+                <SelectItem value="all">Todos los clientes</SelectItem>
+                <SelectItem value="active">Solo clientes activos</SelectItem>
+                <SelectItem value="trashed">Clientes eliminados (Papelera)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {statusFilter !== "all" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setParams((p) => ({ ...p, page: 1 }));
+                }}
+                className="h-10 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Restablecer filtro
+              </Button>
+            )}
+          </div>
+        }
         emptyMessage={
           statusFilter === "trashed"
             ? "No hay clientes eliminados en la papelera."

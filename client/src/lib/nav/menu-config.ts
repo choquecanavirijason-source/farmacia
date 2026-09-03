@@ -43,6 +43,13 @@ export const MENU_GROUPS: MenuGroup[] = [
             roles: ["ADMINISTRADOR", "VENDEDOR"],
           },
           {
+            href: "/ventas/historial",
+            label: "Historial de Ventas",
+            iconName: "history",
+            permission: PERMISSIONS.VIEW_SALES,
+            roles: ["ADMINISTRADOR", "VENDEDOR"],
+          },
+          {
             href: "/caja",
             label: "Gestión de Caja",
             iconName: "wallet",

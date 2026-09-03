@@ -67,12 +67,15 @@ function NavSubItem({
   const pathname = usePathname();
   const hasChildren = Boolean(item.children && item.children.length > 0);
 
+  // Entre hermanos cuyo href es prefijo unos de otros (ej. "/ventas" y "/ventas/historial"),
+  // solo el más específico (href más largo) debe quedar activo — si no, ambos se marcan
+  // activos a la vez en la ruta más específica.
+  const activeChildHref = item.children
+    ?.filter((c) => c.href && (pathname === c.href || pathname.startsWith(`${c.href}/`)))
+    .sort((a, b) => (b.href?.length ?? 0) - (a.href?.length ?? 0))[0]?.href;
+
   // Determinar si algún hijo está activo para abrir el acordeón por defecto
-  const isChildActive = Boolean(
-    item.children?.some(
-      (c) => c.href && (pathname === c.href || pathname.startsWith(`${c.href}/`))
-    )
-  );
+  const isChildActive = Boolean(activeChildHref);
 
   const isDirectActive = Boolean(
     item.href && (pathname === item.href || pathname.startsWith(`${item.href}/`))
@@ -134,9 +137,7 @@ function NavSubItem({
             )}
           >
             {item.children.map((child) => {
-              const active = Boolean(
-                child.href && (pathname === child.href || pathname.startsWith(`${child.href}/`))
-              );
+              const active = Boolean(child.href) && child.href === activeChildHref;
               const ChildIcon = ICON_MAP[child.iconName] || Circle;
 
               return (
