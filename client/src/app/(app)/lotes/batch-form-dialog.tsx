@@ -155,7 +155,7 @@ function BatchFormBody({
           )}
           <NumericField
             name="purchase_price"
-            label="Precio de Compra (Bs)"
+            label="Precio de Compra Unitario (Bs)"
             allowDecimal
             placeholder="Ej. 8.50"
           />

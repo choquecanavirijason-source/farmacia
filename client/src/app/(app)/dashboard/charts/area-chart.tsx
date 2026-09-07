@@ -1,8 +1,10 @@
 "use client";
 
+import type { RefObject } from "react";
 import type { ApexOptions } from "apexcharts";
 import ApexChart from "./apex-chart";
 import { useApexBaseOptions, CHART_PALETTE } from "./chart-theme";
+import type { ApexChartInstance } from "./chart-card";
 
 interface Series {
   name: string;
@@ -16,10 +18,11 @@ interface AreaChartProps {
   formatValue?: (value: number) => string;
   height?: number;
   stacked?: boolean;
+  chartRef?: RefObject<ApexChartInstance>;
 }
 
 /** Área genérica — tendencia de ventas y margen bruto (soporta múltiples series). */
-export function AreaChart({ categories, series, formatValue, height = 320, stacked = false }: AreaChartProps) {
+export function AreaChart({ categories, series, formatValue, height = 320, stacked = false, chartRef }: AreaChartProps) {
   const base = useApexBaseOptions();
   const fmt = formatValue ?? ((v: number) => String(v));
 
@@ -56,6 +59,7 @@ export function AreaChart({ categories, series, formatValue, height = 320, stack
       height={height}
       series={series.map((s) => ({ name: s.name, data: s.data }))}
       options={options}
+      chartRef={chartRef}
     />
   );
 }

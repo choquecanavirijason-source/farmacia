@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   MoreHorizontal,
   Pencil,
+  Pill,
   Plus,
   Trash2,
   RotateCcw,
@@ -202,6 +203,14 @@ export default function MedicamentosPage() {
       edit: { onSave: (m, v) => saveField(m, "name", String(v)) },
       render: (_, m) => (
         <div className="flex items-center gap-2">
+          <div className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted">
+            {m.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element -- miniatura desde el disco local o S3, no un asset del proyecto
+              <img src={m.image_url} alt="" className="size-full object-cover" />
+            ) : (
+              <Pill className="size-3.5 text-muted-foreground" aria-hidden />
+            )}
+          </div>
           <div className="flex flex-col min-w-0">
             <span className={cn("font-medium text-xs truncate", m.deleted_at && "text-destructive line-through")}>
               {m.name}

@@ -1,18 +1,21 @@
 "use client";
 
+import type { RefObject } from "react";
 import type { ApexOptions } from "apexcharts";
 import ApexChart from "./apex-chart";
 import { useApexBaseOptions, CHART_PALETTE } from "./chart-theme";
+import type { ApexChartInstance } from "./chart-card";
 
 interface ComboChartProps {
   categories: string[];
   series: { name: string; data: number[] }[];
   formatValue?: (value: number) => string;
   height?: number;
+  chartRef?: RefObject<ApexChartInstance>;
 }
 
 /** Barras agrupadas — usado para Compras vs. Ventas por mes. */
-export function ComboChart({ categories, series, formatValue, height = 320 }: ComboChartProps) {
+export function ComboChart({ categories, series, formatValue, height = 320, chartRef }: ComboChartProps) {
   const base = useApexBaseOptions();
   const fmt = formatValue ?? ((v: number) => String(v));
 
@@ -36,5 +39,5 @@ export function ComboChart({ categories, series, formatValue, height = 320 }: Co
     legend: { ...base.legend, position: "top" },
   };
 
-  return <ApexChart type="bar" height={height} series={series} options={options} />;
+  return <ApexChart type="bar" height={height} series={series} options={options} chartRef={chartRef} />;
 }

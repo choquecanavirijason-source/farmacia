@@ -26,10 +26,9 @@ export function useApexBaseOptions(): ApexOptions {
     chart: {
       background: "transparent",
       foreColor: isDark ? "#94a3b8" : "#64748b",
-      toolbar: {
-        show: true,
-        tools: { download: true, zoom: true, zoomin: true, zoomout: true, pan: true, reset: true },
-      },
+      // El menú hamburguesa propio de ApexCharts queda apagado: duplicaba el menú (☰)
+      // que ya armamos en ChartCard con "Pantalla completa" e "Imprimir gráfico".
+      toolbar: { show: false },
       zoom: { enabled: true },
       animations: { enabled: true, speed: 350 },
     },

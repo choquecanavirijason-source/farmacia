@@ -88,6 +88,24 @@ export const restore = async (id: number): Promise<IApiResponse<IMedicament>> =>
   return response.data;
 };
 
+/** Sube (o reemplaza) la foto del medicamento. Se guarda en el disco configurado en el
+ * backend (local por defecto, S3 cuando se configure) — el frontend no necesita saber cuál. */
+export const uploadImage = async (id: number, file: File): Promise<IApiResponse<IMedicament>> => {
+  medicamentsPromise = null;
+  const formData = new FormData();
+  formData.append("image", file);
+  const response = await apiClient.post<IApiResponse<IMedicament>>(`/medicaments/${id}/image`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+};
+
+export const deleteImage = async (id: number): Promise<IApiResponse<IMedicament>> => {
+  medicamentsPromise = null;
+  const response = await apiClient.delete<IApiResponse<IMedicament>>(`/medicaments/${id}/image`);
+  return response.data;
+};
+
 export const exportResource = async (
   format: "excel" | "pdf",
   filters: Record<string, any> = {}

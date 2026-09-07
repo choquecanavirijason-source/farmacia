@@ -35,4 +35,21 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Fotos de Medicamentos
+    |--------------------------------------------------------------------------
+    |
+    | Disco (de config/filesystems.php) donde se guardan las fotos de producto.
+    | Por defecto usa "public" (disco local, sin costo, sin necesitar AWS) para
+    | que la función funcione de entrada. El día que alguien configure el bucket
+    | de S3 (ver .env.example), basta con cambiar MEDICAMENT_IMAGES_DISK=s3 y
+    | llenar las variables AWS_* — no hace falta tocar ni una línea de código,
+    | ni migrar las fotos ya subidas al disco local si no se quiere.
+    |
+    */
+    'medicament_images' => [
+        'disk' => env('MEDICAMENT_IMAGES_DISK', 'public'),
+    ],
+
 ];

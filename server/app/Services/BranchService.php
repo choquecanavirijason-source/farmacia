@@ -100,7 +100,12 @@ class BranchService
         return $branch->fresh('users');
     }
 
-    /** Cambia la sucursal activa del usuario, validando membresía y que no deje una caja huérfana. */
+    /** Cambia la sucursal activa del usuario, validando membresía y que no deje una caja huérfana.
+     * El bloqueo por caja abierta solo aplica a quien tiene una única sucursal asignada (el
+     * cajero/vendedor típico de un solo local): `cash_registers` no registra quién la abrió, así
+     * que a alguien con 2+ sucursales asignadas — sea administrador, supervisor o vendedor que
+     * rota entre locales — se le asume responsabilidad de moverse entre ellas y no debería quedar
+     * atrapado por una caja que quizás ni siquiera está usando él. */
     public function switchActive(User $user, int $branchId): User
     {
         if (!$user->branches()->where('branches.id', $branchId)->exists()) {
@@ -109,7 +114,9 @@ class BranchService
             ]);
         }
 
-        if ($user->active_branch_id) {
+        $hasMultipleBranches = $user->branches()->count() > 1;
+
+        if ($user->active_branch_id && !$hasMultipleBranches) {
             $hasOpenRegister = CashRegister::where('branch_id', $user->active_branch_id)
                 ->where('status', 'open')
                 ->exists();

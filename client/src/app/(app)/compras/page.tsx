@@ -52,6 +52,12 @@ const DEFAULT_PARAMS: ServerFetchParams = {
   sort: { key: "purchase_date", direction: "desc" },
 };
 
+function daysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function ComprasPage() {
   const { can } = useAuth();
   const { branchScope } = useBranchView();
@@ -64,7 +70,7 @@ export default function ComprasPage() {
 
   // Filtros
   const [proveedorFilter, setProveedorFilter] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>(daysAgo(60));
   const [endDate, setEndDate] = useState<string>("");
 
   // Catálogos auxiliares

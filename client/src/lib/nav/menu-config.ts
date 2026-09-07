@@ -89,11 +89,32 @@ export const MENU_GROUPS: MenuGroup[] = [
             roles: ["ADMINISTRADOR"],
           },
           {
-            href: "/categorias",
             label: "Categorías y Catálogos",
             iconName: "tags",
-            permission: PERMISSIONS.VIEW_CATEGORIES,
             roles: ["ADMINISTRADOR"],
+            children: [
+              {
+                href: "/categorias",
+                label: "Categorías",
+                iconName: "tags",
+                permission: PERMISSIONS.VIEW_CATEGORIES,
+                roles: ["ADMINISTRADOR"],
+              },
+              {
+                href: "/categorias?tab=presentaciones",
+                label: "Presentaciones",
+                iconName: "tags",
+                permission: PERMISSIONS.VIEW_PRESENTATIONS,
+                roles: ["ADMINISTRADOR"],
+              },
+              {
+                href: "/categorias?tab=laboratorios",
+                label: "Laboratorios",
+                iconName: "tags",
+                permission: PERMISSIONS.VIEW_LABORATORIES,
+                roles: ["ADMINISTRADOR"],
+              },
+            ],
           },
         ],
       },
@@ -166,11 +187,46 @@ export const MENU_GROUPS: MenuGroup[] = [
         iconName: "bar-chart",
         children: [
           {
-            href: "/reportes",
             label: "Reportes Estadísticos",
             iconName: "bar-chart",
-            permission: PERMISSIONS.VIEW_REPORTS,
             roles: ["ADMINISTRADOR"],
+            children: [
+              {
+                href: "/reportes",
+                label: "Tendencia de Ventas",
+                iconName: "bar-chart",
+                permission: PERMISSIONS.VIEW_REPORTS,
+                roles: ["ADMINISTRADOR"],
+              },
+              {
+                href: "/reportes?tab=mas-vendidos",
+                label: "Más Vendidos (Top)",
+                iconName: "bar-chart",
+                permission: PERMISSIONS.VIEW_REPORTS,
+                roles: ["ADMINISTRADOR"],
+              },
+              {
+                href: "/reportes?tab=stock-bajo",
+                label: "Estado de Inventario / Stock",
+                iconName: "bar-chart",
+                permission: PERMISSIONS.VIEW_REPORTS,
+                roles: ["ADMINISTRADOR"],
+              },
+              {
+                href: "/reportes?tab=por-vencer",
+                label: "Próximos a Vencer",
+                iconName: "bar-chart",
+                permission: PERMISSIONS.VIEW_REPORTS,
+                roles: ["ADMINISTRADOR"],
+              },
+              {
+                href: "/reportes?tab=kardex",
+                label: "Kardex por Medicamento",
+                iconName: "bar-chart",
+                permission: PERMISSIONS.VIEW_REPORTS,
+                roles: ["ADMINISTRADOR"],
+              },
+            ],
           },
           {
             href: "/actividades",
@@ -258,24 +314,40 @@ export function filterMenuByPermissions(
   })).filter((group) => group.items.length > 0);
 }
 
+/** Quita el query string de un href de menú (ej. "/categorias?tab=x" -> "/categorias") para comparar contra `pathname`, que nunca lo incluye. */
+function stripQuery(href: string): string {
+  return href.split("?")[0];
+}
+
+function menuItemsForPath(pathname: string): MenuItem[] {
+  return ALL_MENU_ITEMS.filter((i) => {
+    if (!i.href) return false;
+    const path = stripQuery(i.href);
+    return pathname === path || pathname.startsWith(`${path}/`);
+  });
+}
+
 export function canAccessPath(
   pathname: string,
   can: (permission: string) => boolean
 ): boolean {
   if (pathname === "/dashboard" || pathname === "/") return true;
 
-  const item = ALL_MENU_ITEMS.find(
-    (i) => i.href && (pathname === i.href || pathname.startsWith(`${i.href}/`))
-  );
+  const items = menuItemsForPath(pathname);
 
-  if (!item) return true; // Ruta pública o no restringida por menú
+  if (items.length === 0) return true; // Ruta pública o no restringida por menú
 
-  return item.permission ? can(item.permission) : true;
+  // Varios ítems de menú (ej. las pestañas de "Categorías y Catálogos") pueden compartir
+  // la misma ruta con permisos distintos — basta con poder ver al menos una pestaña.
+  return items.some((item) => !item.permission || can(item.permission));
 }
 
 export function rolesAllowedForPath(pathname: string): RolNombre[] | null {
-  const item = ALL_MENU_ITEMS.find(
-    (i) => i.href && (pathname === i.href || pathname.startsWith(`${i.href}/`))
-  );
-  return item ? (item.roles ?? null) : null;
+  const items = menuItemsForPath(pathname);
+  if (items.length === 0) return null;
+  if (items.some((i) => !i.roles)) return null;
+
+  const roles = new Set<RolNombre>();
+  items.forEach((i) => i.roles!.forEach((r) => roles.add(r)));
+  return Array.from(roles);
 }

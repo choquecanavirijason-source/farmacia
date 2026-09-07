@@ -60,6 +60,10 @@ export function KardexSection({
           <Select
             value={selectedMedicamentId}
             onValueChange={(v) => onSelectMedicament(v ?? "")}
+            items={(medicamentos ?? []).map((m: any) => ({
+              value: String(m.id || m.id_medicamento),
+              label: `${m.name || m.nombre} (${m.code || m.codigo})`,
+            }))}
           >
             <SelectTrigger className="h-9 w-full text-xs">
               <SelectValue placeholder="Selecciona un medicamento para ver su kardex..." />

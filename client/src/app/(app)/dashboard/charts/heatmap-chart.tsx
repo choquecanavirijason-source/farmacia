@@ -1,17 +1,20 @@
 "use client";
 
+import type { RefObject } from "react";
 import type { ApexOptions } from "apexcharts";
 import ApexChart from "./apex-chart";
 import { useApexBaseOptions, CHART_PALETTE } from "./chart-theme";
+import type { ApexChartInstance } from "./chart-card";
 
 interface HeatmapChartProps {
   data: { day: string; horas: number[] }[];
   formatValue?: (value: number) => string;
   height?: number;
+  chartRef?: RefObject<ApexChartInstance>;
 }
 
 /** Mapa de calor de ventas por hora del día × día de la semana (últimos 30 días). */
-export function HeatmapChart({ data, formatValue, height = 300 }: HeatmapChartProps) {
+export function HeatmapChart({ data, formatValue, height = 300, chartRef }: HeatmapChartProps) {
   const base = useApexBaseOptions();
   const fmt = formatValue ?? ((v: number) => String(v));
 
@@ -44,5 +47,5 @@ export function HeatmapChart({ data, formatValue, height = 300 }: HeatmapChartPr
     tooltip: { ...base.tooltip, y: { formatter: fmt } },
   };
 
-  return <ApexChart type="heatmap" height={height} series={series} options={options} />;
+  return <ApexChart type="heatmap" height={height} series={series} options={options} chartRef={chartRef} />;
 }

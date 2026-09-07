@@ -8,6 +8,8 @@ use App\Models\Medicament;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -72,6 +74,37 @@ class MedicamentService
         $medicament = Medicament::onlyTrashed()->findOrFail($id);
         $medicament->restore();
         return $medicament;
+    }
+
+    /**
+     * Sube (o reemplaza) la foto del medicamento en el disco configurado en
+     * MEDICAMENT_IMAGES_DISK (local por defecto, S3 cuando se configure — ver config/services.php).
+     */
+    public function uploadImage(Medicament $medicament, UploadedFile $file): Medicament
+    {
+        $disk = config('services.medicament_images.disk', 'public');
+
+        if ($medicament->image_path) {
+            Storage::disk($disk)->delete($medicament->image_path);
+        }
+
+        $path = $file->store('medicaments', $disk);
+        $medicament->update(['image_path' => $path]);
+
+        return $medicament->refresh();
+    }
+
+    /** Quita la foto del medicamento (borra el archivo del disco y limpia la referencia). */
+    public function deleteImage(Medicament $medicament): Medicament
+    {
+        $disk = config('services.medicament_images.disk', 'public');
+
+        if ($medicament->image_path) {
+            Storage::disk($disk)->delete($medicament->image_path);
+            $medicament->update(['image_path' => null]);
+        }
+
+        return $medicament->refresh();
     }
 
     public function getKardex(int $id): Collection

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exports\RecordsExport;
+use App\Models\Branch;
 use App\Models\CashMovement;
 use App\Models\CashRegister;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -15,6 +16,30 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CashRegisterService
 {
+    /** Estado de la caja (abierta o no) de cada sucursal, para la vista "Todas las sucursales". */
+    public function getCurrentByBranch(): \Illuminate\Support\Collection
+    {
+        $openRegisters = CashRegister::where('status', 'open')->get()->keyBy('branch_id');
+
+        return Branch::withoutTrashed()
+            ->orderBy('name')
+            ->get()
+            ->map(function (Branch $branch) use ($openRegisters) {
+                $open = $openRegisters->get($branch->id);
+
+                return [
+                    'branch'        => ['id' => $branch->id, 'name' => $branch->name],
+                    'cash_register' => $open ? [
+                        'id'             => $open->id,
+                        'opened_at'      => $open->opened_at?->toISOString(),
+                        'opening_amount' => (float) $open->opening_amount,
+                        'status'         => $open->status,
+                    ] : null,
+                ];
+            })
+            ->values();
+    }
+
     public function getCurrent(?int $branchId = null): ?CashRegister
     {
         return CashRegister::with('movements')

@@ -335,10 +335,10 @@ export default function LotesPage() {
     },
     {
       key: "purchase_price",
-      header: "Precio Compra",
+      header: "Precio Compra (unid.)",
       accessor: (l) => Number(l.purchase_price),
       resizable: true,
-      width: 130,
+      width: 150,
       className: "text-right",
       edit: { type: "number", onSave: (l, v) => saveField(l, "purchase_price", Number(v)) },
       render: (_, l) => (

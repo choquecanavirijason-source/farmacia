@@ -31,6 +31,12 @@ class CashRegisterController
         return $this->resourceResponse(new CashRegisterResource($cashRegister), 'Caja actual obtenida con éxito.');
     }
 
+    public function currentByBranch()
+    {
+        $result = $this->cashRegisterService->getCurrentByBranch();
+        return $this->successResponse($result, 'Estado de caja por sucursal obtenido con éxito.');
+    }
+
     public function index(PaginationRequest $request)
     {
         $filters = $request->getFilters(['status']);

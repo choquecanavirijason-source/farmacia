@@ -248,22 +248,50 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
                 type="button"
                 onClick={() => addToCart(m)}
                 disabled={sinStock}
-                className="group flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-background p-3 text-center transition-colors duration-200 ease-in-out hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className={cn(
+                  "group relative flex min-h-33 flex-col items-center justify-end gap-1 overflow-hidden rounded-xl border border-border/60 p-3 text-center transition-colors duration-200 ease-in-out hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+                  m.image_url ? "bg-background" : "bg-background hover:bg-primary/5"
+                )}
               >
-                <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Pill className="size-5" aria-hidden />
-                </span>
-                <span className="line-clamp-2 text-xs font-medium text-balance">{m.nombre}</span>
-                <span className="text-xs font-semibold">{formatCurrency(m.precio_venta)}</span>
-                {m.requiere_receta ? (
-                  <Badge variant="outline" className="text-[10px]">
-                    Receta
-                  </Badge>
-                ) : sinStock ? (
-                  <Badge variant="secondary" className="text-[10px]">
-                    Sin stock
-                  </Badge>
-                ) : null}
+                {m.image_url ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- foto desde el disco local o S3, no un asset del proyecto */}
+                    <img src={m.image_url} alt="" className="absolute inset-0 size-full object-contain" />
+                    {/* Info superpuesta: se oculta al pasar el mouse para poder ver la foto completa. */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-end gap-1 bg-linear-to-t from-black/85 via-black/35 to-black/5 p-3 opacity-100 transition-opacity duration-200 ease-in-out group-hover:opacity-0">
+                      <span className="line-clamp-2 text-xs font-medium text-balance text-white drop-shadow-sm">
+                        {m.nombre}
+                      </span>
+                      <span className="text-xs font-semibold text-white drop-shadow-sm">
+                        {formatCurrency(m.precio_venta)}
+                      </span>
+                      <span className={cn("text-[10px]", sinStock ? "text-destructive" : "text-white/90")}>
+                        {sinStock ? "Sin stock" : `${disponible} disponible${disponible === 1 ? "" : "s"}`}
+                      </span>
+                      {m.requiere_receta ? (
+                        <Badge variant="outline" className="text-[10px]">
+                          Receta
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="mb-1 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Pill className="size-5" aria-hidden />
+                    </span>
+                    <span className="line-clamp-2 text-xs font-medium text-balance">{m.nombre}</span>
+                    <span className="text-xs font-semibold">{formatCurrency(m.precio_venta)}</span>
+                    <span className={cn("text-[10px]", sinStock ? "text-destructive" : "text-muted-foreground")}>
+                      {sinStock ? "Sin stock" : `${disponible} disponible${disponible === 1 ? "" : "s"}`}
+                    </span>
+                    {m.requiere_receta ? (
+                      <Badge variant="outline" className="text-[10px]">
+                        Receta
+                      </Badge>
+                    ) : null}
+                  </>
+                )}
               </button>
             );
           })}

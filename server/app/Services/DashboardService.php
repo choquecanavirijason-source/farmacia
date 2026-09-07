@@ -54,10 +54,14 @@ class DashboardService
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->count();
 
-        $openCashRegister = CashRegister::where('status', 'open')
+        // En modo "todas las sucursales" puede haber más de una caja abierta a la vez (una por
+        // sucursal) — se listan todas con su sucursal en vez de mostrar una sola sin identificar
+        // de dónde es, que era imposible de diferenciar viendo el consolidado.
+        $openCashRegisters = CashRegister::with('branch')
+            ->where('status', 'open')
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->latest('opened_at')
-            ->first();
+            ->get();
 
         $recentSales = Sale::with('client')
             ->where('status', 'active')
@@ -103,17 +107,6 @@ class DashboardService
             ];
         }
 
-        // Custom date range support
-        [$startDate, $endDate] = $this->resolveDateRange($filters);
-
-        $totalRango = (float) Sale::where('status', 'active')
-            ->whereBetween('sold_at', [$startDate, $endDate])
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->sum('total');
-
-        $ventasPorRango = $this->getVentasPorRango($startDate, $endDate, $branchId);
-        $topProducts = $this->getTopProductos($startDate, $endDate, $branchId);
-
         // Comparativa mes actual vs. mes anterior
         $startOfLastMonth = Carbon::now()->subMonthNoOverflow()->startOfMonth();
         $endOfLastMonth = Carbon::now()->subMonthNoOverflow()->endOfMonth();
@@ -140,37 +133,108 @@ class DashboardService
             'lotes_por_vencer_count' => $expiringBatchesCount,
             'total_clientes'         => $totalClients,
             'total_medicamentos'     => $totalMedicaments,
-            'caja_abierta'           => $openCashRegister ? [
-                'id'             => $openCashRegister->id,
-                'opened_at'      => $openCashRegister->opened_at?->toISOString(),
-                'opening_amount' => (float) $openCashRegister->opening_amount,
-                'status'         => $openCashRegister->status,
+            'caja_abierta'           => $openCashRegisters->isNotEmpty() ? [
+                'id'             => $openCashRegisters->first()->id,
+                'opened_at'      => $openCashRegisters->first()->opened_at?->toISOString(),
+                'opening_amount' => (float) $openCashRegisters->first()->opening_amount,
+                'status'         => $openCashRegisters->first()->status,
+                'branch'         => $openCashRegisters->first()->branch ? [
+                    'id'   => $openCashRegisters->first()->branch->id,
+                    'name' => $openCashRegisters->first()->branch->name,
+                ] : null,
             ] : null,
+            'cajas_abiertas'         => $openCashRegisters->map(fn ($cr) => [
+                'id'             => $cr->id,
+                'opened_at'      => $cr->opened_at?->toISOString(),
+                'opening_amount' => (float) $cr->opening_amount,
+                'branch'         => $cr->branch ? [
+                    'id'   => $cr->branch->id,
+                    'name' => $cr->branch->name,
+                ] : null,
+            ])->values(),
             'ultimas_ventas'         => $recentSales,
-            'top_productos'          => $topProducts,
             'ventas_ultimos_7_dias'  => $ventasPorDia7,
             'ventas_ultimos_30_dias' => $ventasPorDia30,
-            'ventas_por_rango'       => $ventasPorRango,
-            'ventas_rango_total'     => $totalRango,
-            'rango_inicio'           => $startDate->format('Y-m-d'),
-            'rango_fin'              => $endDate->format('Y-m-d'),
             'ventas_mes_anterior'    => $totalSalesLastMonth,
             'variacion_mensual_pct'  => $variacionMensual,
             'ticket_promedio_hoy'    => $ticketPromedioHoy,
             'total_medicamentos_stock_saludable' => max(0, $totalMedicaments - $lowStockCount),
 
-            // Gráficas adicionales del panel
-            'ventas_por_metodo_pago' => $this->getVentasPorMetodoPago($startDate, $endDate, $branchId),
-            'ventas_por_categoria'   => $this->getVentasPorCategoria($startDate, $endDate, $branchId),
-            'margen_por_rango'       => $this->getMargenPorRango($startDate, $endDate, $branchId),
+            // Gráficas de ventana fija del panel (no dependen de un rango de fechas elegible)
             'compras_por_proveedor'  => $this->getComprasPorProveedor(Carbon::now()->subDays(90), Carbon::now()->endOfDay(), $branchId),
-            'ranking_vendedores'     => $this->getRankingVendedores($startDate, $endDate, $branchId),
             'lotes_semaforo'         => $this->getLotesSemaforo($branchId),
             'compras_vs_ventas'      => $this->getComprasVsVentas($branchId),
             'productos_baja_rotacion' => $this->getProductosBajaRotacion($branchId),
             'ventas_por_dia_semana'  => $this->getVentasPorDiaSemana($branchId),
             'ventas_por_hora_dia'    => $this->getVentasPorHoraDia($branchId),
         ];
+    }
+
+    /**
+     * Tendencia de ventas por rango de fechas — métrica independiente para que el gráfico
+     * "Tendencia de Ventas" del panel principal tenga su propio filtro (no el global de getStats()).
+     */
+    public function getVentasTendencia(array $filters = []): array
+    {
+        $branchId = !empty($filters['branch_id']) ? (int) $filters['branch_id'] : null;
+        [$startDate, $endDate] = $this->resolveDateRange($filters);
+
+        $total = (float) Sale::where('status', 'active')
+            ->whereBetween('sold_at', [$startDate, $endDate])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->sum('total');
+
+        return [
+            'data'         => $this->getVentasPorRango($startDate, $endDate, $branchId),
+            'total'        => $total,
+            'rango_inicio' => $startDate->format('Y-m-d'),
+            'rango_fin'    => $endDate->format('Y-m-d'),
+        ];
+    }
+
+    /** Ranking de vendedores por rango de fechas — filtro propio, independiente del resto del panel. */
+    public function getRankingVendedoresReport(array $filters = []): array
+    {
+        $branchId = !empty($filters['branch_id']) ? (int) $filters['branch_id'] : null;
+        [$startDate, $endDate] = $this->resolveDateRange($filters);
+
+        return ['data' => $this->getRankingVendedores($startDate, $endDate, $branchId)];
+    }
+
+    /** Top de medicamentos más vendidos por rango de fechas — filtro propio. */
+    public function getTopProductosReport(array $filters = []): array
+    {
+        $branchId = !empty($filters['branch_id']) ? (int) $filters['branch_id'] : null;
+        [$startDate, $endDate] = $this->resolveDateRange($filters);
+
+        return ['data' => $this->getTopProductos($startDate, $endDate, $branchId)];
+    }
+
+    /** Ventas por categoría por rango de fechas — filtro propio. */
+    public function getVentasPorCategoriaReport(array $filters = []): array
+    {
+        $branchId = !empty($filters['branch_id']) ? (int) $filters['branch_id'] : null;
+        [$startDate, $endDate] = $this->resolveDateRange($filters);
+
+        return ['data' => $this->getVentasPorCategoria($startDate, $endDate, $branchId)];
+    }
+
+    /** Ventas por método de pago por rango de fechas — filtro propio. */
+    public function getVentasPorMetodoPagoReport(array $filters = []): array
+    {
+        $branchId = !empty($filters['branch_id']) ? (int) $filters['branch_id'] : null;
+        [$startDate, $endDate] = $this->resolveDateRange($filters);
+
+        return ['data' => $this->getVentasPorMetodoPago($startDate, $endDate, $branchId)];
+    }
+
+    /** Margen bruto (ingreso vs. costo) por rango de fechas — filtro propio. */
+    public function getMargenBrutoReport(array $filters = []): array
+    {
+        $branchId = !empty($filters['branch_id']) ? (int) $filters['branch_id'] : null;
+        [$startDate, $endDate] = $this->resolveDateRange($filters);
+
+        return ['data' => $this->getMargenPorRango($startDate, $endDate, $branchId)];
     }
 
     /**

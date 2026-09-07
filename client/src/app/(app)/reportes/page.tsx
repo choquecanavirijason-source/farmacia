@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchBatches, diasHasta } from "@/lib/api/batches";
 import { fetchMedicaments } from "@/lib/api/medicaments";
 import { fetchSalesSummary, type ISalesSummary } from "@/lib/api/dashboard";
@@ -15,6 +15,31 @@ import { LowStockSection } from "./low-stock-section";
 import { ExpiringBatchesSection } from "./expiring-batches-section";
 import { KardexSection } from "./kardex-section";
 import type { StockBajoItem } from "./types";
+
+type TabValue = "ventas" | "mas-vendidos" | "stock-bajo" | "por-vencer" | "kardex";
+
+const TITLES: Record<TabValue, { title: string; description: string }> = {
+  ventas: {
+    title: "Tendencia de Ventas",
+    description: "Evolución de los ingresos por ventas en el periodo seleccionado.",
+  },
+  "mas-vendidos": {
+    title: "Más Vendidos (Top)",
+    description: "Ranking de los productos con mayor rotación en el periodo.",
+  },
+  "stock-bajo": {
+    title: "Estado de Inventario / Stock",
+    description: "Medicamentos con stock por debajo de su mínimo configurado.",
+  },
+  "por-vencer": {
+    title: "Próximos a Vencer",
+    description: "Lotes que vencen dentro de los próximos 90 días.",
+  },
+  kardex: {
+    title: "Kardex por Medicamento",
+    description: "Movimientos de entrada y salida de un medicamento específico.",
+  },
+};
 
 function getSevenDaysAgo(): string {
   const d = new Date();
@@ -38,7 +63,10 @@ function getThirtyDaysAgo(): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function ReportesPage() {
+function ReportesPageContent() {
+  const searchParams = useSearchParams();
+  const tab = (searchParams.get("tab") as TabValue) || "ventas";
+
   const [stats, setStats] = useState<ISalesSummary | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
@@ -169,14 +197,30 @@ export default function ReportesPage() {
     [medicamentos]
   );
 
+  const { title, description } = TITLES[tab] ?? TITLES.ventas;
+
+  const topProductosCount = stats?.top_productos?.length ?? 0;
+  const stockBajoCount = stockAnalisis?.filter((i) => i.deficit > 0).length ?? 0;
+  const porVencerCount =
+    lotes?.filter((l) => diasHasta(l.expiration_date || l.fecha_vencimiento) <= 90).length ?? 0;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-balance">Reportes Estadísticos</h1>
-          <p className="text-sm text-muted-foreground">
-            Apoyo a la toma de decisiones: análisis de ventas, rotación de productos, inventario, vencimientos y kardex.
-          </p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-balance">{title}</h1>
+            {tab === "mas-vendidos" && topProductosCount > 0 && (
+              <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{topProductosCount}</Badge>
+            )}
+            {tab === "stock-bajo" && stockBajoCount > 0 && (
+              <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">{stockBajoCount}</Badge>
+            )}
+            {tab === "por-vencer" && porVencerCount > 0 && (
+              <Badge variant="warning" className="px-1.5 py-0 text-[10px]">{porVencerCount}</Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">{description}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -194,91 +238,65 @@ export default function ReportesPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="ventas">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="ventas">Tendencia de Ventas</TabsTrigger>
-          <TabsTrigger value="mas-vendidos">
-            Más Vendidos (Top)
-            {stats?.top_productos && stats.top_productos.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
-                {stats.top_productos.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="stock-bajo">
-            Estado de Inventario / Stock
-            {stockAnalisis && stockAnalisis.filter((i) => i.deficit > 0).length > 0 && (
-              <Badge variant="destructive" className="ml-1.5 px-1.5 py-0 text-[10px]">
-                {stockAnalisis.filter((i) => i.deficit > 0).length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="por-vencer">
-            Próximos a Vencer
-            {lotes && lotes.filter((l) => diasHasta(l.expiration_date || l.fecha_vencimiento) <= 90).length > 0 && (
-              <Badge variant="warning" className="ml-1.5 px-1.5 py-0 text-[10px]">
-                {lotes.filter((l) => diasHasta(l.expiration_date || l.fecha_vencimiento) <= 90).length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="kardex">Kardex por Medicamento</TabsTrigger>
-        </TabsList>
+      {tab === "ventas" && (
+        <SalesSection
+          stats={stats}
+          loadingStats={loadingStats}
+          startDate={tempStartDate}
+          endDate={tempEndDate}
+          preset={tempPreset}
+          appliedStartDate={appliedStartDate}
+          appliedEndDate={appliedEndDate}
+          onPresetChange={handlePresetChange}
+          onStartDateChange={setTempStartDate}
+          onEndDateChange={setTempEndDate}
+          onApplyFilters={handleApplyFilters}
+        />
+      )}
 
-        <TabsContent value="ventas">
-          <SalesSection
-            stats={stats}
-            loadingStats={loadingStats}
-            startDate={tempStartDate}
-            endDate={tempEndDate}
-            preset={tempPreset}
-            appliedStartDate={appliedStartDate}
-            appliedEndDate={appliedEndDate}
-            onPresetChange={handlePresetChange}
-            onStartDateChange={setTempStartDate}
-            onEndDateChange={setTempEndDate}
-            onApplyFilters={handleApplyFilters}
-          />
-        </TabsContent>
+      {tab === "mas-vendidos" && (
+        <TopProductsSection
+          stats={stats}
+          loadingStats={loadingStats}
+          startDate={tempStartDate}
+          endDate={tempEndDate}
+          preset={tempPreset}
+          appliedStartDate={appliedStartDate}
+          appliedEndDate={appliedEndDate}
+          onPresetChange={handlePresetChange}
+          onStartDateChange={setTempStartDate}
+          onEndDateChange={setTempEndDate}
+          onApplyFilters={handleApplyFilters}
+        />
+      )}
 
-        <TabsContent value="mas-vendidos">
-          <TopProductsSection
-            stats={stats}
-            loadingStats={loadingStats}
-            startDate={tempStartDate}
-            endDate={tempEndDate}
-            preset={tempPreset}
-            appliedStartDate={appliedStartDate}
-            appliedEndDate={appliedEndDate}
-            onPresetChange={handlePresetChange}
-            onStartDateChange={setTempStartDate}
-            onEndDateChange={setTempEndDate}
-            onApplyFilters={handleApplyFilters}
-          />
-        </TabsContent>
+      {tab === "stock-bajo" && (
+        <LowStockSection stockAnalisis={stockAnalisis} loadingCatalogs={loadingCatalogs} />
+      )}
 
-        <TabsContent value="stock-bajo">
-          <LowStockSection
-            stockAnalisis={stockAnalisis}
-            loadingCatalogs={loadingCatalogs}
-          />
-        </TabsContent>
+      {tab === "por-vencer" && (
+        <ExpiringBatchesSection
+          lotes={lotes}
+          loadingCatalogs={loadingCatalogs}
+          medicamentoById={medicamentoById}
+        />
+      )}
 
-        <TabsContent value="por-vencer">
-          <ExpiringBatchesSection
-            lotes={lotes}
-            loadingCatalogs={loadingCatalogs}
-            medicamentoById={medicamentoById}
-          />
-        </TabsContent>
-
-        <TabsContent value="kardex">
-          <KardexSection
-            medicamentos={medicamentos}
-            selectedMedicamentId={idMedicamentoKardex}
-            onSelectMedicament={setIdMedicamentoKardex}
-          />
-        </TabsContent>
-      </Tabs>
+      {tab === "kardex" && (
+        <KardexSection
+          medicamentos={medicamentos}
+          selectedMedicamentId={idMedicamentoKardex}
+          onSelectMedicament={setIdMedicamentoKardex}
+        />
+      )}
     </div>
+  );
+}
+
+export default function ReportesPage() {
+  return (
+    <Suspense fallback={null}>
+      <ReportesPageContent />
+    </Suspense>
   );
 }

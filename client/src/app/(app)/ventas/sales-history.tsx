@@ -51,6 +51,12 @@ const DEFAULT_PARAMS: ServerFetchParams = {
   sort: { key: "sale_date", direction: "desc" },
 };
 
+function daysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function SalesHistory() {
   const { can } = useAuth();
   const { branchScope } = useBranchView();
@@ -63,7 +69,7 @@ export function SalesHistory() {
 
   // Filtros adicionales
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [startDate, setStartDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>(daysAgo(60));
   const [endDate, setEndDate] = useState<string>("");
 
   const [voidTarget, setVoidTarget] = useState<ISale | null>(null);

@@ -1,8 +1,10 @@
 "use client";
 
+import type { RefObject } from "react";
 import type { ApexOptions } from "apexcharts";
 import ApexChart from "./apex-chart";
 import { useApexBaseOptions, CHART_PALETTE } from "./chart-theme";
+import type { ApexChartInstance } from "./chart-card";
 
 interface DonutChartProps {
   labels: string[];
@@ -10,10 +12,11 @@ interface DonutChartProps {
   colors?: string[];
   formatValue?: (value: number) => string;
   height?: number;
+  chartRef?: RefObject<ApexChartInstance>;
 }
 
 /** Donut genérico — usado para método de pago, categorías, semáforo de vencimiento y proveedores. */
-export function DonutChart({ labels, series, colors, formatValue, height = 300 }: DonutChartProps) {
+export function DonutChart({ labels, series, colors, formatValue, height = 300, chartRef }: DonutChartProps) {
   const base = useApexBaseOptions();
   const fmt = formatValue ?? ((v: number) => String(v));
 
@@ -44,5 +47,5 @@ export function DonutChart({ labels, series, colors, formatValue, height = 300 }
     },
   };
 
-  return <ApexChart type="donut" height={height} series={series} options={options} />;
+  return <ApexChart type="donut" height={height} series={series} options={options} chartRef={chartRef} />;
 }

@@ -41,10 +41,14 @@ export default function ActividadesPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Estados de filtros temporales y específicos
-  const [period, setPeriod] = useState<"all" | "today" | "week" | "month" | "custom">("all");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
+  // Estados de filtros temporales y específicos — por defecto, últimos 60 días.
+  const [period, setPeriod] = useState<"all" | "today" | "week" | "month" | "custom">("custom");
+  const [dateFrom, setDateFrom] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 60);
+    return d.toISOString().slice(0, 10);
+  });
+  const [dateTo, setDateTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [modelFilter, setModelFilter] = useState<string>("all");
 
@@ -314,10 +318,9 @@ export default function ActividadesPage() {
       </div>
 
       {/* Barra de filtros de fecha y eventos */}
-      <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Filtros rápidos por período de tiempo */}
-          <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3 shadow-sm overflow-x-auto">
+        {/* Filtros rápidos por período de tiempo */}
+        <div className="flex flex-nowrap items-center gap-1.5">
             <span className="text-xs font-medium text-muted-foreground mr-1">
               Período:
             </span>
@@ -357,20 +360,10 @@ export default function ActividadesPage() {
             >
               Este Mes
             </Button>
-            <Button
-              type="button"
-              variant={period === "custom" ? "default" : "outline"}
-              size="sm"
-              className="h-8 text-xs gap-1.5"
-              onClick={() => setPeriod("custom")}
-            >
-              <CalendarIcon className="size-3.5" />
-              Personalizado
-            </Button>
-          </div>
+        </div>
 
-          {/* Filtros específicos por Tipo de Evento y Módulo */}
-          <div className="flex flex-wrap items-center gap-2">
+        {/* Filtros específicos por Tipo de Evento y Módulo */}
+        <div className="flex flex-nowrap items-center gap-2">
             <div className="flex items-center gap-1.5">
               <Filter className="size-3.5 text-muted-foreground" />
               <select
@@ -406,43 +399,47 @@ export default function ActividadesPage() {
               <option value="Laboratory">Laboratorios</option>
               <option value="Supplier">Proveedores</option>
             </select>
-          </div>
         </div>
 
-        {/* Selector de rango de fechas cuando se activa el modo personalizado */}
-        {period === "custom" && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t text-xs">
-            <span className="text-muted-foreground font-medium">Desde:</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="h-8 rounded border border-input bg-background px-2 text-xs"
-            />
-            <span className="text-muted-foreground font-medium ml-2">Hasta:</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="h-8 rounded border border-input bg-background px-2 text-xs"
-            />
-            {(dateFrom || dateTo) && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs text-muted-foreground gap-1"
-                onClick={() => {
-                  setDateFrom("");
-                  setDateTo("");
-                }}
-              >
-                <X className="size-3" />
-                Limpiar fechas
-              </Button>
-            )}
-          </div>
-        )}
+        {/* Rango de fechas, siempre visible — al editarlo se activa el filtro personalizado */}
+        <div className="flex flex-nowrap items-center gap-2 pl-2 ml-1 border-l text-xs">
+          <CalendarIcon className="size-3.5 text-muted-foreground" />
+          <span className="text-muted-foreground font-medium">Desde:</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPeriod("custom");
+            }}
+            className="h-8 rounded border border-input bg-background px-2 text-xs"
+          />
+          <span className="text-muted-foreground font-medium ml-2">Hasta:</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPeriod("custom");
+            }}
+            className="h-8 rounded border border-input bg-background px-2 text-xs"
+          />
+          {(dateFrom || dateTo) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-muted-foreground gap-1"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+            >
+              <X className="size-3" />
+              Limpiar fechas
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tabla de datos principal con componente reutilizable DataTable */}

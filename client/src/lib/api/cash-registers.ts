@@ -20,9 +20,7 @@ export const fetchCashRegisters = async (forceRefresh = false): Promise<ICashReg
     .get<any>("/cash-registers?per_page=100")
     .then((res) => res.data.data)
     .finally(() => {
-      setTimeout(() => {
-        cashRegistersPromise = null;
-      }, 1000);
+      cashRegistersPromise = null;
     });
 
   return cashRegistersPromise;
@@ -70,9 +68,7 @@ export const fetchCurrentCashRegister = async (forceRefresh = false): Promise<IC
     .then((res) => res.data.data)
     .catch(() => null)
     .finally(() => {
-      setTimeout(() => {
-        currentCashRegisterPromise = null;
-      }, 1000);
+      currentCashRegisterPromise = null;
     });
 
   return currentCashRegisterPromise;
@@ -140,6 +136,21 @@ export const fetchCajas = async (): Promise<any[]> => {
   }));
 };
 
+export interface ICashRegisterStatusByBranch {
+  branch: { id: number; name: string };
+  cash_register: {
+    id: number;
+    opened_at: string;
+    opening_amount: number;
+    status: string;
+  } | null;
+}
+
+export const fetchCurrentByBranch = async (): Promise<ICashRegisterStatusByBranch[]> => {
+  const res = await apiClient.get<IApiResponse<ICashRegisterStatusByBranch[]>>("/cash-registers/current-by-branch");
+  return res.data.data;
+};
+
 export const fetchCajaAbierta = async (forceRefresh = false): Promise<any | null> => {
   const c = await fetchCurrentCashRegister(forceRefresh);
   if (!c) return null;
@@ -159,7 +170,21 @@ export const fetchCajaAbierta = async (forceRefresh = false): Promise<any | null
 
 export const abrirCaja = openCashRegister;
 export const cerrarCaja = closeCashRegister;
-export const registrarMovimiento = createCashMovement;
+export const registrarMovimiento = async (
+  cashRegisterId: number,
+  data: Parameters<typeof createCashMovement>[1]
+): Promise<any> => {
+  const m = await createCashMovement(cashRegisterId, data);
+  return {
+    id_movimiento: m.id,
+    id_caja: m.cash_register_id,
+    tipo: (m.type === "ingreso" || (m.type as any) === "in" || (m.type as any) === "income") ? "ingreso" : "egreso",
+    concepto: m.concept || (m as any).description || "",
+    monto: Number(m.amount),
+    fecha: m.movement_date || m.created_at,
+    ...m,
+  };
+};
 export const fetchMovimientos = async (id: number): Promise<any[]> => {
   const list = await fetchCashMovements(id);
   return list.map((m) => ({

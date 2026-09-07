@@ -60,6 +60,26 @@ class AuditResource extends JsonResource
         return self::$branchNamesById[$branchId] ?? null;
     }
 
+    /** Reemplaza los IDs crudos de sucursal (ej. "2") por su nombre dentro del diff — un
+     * cambio de sucursal activa ("active_branch_id: 2 → 1") no dice nada sin el nombre. */
+    private function enrichBranchValues(?array $values): ?array
+    {
+        if (!$values) {
+            return $values;
+        }
+
+        foreach (['branch_id', 'active_branch_id', 'from_branch_id', 'to_branch_id'] as $key) {
+            if (!empty($values[$key])) {
+                $name = $this->resolveBranchName((int) $values[$key]);
+                if ($name) {
+                    $values[$key] = "{$name} (#{$values[$key]})";
+                }
+            }
+        }
+
+        return $values;
+    }
+
     public function toArray(Request $request): array
     {
         $branchId = $this->resolveBranchId();
@@ -85,8 +105,8 @@ class AuditResource extends JsonResource
                 'id'   => $branchId,
                 'name' => $this->resolveBranchName($branchId),
             ] : null,
-            'old_values'     => $this->old_values,
-            'new_values'     => $this->new_values,
+            'old_values'     => $this->enrichBranchValues($this->old_values),
+            'new_values'     => $this->enrichBranchValues($this->new_values),
             'url'            => $this->url,
             'ip_address'     => $this->ip_address,
             'user_agent'     => $this->user_agent,

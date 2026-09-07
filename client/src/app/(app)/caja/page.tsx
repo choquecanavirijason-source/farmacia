@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ArrowDownCircle, ArrowUpCircle, Lock, Wallet, Filter } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Lock, Wallet, Filter, Building2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +25,8 @@ import {
   getCashRegistersPaginated,
   exportCashRegisters,
   montoEsperado,
+  fetchCurrentByBranch,
+  type ICashRegisterStatusByBranch,
 } from "@/lib/api/cash-registers";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
@@ -35,6 +37,7 @@ import type { ICashRegister } from "@/lib/types/cash-register";
 import { OpenCashRegisterDialog } from "./open-cash-register-dialog";
 import { CloseCashRegisterDialog } from "./close-cash-register-dialog";
 import { CashMovementDialog } from "./cash-movement-dialog";
+import { CashRegisterMovementsDialog } from "./cash-register-movements-dialog";
 
 function formatFecha(iso?: string | null): string {
   if (!iso) return "—";
@@ -66,6 +69,20 @@ export default function CajaPage() {
   const [abrirOpen, setAbrirOpen] = useState(false);
   const [movimientoTipo, setMovimientoTipo] = useState<"ingreso" | "egreso" | null>(null);
   const [cerrarOpen, setCerrarOpen] = useState(false);
+
+  // Estado de caja por sucursal, solo para la vista "Todas las sucursales"
+  const [porSucursal, setPorSucursal] = useState<ICashRegisterStatusByBranch[]>([]);
+  const [selectedMovCaja, setSelectedMovCaja] = useState<ICashRegister | null>(null);
+  const [porSucursalLoading, setPorSucursalLoading] = useState(false);
+
+  useEffect(() => {
+    if (branchScope !== null) return;
+    setPorSucursalLoading(true);
+    fetchCurrentByBranch()
+      .then(setPorSucursal)
+      .catch(() => setPorSucursal([]))
+      .finally(() => setPorSucursalLoading(false));
+  }, [branchScope, historyRefreshKey]);
 
   // Carga inicial optimizada: solo la caja activa con sus movimientos
   const refreshCajaActual = useCallback(() => {
@@ -301,6 +318,22 @@ export default function CajaPage() {
         </Badge>
       ),
     },
+    {
+      key: "actions",
+      header: "Acciones",
+      accessor: () => "",
+      sortable: false,
+      render: (_, c) => (
+        <button
+          type="button"
+          onClick={() => setSelectedMovCaja(c)}
+          className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          title="Ver movimientos de esta caja"
+        >
+          <Eye className="size-4" />
+        </button>
+      ),
+    },
   ];
 
   const isLoading = cajaAbierta === undefined;
@@ -312,7 +345,62 @@ export default function CajaPage() {
         <p className="text-sm text-muted-foreground">Apertura, movimientos de efectivo y cierre con arqueo.</p>
       </div>
 
-      {isLoading ? (
+      {/* Estado de caja por sucursal — solo visible viendo "Todas las sucursales" */}
+      {branchScope === null && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-foreground">Estado de Caja por Sucursal</h2>
+          {porSucursalLoading ? (
+            <div className="flex gap-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-24 w-56 shrink-0 rounded-lg" />
+              ))}
+            </div>
+          ) : (
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {porSucursal.map(({ branch, cash_register }) => (
+                <Card
+                  key={branch.id}
+                  className={`w-56 shrink-0 ${
+                    cash_register ? "border-success/30 bg-success/5" : "border-border/60"
+                  }`}
+                >
+                  <CardContent className="flex flex-col gap-1.5 p-3.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-xs font-semibold truncate">
+                        <Building2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                        {branch.name}
+                      </span>
+                      <Badge variant={cash_register ? "success" : "secondary"} className="text-[10px] shrink-0">
+                        {cash_register ? "Abierta" : "Cerrada"}
+                      </Badge>
+                    </div>
+                    {cash_register ? (
+                      <>
+                        <p className="text-sm font-bold font-mono text-foreground">
+                          {formatCurrency(cash_register.opening_amount)}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Desde {formatFecha(cash_register.opened_at)}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground">Sin caja abierta</p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Para registrar ingresos, egresos o cerrar una caja, cámbiate a esa sucursal desde el selector de arriba.
+          </p>
+        </div>
+      )}
+
+      {/* La caja del turno propio (con acciones de ingreso/egreso/cierre) solo aplica a tu
+          sucursal activa — no tiene sentido en modo "Todas las sucursales". Para operar,
+          el usuario debe cambiarse a la sucursal correspondiente desde el Topbar. */}
+      {branchScope !== null && (isLoading ? (
         <Card className="max-w-2xl">
           <CardContent className="flex flex-col gap-3 pt-6">
             <Skeleton className="h-6 w-40" />
@@ -423,7 +511,7 @@ export default function CajaPage() {
             )}
           </div>
         </>
-      )}
+      ))}
 
       {/* Historial General de Cajas con Paginación y Filtros */}
       <div className="flex flex-col gap-3 pt-4 border-t">
@@ -519,6 +607,12 @@ export default function CajaPage() {
         totalEsperado={esperado}
         onOpenChange={(open) => !open && setCerrarOpen(false)}
         onCajaCerrada={handleCajaCerrada}
+      />
+
+      <CashRegisterMovementsDialog
+        open={Boolean(selectedMovCaja)}
+        onOpenChange={(open) => !open && setSelectedMovCaja(null)}
+        cashRegister={selectedMovCaja}
       />
     </div>
   );

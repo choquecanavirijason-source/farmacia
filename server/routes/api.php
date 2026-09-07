@@ -36,6 +36,12 @@ Route::middleware('auth:api')->group(function () {
 
     Route::get('dashboard/stats', [DashboardController::class, 'stats']);
     Route::get('dashboard/sales-summary', [DashboardController::class, 'salesSummary']);
+    Route::get('dashboard/ventas-tendencia', [DashboardController::class, 'ventasTendencia']);
+    Route::get('dashboard/ranking-vendedores', [DashboardController::class, 'rankingVendedores']);
+    Route::get('dashboard/top-productos', [DashboardController::class, 'topProductos']);
+    Route::get('dashboard/ventas-por-categoria', [DashboardController::class, 'ventasPorCategoria']);
+    Route::get('dashboard/ventas-por-metodo-pago', [DashboardController::class, 'ventasPorMetodoPago']);
+    Route::get('dashboard/margen-bruto', [DashboardController::class, 'margenBruto']);
 
     Route::get('categories/export', [CategoryController::class, 'export']);
     Route::delete('categories', [CategoryController::class, 'bulkDestroy']);
@@ -56,6 +62,8 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('medicaments', [MedicamentController::class, 'bulkDestroy']);
     Route::post('medicaments/{id}/restore', [MedicamentController::class, 'restore']);
     Route::get('medicaments/{id}/kardex', [MedicamentController::class, 'kardex']);
+    Route::post('medicaments/{id}/image', [MedicamentController::class, 'uploadImage']);
+    Route::delete('medicaments/{id}/image', [MedicamentController::class, 'deleteImage']);
     Route::apiResource('medicaments', MedicamentController::class);
 
     Route::get('batches/export', [BatchController::class, 'export']);
@@ -97,6 +105,7 @@ Route::middleware('auth:api')->group(function () {
 
     Route::get('cash-registers/export', [CashRegisterController::class, 'export']);
     Route::get('cash-registers/current', [CashRegisterController::class, 'current']);
+    Route::get('cash-registers/current-by-branch', [CashRegisterController::class, 'currentByBranch']);
     Route::post('cash-registers/open', [CashRegisterController::class, 'store']);
     Route::get('cash-registers/{id}/movements', [CashRegisterController::class, 'movements']);
     Route::post('cash-registers/{id}/movements', [CashRegisterController::class, 'registerMovement']);
