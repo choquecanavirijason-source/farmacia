@@ -6,7 +6,6 @@
     <title>{{ $title }}</title>
     <style>
         @page {
-            /* 115px arriba deja espacio completo para el logo + nombre + fecha/sucursal sin pisar la tabla */
             margin: 115px 30px 55px 30px;
         }
 
@@ -16,7 +15,6 @@
             color: #222;
         }
 
-        /* ENCABEZADO FIJO REPETIBLE EN TODAS LAS PÁGINAS */
         header {
             position: fixed;
             top: -95px;
@@ -71,12 +69,10 @@
             color: #b82335;
         }
 
-        /* TÍTULO CENTRADO */
         .title-box {
             width: 50%;
             text-align: center;
             padding-right: 15%;
-            /* Contrapeso óptico para centrar respecto al ancho total */
         }
 
         .report-title {
@@ -86,12 +82,9 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-top: 10px;
-            /* 👈 Sube o baja el título */
             margin-left: -180px;
-            /* 👈 Desplaza horizontalmente */
         }
 
-        /* Metadatos del Encabezado (Lugar/Fecha y Sucursal) */
         .meta-table {
             width: 100%;
             margin-top: 6px;
@@ -110,7 +103,6 @@
             color: #000;
         }
 
-        /* Tabla principal de registros */
         table.data-table {
             border-collapse: collapse;
             width: 100%;
@@ -137,12 +129,10 @@
 
         table.data-table thead {
             display: table-header-group;
-            /* Repite cabeceras de columnas */
         }
 
         table.data-table tr {
             page-break-inside: avoid;
-            /* Evita partir filas */
         }
 
         table.data-table tr:nth-child(even) td {
@@ -152,7 +142,6 @@
 </head>
 
 <body>
-    <!-- ENCABEZADO FIJO REPETIBLE -->
     <header>
         <table class="header-table">
             <tr>
@@ -161,7 +150,6 @@
                         <img src="{{ public_path($company['logo_path']) }}" class="logo-img" alt="Logo">
                         <span class="company-title-with-logo">{{ $company['name'] ?? 'Farmacia Juan de Dios' }}</span>
                     @else
-                        <!-- Logo provisorio con estilo tipográfico similar al de la imagen -->
                         <div class="logo-placeholder">
                             <span>&#9634;</span> {{ $company['name'] ?? 'FARMACIA' }}
                         </div>
@@ -187,7 +175,6 @@
         </table>
     </header>
 
-    <!-- TABLA DE DATOS -->
     <table class="data-table">
         <thead>
             <tr>
@@ -207,7 +194,6 @@
         </tbody>
     </table>
 
-    <!-- PIE DE PÁGINA (ESTAMPADO DINÁMICO CON CANVAS DE DOMPDF) -->
     <script type="text/php">
         if (isset($pdf)) {
             $font = $fontMetrics->getFont("DejaVu Sans", "normal");

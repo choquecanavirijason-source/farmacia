@@ -62,10 +62,9 @@ class ClientService
 
     public function export(string $format, array $filters = []): Response
     {
-        ini_set('memory_limit', '-1');   // 👈 agregar esta línea
-        set_time_limit(-1);                // 👈 y esta línea
+        ini_set('memory_limit', '-1');
+        set_time_limit(-1);
 
-        logger("entro al export");
         $status = $filters['status'] ?? 'all';
         $search = trim((string) ($filters['search'] ?? ''));
         $sortBy = $filters['sort_by'] ?? 'firstname';
