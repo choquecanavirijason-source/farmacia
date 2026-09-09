@@ -177,7 +177,7 @@ export default function CajaPage() {
 
   const esperado = useMemo(() => {
     if (!cajaAbierta) return 0;
-    return montoEsperado(cajaAbierta.monto_apertura, movimientos);
+    return montoEsperado(cajaAbierta, movimientos);
   }, [cajaAbierta, movimientos]);
 
   const movimientosColumns: DataTableColumn<MovimientoCaja>[] = [

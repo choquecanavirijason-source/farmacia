@@ -74,6 +74,24 @@ export const fetchCurrentCashRegister = async (forceRefresh = false): Promise<IC
   return currentCashRegisterPromise;
 };
 
+/** Traduce un ICashRegister crudo del backend (campos en inglés) a la forma "Caja" que
+ * espera la UI (fecha_apertura, monto_apertura, etc.) — evita el bug de "BsNaN"/"—" que
+ * sale cuando se le pasa el objeto crudo directo a componentes que esperan los campos en español. */
+function normalizeCaja(c: ICashRegister): any {
+  return {
+    id_caja: c.id,
+    fecha_apertura: c.opening_date || (c as any).opened_at,
+    monto_apertura: Number(c.opening_amount),
+    fecha_cierre: c.closing_date || (c as any).closed_at,
+    monto_cierre: c.closing_amount != null ? Number(c.closing_amount) : null,
+    monto_esperado: c.expected_closing_amount != null ? Number(c.expected_closing_amount) : null,
+    estado: c.status === "open" ? "abierta" : "cerrada",
+    id_usuario: c.user_id ?? 1,
+    movements: (c as any).movements || [],
+    ...c,
+  };
+}
+
 export const openCashRegister = async (data: { id_usuario?: number; monto_apertura: number }): Promise<ICashRegister> => {
   currentCashRegisterPromise = null;
   cashRegistersPromise = null;
@@ -154,22 +172,18 @@ export const fetchCurrentByBranch = async (): Promise<ICashRegisterStatusByBranc
 export const fetchCajaAbierta = async (forceRefresh = false): Promise<any | null> => {
   const c = await fetchCurrentCashRegister(forceRefresh);
   if (!c) return null;
-  return {
-    id_caja: c.id,
-    fecha_apertura: c.opening_date || (c as any).opened_at,
-    monto_apertura: Number(c.opening_amount),
-    fecha_cierre: c.closing_date || (c as any).closed_at,
-    monto_cierre: c.closing_amount ? Number(c.closing_amount) : null,
-    monto_esperado: c.expected_closing_amount ? Number(c.expected_closing_amount) : null,
-    estado: "abierta",
-    id_usuario: c.user_id ?? 1,
-    movements: (c as any).movements || [],
-    ...c,
-  };
+  return normalizeCaja(c);
 };
 
-export const abrirCaja = openCashRegister;
-export const cerrarCaja = closeCashRegister;
+export const abrirCaja = async (data: { id_usuario?: number; monto_apertura: number }) => {
+  const c = await openCashRegister(data);
+  return normalizeCaja(c);
+};
+
+export const cerrarCaja = async (id: number, data: { monto_cierre: number }) => {
+  const c = await closeCashRegister(id, data);
+  return normalizeCaja(c);
+};
 export const registrarMovimiento = async (
   cashRegisterId: number,
   data: Parameters<typeof createCashMovement>[1]
