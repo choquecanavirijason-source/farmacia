@@ -73,12 +73,34 @@ function precioConDescuento(precioVenta: number, descuentoPct: number): number {
   return Math.round(precioVenta * (1 - descuentoPct / 100) * 100) / 100;
 }
 
+const CART_STORAGE_KEY = "pos_cart_v1";
+
+/** Recupera el carrito guardado (si existe) para no perderlo al navegar a otra vista y volver al POS. */
+function loadStoredCart(): CartLine[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (l): l is CartLine =>
+        l &&
+        typeof l.id_medicamento === "number" &&
+        typeof l.cantidad === "number" &&
+        typeof l.descuentoPct === "number"
+    );
+  } catch {
+    return [];
+  }
+}
+
 export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps) {
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [search, setSearch] = useState("");
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cart, setCart] = useState<CartLine[]>(loadStoredCart);
   const [idCliente, setIdCliente] = useState("1");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [facturaVenta, setFacturaVenta] = useState<Venta | null>(null);
@@ -102,6 +124,15 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
     toast.success("Medicamento creado. Registra un lote (Compras o Lotes) para poder venderlo.");
   }
 
+  // Persiste el carrito en cada cambio, para no perderlo al navegar a otra vista y volver al POS.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+      // localStorage puede fallar (modo privado, cuota llena): no es crítico, el carrito sigue en memoria.
+    }
+  }, [cart]);
+
   const stockPorMedicamento = useMemo(() => {
     const map = new Map<number, number>();
     for (const l of lotes) {
@@ -109,6 +140,30 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
     }
     return map;
   }, [lotes]);
+
+  // El carrito guardado puede quedar desactualizado (stock que cambió mientras no estabas en el
+  // POS) — al cargar/refrescar el stock, recorta cantidades que ya no caben y quita líneas sin stock.
+  useEffect(() => {
+    if (lotes.length === 0) return;
+    setCart((prev) => {
+      let changed = false;
+      const next = prev
+        .map((line) => {
+          const disponible = stockPorMedicamento.get(line.id_medicamento) ?? 0;
+          if (disponible <= 0) {
+            changed = true;
+            return null;
+          }
+          if (line.cantidad > disponible) {
+            changed = true;
+            return { ...line, cantidad: disponible };
+          }
+          return line;
+        })
+        .filter((l): l is CartLine => l !== null);
+      return changed ? next : prev;
+    });
+  }, [stockPorMedicamento, lotes.length]);
 
   const resultados = useMemo(() => {
     const query = search.trim().toLowerCase();

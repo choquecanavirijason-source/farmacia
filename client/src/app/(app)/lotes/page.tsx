@@ -104,10 +104,18 @@ export default function LotesPage() {
   // eliminar/dar de baja), para que las alertas de stock bajo y vencimiento reflejen
   // el estado real, no solo la página visible de la tabla.
   useEffect(() => {
+    const controller = new AbortController();
     setBatchesLoaded(false);
-    fetchBatches(true, branchScope ?? "all")
+    fetchBatches(true, branchScope ?? "all", controller.signal)
       .then(setAllBatches)
-      .finally(() => setBatchesLoaded(true));
+      .catch(() => {
+        // Petición cancelada (branchScope cambió antes de que respondiera) o error de red: no hacer nada.
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setBatchesLoaded(true);
+      });
+
+    return () => controller.abort();
   }, [refreshKey, branchScope]);
 
   // Mapeo para búsqueda rápida de medicamento por ID

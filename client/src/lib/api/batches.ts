@@ -10,13 +10,15 @@ let batchesPromise: Promise<IBatch[]> | null = null;
 
 export const fetchBatches = async (
   forceRefresh = false,
-  branchId?: string | number | null
+  branchId?: string | number | null,
+  signal?: AbortSignal
 ): Promise<IBatch[]> => {
   // El filtro explícito de sucursal (usado por la vista "todas las sucursales") no se
   // cachea con el resto de llamadas por defecto (POS, alertas de la sucursal activa, etc.).
   if (branchId !== undefined) {
     const res = await apiClient.get<IPaginatedResponse<IBatch>>("/batches", {
       params: { per_page: 100, branch_id: branchId ?? "all" },
+      signal,
     });
     return res.data.data;
   }
