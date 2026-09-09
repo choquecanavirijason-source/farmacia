@@ -17,13 +17,13 @@ class ClientService
         $search = trim((string) ($filters['search'] ?? ''));
 
         $query = match ($status) {
-            'active'             => Client::withoutTrashed(),
+            'active' => Client::withoutTrashed(),
             'trashed', 'deleted' => Client::onlyTrashed(),
-            default              => Client::withTrashed(),
+            default => Client::withTrashed(),
         };
 
         return $query
-            ->when($search !== '', fn ($q) => $q->search($search))
+            ->when($search !== '', fn($q) => $q->search($search))
             ->sort($sortBy, $sortDir)
             ->paginate($perPage);
     }
@@ -62,33 +62,44 @@ class ClientService
 
     public function export(string $format, array $filters = []): Response
     {
+        ini_set('memory_limit', '-1');
+        set_time_limit(-1);
+
         $status = $filters['status'] ?? 'all';
         $search = trim((string) ($filters['search'] ?? ''));
         $sortBy = $filters['sort_by'] ?? 'firstname';
         $sortDir = $filters['sort_dir'] ?? 'asc';
 
         $query = match ($status) {
-            'active'             => Client::withoutTrashed(),
+            'active' => Client::withoutTrashed(),
             'trashed', 'deleted' => Client::onlyTrashed(),
-            default              => Client::withTrashed(),
+            default => Client::withTrashed(),
         };
 
         $records = $query
-            ->when($search !== '', fn ($q) => $q->search($search))
+            ->when($search !== '', fn($q) => $q->search($search))
             ->sort($sortBy, $sortDir)
             ->get();
 
         $columns = [
-            'Nombre'    => 'firstname',
-            'Apellido'  => 'lastname',
-            'CI'        => 'ci',
-            'NIT'       => 'nit',
-            'Teléfono'  => 'phone',
+            'Nombre' => 'firstname',
+            'Apellido' => 'lastname',
+            'CI' => 'ci',
+            'NIT' => 'nit',
+            'Teléfono' => 'phone',
             'Dirección' => 'address',
         ];
 
+        $company = \App\Models\Company::first();
+
         return strtolower($format) === 'pdf'
-            ? Pdf::loadView('exports.records', ['title' => 'Reporte de Clientes', 'columns' => $columns, 'records' => $records])->download('clientes.pdf')
+            ? Pdf::setOption(['isPhpEnabled' => true])->loadView('exports.records', [
+                'title' => 'Reporte de Clientes',
+                'columns' => $columns,
+                'records' => $records,
+                'company' => $company,
+                'agency' => $company ? $company->name : 'Casa Matriz',
+            ])->download('clientes.pdf')
             : Excel::download(new RecordsExport($records, $columns), 'clientes.xlsx');
     }
 }
