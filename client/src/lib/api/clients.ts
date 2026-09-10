@@ -88,6 +88,7 @@ export const exportResource = async (
   const res = await apiClient.get<Blob>("/clients/export", {
     params: { format, ...filters },
     responseType: "blob",
+    timeout: 120000,
   });
   return res.data;
 };
