@@ -595,10 +595,12 @@ class SimulationService
                 }
             }
 
-            // Sincronizar secuencias de IDs en PostgreSQL
-            DB::statement("SELECT setval(pg_get_serial_sequence('sales', 'id'), coalesce(max(id), 1)) FROM sales");
-            DB::statement("SELECT setval(pg_get_serial_sequence('purchases', 'id'), coalesce(max(id), 1)) FROM purchases");
-            DB::statement("SELECT setval(pg_get_serial_sequence('cash_registers', 'id'), coalesce(max(id), 1)) FROM cash_registers");
+            // Sincronizar secuencias de IDs en PostgreSQL (MySQL usa AUTO_INCREMENT y no lo necesita)
+            if (DB::connection()->getDriverName() === 'pgsql') {
+                DB::statement("SELECT setval(pg_get_serial_sequence('sales', 'id'), coalesce(max(id), 1)) FROM sales");
+                DB::statement("SELECT setval(pg_get_serial_sequence('purchases', 'id'), coalesce(max(id), 1)) FROM purchases");
+                DB::statement("SELECT setval(pg_get_serial_sequence('cash_registers', 'id'), coalesce(max(id), 1)) FROM cash_registers");
+            }
 
             $timings['simulation_processing'] = round((microtime(true) - $tSimulation) * 1000, 2) . ' ms';
             $timings['bulk_db_inserts'] = round((microtime(true) - $tDbInsert) * 1000, 2) . ' ms';

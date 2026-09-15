@@ -40,10 +40,14 @@ class Purchase extends Model implements Auditable
 
     public function scopeSearch(Builder $query, string $search): Builder
     {
-        return $query->where(function ($q) use ($search) {
-            $q->where('invoice_number', 'ilike', "%{$search}%")
-              ->orWhereHas('supplier', function ($sq) use ($search) {
-                  $sq->where('name', 'ilike', "%{$search}%")
+        // ILIKE es exclusivo de Postgres; en MySQL/MariaDB un LIKE normal ya es
+        // insensible a mayúsculas con las collations *_ci por defecto.
+        $op = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+
+        return $query->where(function ($q) use ($search, $op) {
+            $q->where('invoice_number', $op, "%{$search}%")
+              ->orWhereHas('supplier', function ($sq) use ($search, $op) {
+                  $sq->where('name', $op, "%{$search}%")
                      ->orWhere('nit', 'like', "%{$search}%");
               });
         });

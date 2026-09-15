@@ -58,18 +58,21 @@ class Sale extends Model implements Auditable
             ->when(!empty($filters['end_date']), fn ($query) => $query->whereDate('sold_at', '<=', $filters['end_date']))
             ->when(!empty($filters['search']), function ($query) use ($filters) {
                 $search = $filters['search'];
-                $query->where(function ($q) use ($search) {
+                // ILIKE es exclusivo de Postgres; en MySQL/MariaDB un LIKE normal ya es
+                // insensible a mayúsculas con las collations *_ci por defecto.
+                $op = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+                $query->where(function ($q) use ($search, $op) {
                     if (is_numeric($search)) {
                         $q->where('id', (int) $search);
                     }
-                    $q->orWhereHas('client', function ($cq) use ($search) {
-                        $cq->where('firstname', 'ilike', "%{$search}%")
-                            ->orWhere('lastname', 'ilike', "%{$search}%")
+                    $q->orWhereHas('client', function ($cq) use ($search, $op) {
+                        $cq->where('firstname', $op, "%{$search}%")
+                            ->orWhere('lastname', $op, "%{$search}%")
                             ->orWhere('ci', 'like', "%{$search}%")
                             ->orWhere('nit', 'like', "%{$search}%");
-                    })->orWhereHas('invoice', function ($iq) use ($search) {
-                        $iq->where('invoice_number', 'ilike', "%{$search}%")
-                            ->orWhere('business_name', 'ilike', "%{$search}%");
+                    })->orWhereHas('invoice', function ($iq) use ($search, $op) {
+                        $iq->where('invoice_number', $op, "%{$search}%")
+                            ->orWhere('business_name', $op, "%{$search}%");
                     });
                 });
             });
