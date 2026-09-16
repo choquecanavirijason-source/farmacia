@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\SimulationController;
 use App\Http\Controllers\Api\V1\Marketplace\ProductController;
 use App\Http\Controllers\Api\V1\Marketplace\CategoryController as MarketplaceCategoryController;
+use App\Http\Controllers\Api\V1\Marketplace\OrderController as MarketplaceOrderController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('auth/login', [AuthController::class, 'login']);
@@ -43,6 +44,11 @@ Route::middleware('auth:api')->group(function () {
 
     Route::get('simulation/latest', [SimulationController::class, 'latest']);
     Route::post('simulation/run', [SimulationController::class, 'run']);
+
+    // Carrito -> pedido del cliente autenticado ("mis pedidos").
+    Route::get('marketplace/orders', [MarketplaceOrderController::class, 'index']);
+    Route::get('marketplace/orders/{id}', [MarketplaceOrderController::class, 'show']);
+    Route::post('marketplace/orders', [MarketplaceOrderController::class, 'store']);
 
     Route::get('dashboard/stats', [DashboardController::class, 'stats']);
     Route::get('dashboard/sales-summary', [DashboardController::class, 'salesSummary']);
