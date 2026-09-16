@@ -3,8 +3,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentUser, login as apiLogin, logout as apiLogout } from "@/lib/api/auth";
+import { switchActiveBranch } from "@/lib/api/branches";
 import { getAuthToken } from "@/config/axios";
 import type { RolNombre } from "@/lib/types";
+import type { IBranchSummary } from "@/lib/types/branch";
 
 export interface AuthUser {
   id: number;
@@ -15,6 +17,8 @@ export interface AuthUser {
   lastname?: string;
   state?: string;
   roles?: Array<{ id?: number; name: string }>;
+  active_branch_id?: number | null;
+  branches?: IBranchSummary[];
 }
 
 export interface AuthContextType {
@@ -29,6 +33,7 @@ export interface AuthContextType {
   login: (loginVal: string, passwordVal: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  switchBranch: (branchId: number) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -98,6 +103,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function switchBranch(branchId: number) {
+    await switchActiveBranch(branchId);
+    // Recarga completa: hay demasiadas pantallas (POS, Caja, Lotes, Compras) que cargan
+    // su inventario/datos una sola vez al montar. router.refresh() no las vuelve a pedir,
+    // así que quedan mostrando datos de la sucursal anterior. Un reload duro garantiza
+    // que todo se vuelva a pedir ya filtrado por la nueva sucursal activa.
+    window.location.reload();
+  }
+
   const rol = extractRole(user);
   const isAuthenticated = Boolean(user && getAuthToken());
 
@@ -140,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         refreshUser: fetchUser,
+        switchBranch,
       }}
     >
       {children}

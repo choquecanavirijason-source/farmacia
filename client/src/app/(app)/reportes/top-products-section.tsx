@@ -8,13 +8,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTable, type DataTableColumn } from "@/components/ui/table";
 import { PrintDialog } from "@/components/layout/print-dialog";
-import { SimpleBarChart } from "@/components/ui/simple-bar-chart";
+import { BarChart } from "../dashboard/charts/bar-chart";
 import { DateRangeFilter } from "./date-range-filter";
 import { formatCurrency, formatDate } from "@/lib/format";
-import type { IDashboardStats } from "@/lib/api/dashboard";
+import type { ISalesSummary } from "@/lib/api/dashboard";
 
 interface TopProductsSectionProps {
-  stats: IDashboardStats | null;
+  stats: ISalesSummary | null;
   loadingStats: boolean;
   startDate: string;
   endDate: string;
@@ -42,13 +42,14 @@ export function TopProductsSection({
 }: TopProductsSectionProps) {
   const [printOpen, setPrintOpen] = useState(false);
 
-  const topProductosChartData = useMemo(() => {
-    if (!stats?.top_productos) return [];
-    return stats.top_productos.map((p) => ({
-      label: p.name,
-      value: Number(p.total_vendido),
-    }));
-  }, [stats]);
+  const topProductosCategorias = useMemo(
+    () => stats?.top_productos?.map((p) => p.name) ?? [],
+    [stats]
+  );
+  const topProductosValores = useMemo(
+    () => stats?.top_productos?.map((p) => Number(p.total_vendido)) ?? [],
+    [stats]
+  );
 
   const totalUnidadesTop = useMemo(() => {
     if (!stats?.top_productos) return 0;
@@ -157,7 +158,14 @@ export function TopProductsSection({
                   {appliedStartDate ? formatDate(appliedStartDate) : ""} — {appliedEndDate ? formatDate(appliedEndDate) : ""}
                 </span>
               </div>
-              <SimpleBarChart data={topProductosChartData} />
+              <BarChart
+                categories={topProductosCategorias}
+                series={topProductosValores}
+                seriesName="Unidades vendidas"
+                formatValue={(v) => `${v} uds.`}
+                color="#f59e0b"
+                height={340}
+              />
             </CardContent>
           </Card>
 

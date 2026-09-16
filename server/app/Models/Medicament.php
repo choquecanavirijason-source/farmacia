@@ -3,18 +3,20 @@
 namespace App\Models;
 
 use App\Observers\AuditObserver;
+use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
 
 #[ObservedBy([AuditObserver::class])]
 class Medicament extends Model implements Auditable
 {
-    use AuditableTrait, HasFactory, SoftDeletes;
+    use AuditableTrait, HasFactory, SoftDeletes, Searchable;
 
     protected $fillable = [
         'code',
@@ -24,6 +26,7 @@ class Medicament extends Model implements Auditable
         'min_stock',
         'requires_prescription',
         'status',
+        'image_path',
         'laboratory_id',
         'category_id',
         'presentation_id',
@@ -33,6 +36,8 @@ class Medicament extends Model implements Auditable
         'restored_id',
         'restored_at',
     ];
+
+    protected $appends = ['image_url'];
 
     protected function casts(): array
     {
@@ -44,9 +49,20 @@ class Medicament extends Model implements Auditable
         ];
     }
 
+    /** URL pública de la foto, resuelta contra el disco activo (local hoy, S3 el día que se configure). */
+    public function getImageUrlAttribute(): ?string
+    {
+        if (!$this->image_path) {
+            return null;
+        }
+
+        $disk = config('services.medicament_images.disk', 'public');
+        return Storage::disk($disk)->url($this->image_path);
+    }
+
     public function scopeSearch(Builder $query, string $search): Builder
     {
-        return $query->where(fn (Builder $query) => $query->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"));
+        return $query->where(fn (Builder $query) => $query->whereLike('name', $search)->orWhereLike('code', $search));
     }
 
     public function scopeSort(Builder $query, string $column = 'name', string $direction = 'asc'): Builder

@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use App\Observers\AuditObserver;
+use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -18,7 +21,7 @@ use Spatie\Permission\Traits\HasRoles;
 #[ObservedBy([AuditObserver::class])]
 class User extends Authenticatable implements Auditable
 {
-    use AuditableTrait, HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes;
+    use AuditableTrait, HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes, Searchable;
 
     protected string $guard_name = 'api';
 
@@ -30,6 +33,7 @@ class User extends Authenticatable implements Auditable
         'lastname',
         'password',
         'state',
+        'active_branch_id',
         'created_id',
         'updated_id',
         'deleted_id',
@@ -82,11 +86,11 @@ class User extends Authenticatable implements Auditable
 
     public function scopeSearch(Builder $query, string $search): Builder
     {
-        return $query->where(fn ($query) => $query->where('name', 'like', "%{$search}%")
-            ->orWhere('email', 'like', "%{$search}%")
-            ->orWhere('username', 'like', "%{$search}%")
-            ->orWhere('firstname', 'like', "%{$search}%")
-            ->orWhere('lastname', 'like', "%{$search}%"));
+        return $query->where(fn (Builder $query) => $query->whereLike('name', $search)
+            ->orWhereLike('email', $search)
+            ->orWhereLike('username', $search)
+            ->orWhereLike('firstname', $search)
+            ->orWhereLike('lastname', $search));
     }
 
     public function scopeFilter(Builder $query, array $filters): Builder
@@ -106,5 +110,17 @@ class User extends Authenticatable implements Auditable
             in_array($column, ['id', 'name', 'email', 'username', 'firstname', 'lastname', 'created_at'], true) ? $column : 'name',
             strtolower($direction) === 'desc' ? 'desc' : 'asc'
         );
+    }
+
+    public function branches(): BelongsToMany
+    {
+        return $this->belongsToMany(Branch::class, 'branch_user')
+            ->withPivot('is_default')
+            ->withTimestamps();
+    }
+
+    public function activeBranch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class, 'active_branch_id');
     }
 }

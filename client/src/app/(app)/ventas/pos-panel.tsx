@@ -73,12 +73,34 @@ function precioConDescuento(precioVenta: number, descuentoPct: number): number {
   return Math.round(precioVenta * (1 - descuentoPct / 100) * 100) / 100;
 }
 
+const CART_STORAGE_KEY = "pos_cart_v1";
+
+/** Recupera el carrito guardado (si existe) para no perderlo al navegar a otra vista y volver al POS. */
+function loadStoredCart(): CartLine[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (l): l is CartLine =>
+        l &&
+        typeof l.id_medicamento === "number" &&
+        typeof l.cantidad === "number" &&
+        typeof l.descuentoPct === "number"
+    );
+  } catch {
+    return [];
+  }
+}
+
 export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps) {
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [search, setSearch] = useState("");
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cart, setCart] = useState<CartLine[]>(loadStoredCart);
   const [idCliente, setIdCliente] = useState("1");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [facturaVenta, setFacturaVenta] = useState<Venta | null>(null);
@@ -102,6 +124,15 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
     toast.success("Medicamento creado. Registra un lote (Compras o Lotes) para poder venderlo.");
   }
 
+  // Persiste el carrito en cada cambio, para no perderlo al navegar a otra vista y volver al POS.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+      // localStorage puede fallar (modo privado, cuota llena): no es crítico, el carrito sigue en memoria.
+    }
+  }, [cart]);
+
   const stockPorMedicamento = useMemo(() => {
     const map = new Map<number, number>();
     for (const l of lotes) {
@@ -109,6 +140,30 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
     }
     return map;
   }, [lotes]);
+
+  // El carrito guardado puede quedar desactualizado (stock que cambió mientras no estabas en el
+  // POS) — al cargar/refrescar el stock, recorta cantidades que ya no caben y quita líneas sin stock.
+  useEffect(() => {
+    if (lotes.length === 0) return;
+    setCart((prev) => {
+      let changed = false;
+      const next = prev
+        .map((line) => {
+          const disponible = stockPorMedicamento.get(line.id_medicamento) ?? 0;
+          if (disponible <= 0) {
+            changed = true;
+            return null;
+          }
+          if (line.cantidad > disponible) {
+            changed = true;
+            return { ...line, cantidad: disponible };
+          }
+          return line;
+        })
+        .filter((l): l is CartLine => l !== null);
+      return changed ? next : prev;
+    });
+  }, [stockPorMedicamento, lotes.length]);
 
   const resultados = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -248,22 +303,50 @@ export function PosPanel({ idUsuario, idCaja, onVentaRegistrada }: PosPanelProps
                 type="button"
                 onClick={() => addToCart(m)}
                 disabled={sinStock}
-                className="group flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-background p-3 text-center transition-colors duration-200 ease-in-out hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className={cn(
+                  "group relative flex min-h-33 flex-col items-center justify-end gap-1 overflow-hidden rounded-xl border border-border/60 p-3 text-center transition-colors duration-200 ease-in-out hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+                  m.image_url ? "bg-background" : "bg-background hover:bg-primary/5"
+                )}
               >
-                <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Pill className="size-5" aria-hidden />
-                </span>
-                <span className="line-clamp-2 text-xs font-medium text-balance">{m.nombre}</span>
-                <span className="text-xs font-semibold">{formatCurrency(m.precio_venta)}</span>
-                {m.requiere_receta ? (
-                  <Badge variant="outline" className="text-[10px]">
-                    Receta
-                  </Badge>
-                ) : sinStock ? (
-                  <Badge variant="secondary" className="text-[10px]">
-                    Sin stock
-                  </Badge>
-                ) : null}
+                {m.image_url ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- foto desde el disco local o S3, no un asset del proyecto */}
+                    <img src={m.image_url} alt="" className="absolute inset-0 size-full object-contain" />
+                    {/* Info superpuesta: se oculta al pasar el mouse para poder ver la foto completa. */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-end gap-1 bg-linear-to-t from-black/85 via-black/35 to-black/5 p-3 opacity-100 transition-opacity duration-200 ease-in-out group-hover:opacity-0">
+                      <span className="line-clamp-2 text-xs font-medium text-balance text-white drop-shadow-sm">
+                        {m.nombre}
+                      </span>
+                      <span className="text-xs font-semibold text-white drop-shadow-sm">
+                        {formatCurrency(m.precio_venta)}
+                      </span>
+                      <span className={cn("text-[10px]", sinStock ? "text-destructive" : "text-white/90")}>
+                        {sinStock ? "Sin stock" : `${disponible} disponible${disponible === 1 ? "" : "s"}`}
+                      </span>
+                      {m.requiere_receta ? (
+                        <Badge variant="outline" className="text-[10px]">
+                          Receta
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="mb-1 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Pill className="size-5" aria-hidden />
+                    </span>
+                    <span className="line-clamp-2 text-xs font-medium text-balance">{m.nombre}</span>
+                    <span className="text-xs font-semibold">{formatCurrency(m.precio_venta)}</span>
+                    <span className={cn("text-[10px]", sinStock ? "text-destructive" : "text-muted-foreground")}>
+                      {sinStock ? "Sin stock" : `${disponible} disponible${disponible === 1 ? "" : "s"}`}
+                    </span>
+                    {m.requiere_receta ? (
+                      <Badge variant="outline" className="text-[10px]">
+                        Receta
+                      </Badge>
+                    ) : null}
+                  </>
+                )}
               </button>
             );
           })}

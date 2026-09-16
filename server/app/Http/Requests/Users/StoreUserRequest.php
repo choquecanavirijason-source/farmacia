@@ -19,8 +19,11 @@ class StoreUserRequest extends FormRequest
             'username'  => 'nullable|string|max:100|unique:users,username',
             'email'     => 'required|email|max:255|unique:users,email',
             'password'  => 'required|string|min:6',
-            'role'      => 'nullable|string',
-            'roles'     => 'nullable|array',
+            'role'              => 'nullable|string',
+            'roles'             => 'nullable|array',
+            'branch_ids'        => 'nullable|array',
+            'branch_ids.*'      => 'integer|exists:branches,id',
+            'default_branch_id' => 'nullable|integer|exists:branches,id',
         ];
     }
 }

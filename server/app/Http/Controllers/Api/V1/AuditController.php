@@ -19,6 +19,8 @@ class AuditController
     public function index(PaginationRequest $request)
     {
         $filters = $request->only(['search', 'period', 'date_from', 'date_to', 'event', 'model']);
+        $branchIdParam = $request->query('branch_id');
+        $filters['branch_id'] = ($branchIdParam && $branchIdParam !== 'all') ? $branchIdParam : null;
         $result = $this->auditService->getPaginated(
             $filters,
             $request->getPerPage(10),
@@ -39,6 +41,8 @@ class AuditController
     {
         $format = (string) $request->query('format', 'excel');
         $filters = $request->only(['search', 'period', 'date_from', 'date_to', 'event', 'model']);
+        $branchIdParam = $request->query('branch_id');
+        $filters['branch_id'] = ($branchIdParam && $branchIdParam !== 'all') ? $branchIdParam : null;
 
         return $this->auditService->export($format, $filters);
     }

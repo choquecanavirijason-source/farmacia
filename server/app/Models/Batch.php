@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Observers\AuditObserver;
+use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,7 +15,7 @@ use OwenIt\Auditing\Contracts\Auditable;
 #[ObservedBy([AuditObserver::class])]
 class Batch extends Model implements Auditable
 {
-    use AuditableTrait, HasFactory, SoftDeletes;
+    use AuditableTrait, HasFactory, SoftDeletes, Searchable;
 
     protected $fillable = [
         'batch_number',
@@ -22,6 +23,7 @@ class Batch extends Model implements Auditable
         'current_quantity',
         'purchase_price',
         'medicament_id',
+        'branch_id',
         'created_id',
         'updated_id',
         'deleted_id',
@@ -41,7 +43,18 @@ class Batch extends Model implements Auditable
 
     public function scopeSearch(Builder $query, string $search): Builder
     {
-        return $query->where('batch_number', 'like', "%{$search}%");
+        return $query->where(function (Builder $q) use ($search) {
+            $q->whereLike('batch_number', $search)
+                ->orWhereHas('medicament', function (Builder $mq) use ($search) {
+                    $mq->whereLike('name', $search)
+                        ->orWhereLike('code', $search);
+                });
+        });
+    }
+
+    public function scopeFilter(Builder $query, array $filters): Builder
+    {
+        return $query->when(!empty($filters['branch_id']), fn (Builder $query) => $query->where('branch_id', $filters['branch_id']));
     }
 
     public function scopeSort(Builder $query, string $column = 'expiration_date', string $direction = 'asc'): Builder
@@ -52,5 +65,10 @@ class Batch extends Model implements Auditable
     public function medicament()
     {
         return $this->belongsTo(Medicament::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

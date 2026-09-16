@@ -12,6 +12,8 @@ export interface IMedicament {
   min_stock: number;
   requires_prescription: boolean;
   status: "active" | "inactive";
+  image_path?: string | null;
+  image_url?: string | null;
   category_id: number;
   presentation_id: number;
   laboratory_id: number;

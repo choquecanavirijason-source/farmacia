@@ -20,6 +20,8 @@ export interface IPurchase {
   supplier_id: number;
   supplier?: ISupplier;
   details?: IPurchaseDetail[];
+  branch_id?: number;
+  branch?: { id: number; name: string };
   created_id?: number | null;
   updated_id?: number | null;
   deleted_id?: number | null;

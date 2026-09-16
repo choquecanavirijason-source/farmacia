@@ -9,11 +9,12 @@ use App\Http\Resources\Purchases\PurchaseResource;
 use App\Models\Purchase;
 use App\Services\PurchaseService;
 use App\Traits\ApiResponseTrait;
+use App\Traits\ResolvesBranchScope;
 use Illuminate\Http\Request;
 
 class PurchaseController
 {
-    use ApiResponseTrait;
+    use ApiResponseTrait, ResolvesBranchScope;
 
     public function __construct(
         protected PurchaseService $purchaseService
@@ -22,6 +23,7 @@ class PurchaseController
     public function index(PaginationRequest $request)
     {
         $filters = $request->getFilters(['search', 'supplier_id', 'start_date', 'end_date']);
+        $filters['branch_id'] = $this->resolveBranchScope($request);
 
         $result = $this->purchaseService->getPaginated(
             $filters,
@@ -41,7 +43,10 @@ class PurchaseController
 
     public function store(StorePurchaseRequest $request)
     {
-        $purchase = $this->purchaseService->create($request->validated());
+        $data = $request->validated();
+        $data['branch_id'] = $request->user()->active_branch_id;
+
+        $purchase = $this->purchaseService->create($data);
         return $this->createdResponse(
             new PurchaseResource($purchase->load(['supplier', 'details.medicament'])),
             'Compra registrada con éxito y lotes ingresados al inventario.'

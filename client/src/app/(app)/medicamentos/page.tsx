@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   MoreHorizontal,
   Pencil,
+  Pill,
   Plus,
   Trash2,
   RotateCcw,
@@ -31,11 +32,15 @@ import {
   restore,
   update,
   exportResource,
+  fetchCategorias,
+  fetchPresentaciones,
+  fetchLaboratorios,
 } from "@/lib/api/medicaments";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import type { IMedicament, MedicamentTableEditableField } from "@/lib/types/medicament";
+import type { Categoria, Laboratorio, Presentacion } from "@/lib/types";
 import { MedicamentFormDialog } from "./medicament-form-dialog";
 import { cn } from "@/lib/utils";
 
@@ -65,6 +70,18 @@ export default function MedicamentosPage() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [selectionClearKey, setSelectionClearKey] = useState(0);
 
+  // Catálogos de apoyo (categoría/presentación/laboratorio) para el formulario.
+  // Se cargan una sola vez al entrar a la página, no cada vez que se abre el diálogo.
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [presentaciones, setPresentaciones] = useState<Presentacion[]>([]);
+  const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
+
+  useEffect(() => {
+    fetchCategorias().then(setCategorias).catch(() => setCategorias([]));
+    fetchPresentaciones().then(setPresentaciones).catch(() => setPresentaciones([]));
+    fetchLaboratorios().then(setLaboratorios).catch(() => setLaboratorios([]));
+  }, []);
+
   // Función para recargar la tabla
   const refresh = useCallback(() => {
     setLoading(true);
@@ -92,7 +109,8 @@ export default function MedicamentosPage() {
         sort_by: params.sort?.key || "name",
         sort_dir: params.sort?.direction || "asc",
       },
-      controller.signal
+      controller.signal,
+      { deleted: "all" }
     )
       .then((result) => {
         setItems(result.data);
@@ -185,6 +203,14 @@ export default function MedicamentosPage() {
       edit: { onSave: (m, v) => saveField(m, "name", String(v)) },
       render: (_, m) => (
         <div className="flex items-center gap-2">
+          <div className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted">
+            {m.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element -- miniatura desde el disco local o S3, no un asset del proyecto
+              <img src={m.image_url} alt="" className="size-full object-cover" />
+            ) : (
+              <Pill className="size-3.5 text-muted-foreground" aria-hidden />
+            )}
+          </div>
           <div className="flex flex-col min-w-0">
             <span className={cn("font-medium text-xs truncate", m.deleted_at && "text-destructive line-through")}>
               {m.name}
@@ -462,6 +488,7 @@ export default function MedicamentosPage() {
                   search: params.search,
                   sort_by: params.sort?.key,
                   sort_dir: params.sort?.direction,
+                  deleted: "all",
                 })
             : undefined
         }
@@ -481,6 +508,9 @@ export default function MedicamentosPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         medicament={editing}
+        categorias={categorias}
+        presentaciones={presentaciones}
+        laboratorios={laboratorios}
         onSaved={handleSaved}
       />
 

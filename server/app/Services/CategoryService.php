@@ -11,9 +11,15 @@ use Symfony\Component\HttpFoundation\Response;
 
 class CategoryService
 {
-    public function getPaginated(string $search = '', int $perPage = 10, string $sortBy = 'name', string $sortDir = 'asc'): LengthAwarePaginator
+    public function getPaginated(string $search = '', int $perPage = 10, string $sortBy = 'name', string $sortDir = 'asc', string $status = 'active'): LengthAwarePaginator
     {
-        return Category::withTrashed()
+        $query = match ($status) {
+            'active'             => Category::withoutTrashed(),
+            'trashed', 'deleted' => Category::onlyTrashed(),
+            default              => Category::withTrashed(),
+        };
+
+        return $query
             ->when($search !== '', fn ($q) => $q->search($search))
             ->sort($sortBy, $sortDir)
             ->paginate($perPage);
@@ -51,9 +57,15 @@ class CategoryService
         return $category;
     }
 
-    public function export(string $format, string $search = '', string $sortBy = 'name', string $sortDir = 'asc'): Response
+    public function export(string $format, string $search = '', string $sortBy = 'name', string $sortDir = 'asc', string $status = 'all'): Response
     {
-        $records = Category::withTrashed()
+        $query = match ($status) {
+            'active'             => Category::withoutTrashed(),
+            'trashed', 'deleted' => Category::onlyTrashed(),
+            default              => Category::withTrashed(),
+        };
+
+        $records = $query
             ->when($search !== '', fn ($q) => $q->search($search))
             ->sort($sortBy, $sortDir)
             ->get();

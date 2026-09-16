@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { create, update, fetchPermissions } from "@/lib/api/roles";
 import { PERMISSION_MODULES, type PermissionCode } from "@/lib/constants/permissions";
 import type { IRole, IRoleRequest } from "@/lib/types/role";
+import { setFormErrorsFromServer } from "@/lib/utils/form-errors";
 
 const roleSchema = z.object({
   name: z.string().trim().min(1, "El nombre del rol es obligatorio.").max(100),
@@ -57,6 +58,7 @@ export function RoleForm({ role }: RoleFormProps) {
     setValue,
     watch,
     setError,
+    setFocus,
     formState: { isSubmitting, errors },
   } = methods;
 
@@ -112,14 +114,7 @@ export function RoleForm({ role }: RoleFormProps) {
       router.push("/roles");
       router.refresh();
     } catch (err: any) {
-      const fieldErrors = err?.response?.data?.errors;
-      if (fieldErrors && typeof fieldErrors === "object") {
-        Object.keys(fieldErrors).forEach((key) => {
-          const field = key as keyof RoleFormValues;
-          const msg = Array.isArray(fieldErrors[key]) ? fieldErrors[key][0] : fieldErrors[key];
-          setError(field, { type: "server", message: msg });
-        });
-      }
+      setFormErrorsFromServer<RoleFormValues>(err, setError, setFocus);
 
       const message =
         err?.response?.data?.message ||

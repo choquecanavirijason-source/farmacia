@@ -54,6 +54,8 @@ export const FIELD_LABELS: Record<string, string> = {
   updated_id: "Actualizado por (ID)",
   deleted_id: "Eliminado por (ID)",
   restored_id: "Restaurado por (ID)",
+  branch_id: "Sucursal",
+  active_branch_id: "Sucursal Activa",
   created_at: "Fecha de Creación",
   updated_at: "Fecha de Modificación",
   deleted_at: "Fecha de Eliminación",

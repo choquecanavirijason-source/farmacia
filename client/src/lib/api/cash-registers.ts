@@ -20,9 +20,7 @@ export const fetchCashRegisters = async (forceRefresh = false): Promise<ICashReg
     .get<any>("/cash-registers?per_page=100")
     .then((res) => res.data.data)
     .finally(() => {
-      setTimeout(() => {
-        cashRegistersPromise = null;
-      }, 1000);
+      cashRegistersPromise = null;
     });
 
   return cashRegistersPromise;
@@ -31,7 +29,7 @@ export const fetchCashRegisters = async (forceRefresh = false): Promise<ICashReg
 export const getCashRegistersPaginated = async (
   params: ServerFetchParams,
   signal?: AbortSignal,
-  filters?: { status?: string }
+  filters?: { status?: string; branch_id?: string | number }
 ): Promise<IPaginatedResponse<ICashRegister>> => {
   const query: Record<string, any> = {
     page: params.page,
@@ -70,13 +68,29 @@ export const fetchCurrentCashRegister = async (forceRefresh = false): Promise<IC
     .then((res) => res.data.data)
     .catch(() => null)
     .finally(() => {
-      setTimeout(() => {
-        currentCashRegisterPromise = null;
-      }, 1000);
+      currentCashRegisterPromise = null;
     });
 
   return currentCashRegisterPromise;
 };
+
+/** Traduce un ICashRegister crudo del backend (campos en inglés) a la forma "Caja" que
+ * espera la UI (fecha_apertura, monto_apertura, etc.) — evita el bug de "BsNaN"/"—" que
+ * sale cuando se le pasa el objeto crudo directo a componentes que esperan los campos en español. */
+function normalizeCaja(c: ICashRegister): any {
+  return {
+    id_caja: c.id,
+    fecha_apertura: c.opening_date || (c as any).opened_at,
+    monto_apertura: Number(c.opening_amount),
+    fecha_cierre: c.closing_date || (c as any).closed_at,
+    monto_cierre: c.closing_amount != null ? Number(c.closing_amount) : null,
+    monto_esperado: c.expected_closing_amount != null ? Number(c.expected_closing_amount) : null,
+    estado: c.status === "open" ? "abierta" : "cerrada",
+    id_usuario: c.user_id ?? 1,
+    movements: (c as any).movements || [],
+    ...c,
+  };
+}
 
 export const openCashRegister = async (data: { id_usuario?: number; monto_apertura: number }): Promise<ICashRegister> => {
   currentCashRegisterPromise = null;
@@ -140,26 +154,51 @@ export const fetchCajas = async (): Promise<any[]> => {
   }));
 };
 
+export interface ICashRegisterStatusByBranch {
+  branch: { id: number; name: string };
+  cash_register: {
+    id: number;
+    opened_at: string;
+    opening_amount: number;
+    status: string;
+  } | null;
+}
+
+export const fetchCurrentByBranch = async (): Promise<ICashRegisterStatusByBranch[]> => {
+  const res = await apiClient.get<IApiResponse<ICashRegisterStatusByBranch[]>>("/cash-registers/current-by-branch");
+  return res.data.data;
+};
+
 export const fetchCajaAbierta = async (forceRefresh = false): Promise<any | null> => {
   const c = await fetchCurrentCashRegister(forceRefresh);
   if (!c) return null;
-  return {
-    id_caja: c.id,
-    fecha_apertura: c.opening_date || (c as any).opened_at,
-    monto_apertura: Number(c.opening_amount),
-    fecha_cierre: c.closing_date || (c as any).closed_at,
-    monto_cierre: c.closing_amount ? Number(c.closing_amount) : null,
-    monto_esperado: c.expected_closing_amount ? Number(c.expected_closing_amount) : null,
-    estado: "abierta",
-    id_usuario: c.user_id ?? 1,
-    movements: (c as any).movements || [],
-    ...c,
-  };
+  return normalizeCaja(c);
 };
 
-export const abrirCaja = openCashRegister;
-export const cerrarCaja = closeCashRegister;
-export const registrarMovimiento = createCashMovement;
+export const abrirCaja = async (data: { id_usuario?: number; monto_apertura: number }) => {
+  const c = await openCashRegister(data);
+  return normalizeCaja(c);
+};
+
+export const cerrarCaja = async (id: number, data: { monto_cierre: number }) => {
+  const c = await closeCashRegister(id, data);
+  return normalizeCaja(c);
+};
+export const registrarMovimiento = async (
+  cashRegisterId: number,
+  data: Parameters<typeof createCashMovement>[1]
+): Promise<any> => {
+  const m = await createCashMovement(cashRegisterId, data);
+  return {
+    id_movimiento: m.id,
+    id_caja: m.cash_register_id,
+    tipo: (m.type === "ingreso" || (m.type as any) === "in" || (m.type as any) === "income") ? "ingreso" : "egreso",
+    concepto: m.concept || (m as any).description || "",
+    monto: Number(m.amount),
+    fecha: m.movement_date || m.created_at,
+    ...m,
+  };
+};
 export const fetchMovimientos = async (id: number): Promise<any[]> => {
   const list = await fetchCashMovements(id);
   return list.map((m) => ({

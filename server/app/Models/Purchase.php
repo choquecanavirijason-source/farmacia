@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Observers\AuditObserver;
+use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,13 +15,14 @@ use OwenIt\Auditing\Contracts\Auditable;
 #[ObservedBy([AuditObserver::class])]
 class Purchase extends Model implements Auditable
 {
-    use AuditableTrait, HasFactory, SoftDeletes;
+    use AuditableTrait, HasFactory, SoftDeletes, Searchable;
 
     protected $fillable = [
         'invoice_number',
         'purchase_date',
         'total',
         'supplier_id',
+        'branch_id',
         'created_id',
         'updated_id',
         'deleted_id',
@@ -40,15 +42,11 @@ class Purchase extends Model implements Auditable
 
     public function scopeSearch(Builder $query, string $search): Builder
     {
-        // ILIKE es exclusivo de Postgres; en MySQL/MariaDB un LIKE normal ya es
-        // insensible a mayúsculas con las collations *_ci por defecto.
-        $op = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
-
-        return $query->where(function ($q) use ($search, $op) {
-            $q->where('invoice_number', $op, "%{$search}%")
-              ->orWhereHas('supplier', function ($sq) use ($search, $op) {
-                  $sq->where('name', $op, "%{$search}%")
-                     ->orWhere('nit', 'like', "%{$search}%");
+        return $query->where(function (Builder $q) use ($search) {
+            $q->whereLike('invoice_number', $search)
+              ->orWhereHas('supplier', function (Builder $sq) use ($search) {
+                  $sq->whereLike('name', $search)
+                     ->orWhereLike('nit', $search);
               });
         });
     }
@@ -57,6 +55,7 @@ class Purchase extends Model implements Auditable
     {
         return $query
             ->when(!empty($filters['supplier_id']), fn ($q) => $q->where('supplier_id', $filters['supplier_id']))
+            ->when(!empty($filters['branch_id']), fn ($q) => $q->where('branch_id', $filters['branch_id']))
             ->when(!empty($filters['start_date']), fn ($q) => $q->whereDate('purchase_date', '>=', $filters['start_date']))
             ->when(!empty($filters['end_date']), fn ($q) => $q->whereDate('purchase_date', '<=', $filters['end_date']));
     }
@@ -77,5 +76,10 @@ class Purchase extends Model implements Auditable
     public function details()
     {
         return $this->hasMany(PurchaseDetail::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

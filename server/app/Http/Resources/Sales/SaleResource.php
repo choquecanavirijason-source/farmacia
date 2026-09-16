@@ -17,6 +17,11 @@ class SaleResource extends JsonResource
             'client_id' => $this->client_id,
             'user_id' => $this->user_id,
             'cash_register_id' => $this->cash_register_id,
+            'branch_id' => $this->branch_id,
+            'branch' => $this->whenLoaded('branch', fn () => $this->branch ? [
+                'id'   => $this->branch->id,
+                'name' => $this->branch->name,
+            ] : null),
             'client' => $this->whenLoaded('client', function () {
                 return $this->client ? [
                     'id' => $this->client->id,

@@ -11,9 +11,15 @@ use Symfony\Component\HttpFoundation\Response;
 
 class PresentationService
 {
-    public function getPaginated(string $search = '', int $perPage = 10, string $sortBy = 'name', string $sortDir = 'asc'): LengthAwarePaginator
+    public function getPaginated(string $search = '', int $perPage = 10, string $sortBy = 'name', string $sortDir = 'asc', string $status = 'active'): LengthAwarePaginator
     {
-        return Presentation::withTrashed()
+        $query = match ($status) {
+            'active'             => Presentation::withoutTrashed(),
+            'trashed', 'deleted' => Presentation::onlyTrashed(),
+            default              => Presentation::withTrashed(),
+        };
+
+        return $query
             ->when($search !== '', fn ($q) => $q->search($search))
             ->sort($sortBy, $sortDir)
             ->paginate($perPage);
@@ -51,9 +57,15 @@ class PresentationService
         return $presentation;
     }
 
-    public function export(string $format, string $search = '', string $sortBy = 'name', string $sortDir = 'asc'): Response
+    public function export(string $format, string $search = '', string $sortBy = 'name', string $sortDir = 'asc', string $status = 'all'): Response
     {
-        $records = Presentation::withTrashed()
+        $query = match ($status) {
+            'active'             => Presentation::withoutTrashed(),
+            'trashed', 'deleted' => Presentation::onlyTrashed(),
+            default              => Presentation::withTrashed(),
+        };
+
+        $records = $query
             ->when($search !== '', fn ($q) => $q->search($search))
             ->sort($sortBy, $sortDir)
             ->get();

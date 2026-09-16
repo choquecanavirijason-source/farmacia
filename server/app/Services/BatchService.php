@@ -16,11 +16,18 @@ use Symfony\Component\HttpFoundation\Response;
 
 class BatchService
 {
-    public function getPaginated(string $search = '', int $perPage = 10, string $sortBy = 'expiration_date', string $sortDir = 'asc'): LengthAwarePaginator
+    public function getPaginated(array $filters = [], int $perPage = 10, string $sortBy = 'expiration_date', string $sortDir = 'asc'): LengthAwarePaginator
     {
-        return Batch::withTrashed()
-            ->with('medicament')
-            ->when($search !== '', fn ($q) => $q->search($search))
+        $query = match ($filters['status'] ?? 'active') {
+            'active'             => Batch::withoutTrashed(),
+            'trashed', 'deleted' => Batch::onlyTrashed(),
+            default              => Batch::withTrashed(),
+        };
+
+        return $query
+            ->with(['medicament', 'branch'])
+            ->when(!empty($filters['search']), fn ($q) => $q->search($filters['search']))
+            ->filter($filters)
             ->sort($sortBy, $sortDir)
             ->paginate($perPage);
     }
@@ -145,10 +152,17 @@ class BatchService
         });
     }
 
-    public function export(string $format, string $search = '', string $sortBy = 'expiration_date', string $sortDir = 'asc'): Response
+    public function export(string $format, array $filters = [], string $sortBy = 'expiration_date', string $sortDir = 'asc'): Response
     {
-        $records = Batch::withTrashed()
-            ->when($search !== '', fn ($q) => $q->search($search))
+        $query = match ($filters['status'] ?? 'all') {
+            'active'             => Batch::withoutTrashed(),
+            'trashed', 'deleted' => Batch::onlyTrashed(),
+            default              => Batch::withTrashed(),
+        };
+
+        $records = $query
+            ->when(!empty($filters['search']), fn ($q) => $q->search($filters['search']))
+            ->filter($filters)
             ->sort($sortBy, $sortDir)
             ->get();
 

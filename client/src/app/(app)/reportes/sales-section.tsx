@@ -7,13 +7,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTable } from "@/components/ui/table";
 import { PrintDialog } from "@/components/layout/print-dialog";
-import { SimpleBarChart } from "@/components/ui/simple-bar-chart";
+import { AreaChart } from "../dashboard/charts/area-chart";
 import { DateRangeFilter } from "./date-range-filter";
 import { formatCurrency, formatDate } from "@/lib/format";
-import type { IDashboardStats } from "@/lib/api/dashboard";
+import type { ISalesSummary } from "@/lib/api/dashboard";
 
 interface SalesSectionProps {
-  stats: IDashboardStats | null;
+  stats: ISalesSummary | null;
   loadingStats: boolean;
   startDate: string;
   endDate: string;
@@ -41,13 +41,8 @@ export function SalesSection({
 }: SalesSectionProps) {
   const [printOpen, setPrintOpen] = useState(false);
 
-  const chartVentasData = useMemo(() => {
-    if (!stats?.ventas_por_rango) return [];
-    return stats.ventas_por_rango.map((d) => ({
-      label: d.label,
-      value: d.value,
-    }));
-  }, [stats]);
+  const chartCategories = useMemo(() => stats?.ventas_por_rango?.map((d) => d.label) ?? [], [stats]);
+  const chartValues = useMemo(() => stats?.ventas_por_rango?.map((d) => d.value) ?? [], [stats]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -75,7 +70,7 @@ export function SalesSection({
             size="sm"
             className="gap-1.5"
             onClick={() => setPrintOpen(true)}
-            disabled={loadingStats || chartVentasData.length === 0}
+            disabled={loadingStats || chartCategories.length === 0}
           >
             <Printer className="size-4" aria-hidden />
             Imprimir
@@ -85,7 +80,7 @@ export function SalesSection({
 
       {loadingStats ? (
         <Skeleton className="h-64 w-full" />
-      ) : chartVentasData.length === 0 ? (
+      ) : chartCategories.length === 0 ? (
         <Card className="border-dashed border-border/60 bg-background/60">
           <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
             <ShoppingBag className="size-6 text-muted-foreground" aria-hidden />
@@ -103,7 +98,12 @@ export function SalesSection({
                 {appliedStartDate ? formatDate(appliedStartDate) : ""} — {appliedEndDate ? formatDate(appliedEndDate) : ""}
               </span>
             </div>
-            <SimpleBarChart data={chartVentasData} formatValue={(v) => formatCurrency(v)} />
+            <AreaChart
+              categories={chartCategories}
+              series={[{ name: "Ventas", data: chartValues }]}
+              formatValue={formatCurrency}
+              height={320}
+            />
           </CardContent>
         </Card>
       )}

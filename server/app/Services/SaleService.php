@@ -26,7 +26,7 @@ class SaleService
 {
     public function getPaginated(array $filters, int $perPage = 10, string $sortBy = 'sold_at', string $sortDir = 'desc'): LengthAwarePaginator
     {
-        return Sale::with(['client', 'invoice', 'payments.paymentMethod'])
+        return Sale::with(['client', 'invoice', 'payments.paymentMethod', 'branch'])
             ->filter($filters)
             ->sort($sortBy, $sortDir)
             ->paginate($perPage);
@@ -58,6 +58,7 @@ class SaleService
             $medicamentId = $item['medicament_id'];
             if (!isset($batchesByMedicament[$medicamentId])) {
                 $batchesByMedicament[$medicamentId] = Batch::where('medicament_id', $medicamentId)
+                    ->where('branch_id', $data['branch_id'])
                     ->orderBy('expiration_date')
                     ->get()
                     ->map(fn (Batch $b) => ['id' => $b->id, 'current_quantity' => $b->current_quantity])
@@ -98,6 +99,7 @@ class SaleService
                 'client_id'        => $data['client_id'] ?: null,
                 'user_id'          => $actor->id,
                 'cash_register_id' => $data['cash_register_id'],
+                'branch_id'        => $data['branch_id'],
             ]);
 
             foreach ($resolvedItems as $resolved) {

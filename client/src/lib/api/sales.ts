@@ -14,7 +14,7 @@ export const fetchSales = async (
 export const getSalesPaginated = async (
   params: ServerFetchParams,
   signal?: AbortSignal,
-  filters?: { status?: string; start_date?: string; end_date?: string; client_id?: string }
+  filters?: { status?: string; start_date?: string; end_date?: string; client_id?: string; branch_id?: string | number }
 ): Promise<IPaginatedResponse<ISale>> => {
   const query: Record<string, any> = {
     page: params.page,

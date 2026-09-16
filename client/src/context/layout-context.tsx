@@ -10,6 +10,9 @@ interface LayoutContextType {
   sidebarPinned: boolean;
   setSidebarPinned: (pinned: boolean) => void;
   toggleSidebarPinned: () => void;
+  /** Oculta sidebar y topbar para vistas de pantalla completa (ej. POS). No se persiste. */
+  focusMode: boolean;
+  setFocusMode: (focused: boolean) => void;
 }
 
 const LayoutContext = createContext<LayoutContextType | undefined>(undefined);
@@ -21,6 +24,7 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
   // Por defecto: Barra lateral (sidebar) y fija/expandida (pinned = true)
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>("sidebar");
   const [sidebarPinned, setSidebarPinnedState] = useState<boolean>(true);
+  const [focusMode, setFocusMode] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -67,6 +71,8 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
         sidebarPinned,
         setSidebarPinned,
         toggleSidebarPinned,
+        focusMode,
+        setFocusMode,
       }}
     >
       {children}

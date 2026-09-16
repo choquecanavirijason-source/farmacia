@@ -9,12 +9,13 @@ use App\Http\Resources\Batches\BatchResource;
 use App\Models\Batch;
 use App\Services\BatchService;
 use App\Traits\ApiResponseTrait;
+use App\Traits\ResolvesBranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class BatchController
 {
-    use ApiResponseTrait;
+    use ApiResponseTrait, ResolvesBranchScope;
 
     public function __construct(
         protected BatchService $batchService
@@ -22,8 +23,14 @@ class BatchController
 
     public function index(PaginationRequest $request)
     {
+        $filters = [
+            'search'    => $request->getSearch(),
+            'branch_id' => $this->resolveBranchScope($request),
+            'status'    => $request->query('status', 'active'),
+        ];
+
         $result = $this->batchService->getPaginated(
-            $request->getSearch(),
+            $filters,
             $request->getPerPage(10),
             $request->getSortBy('expiration_date'),
             $request->getSortDir('asc')
@@ -34,7 +41,10 @@ class BatchController
 
     public function store(StoreBatchRequest $request)
     {
-        $batch = $this->batchService->create($request->validated());
+        $data = $request->validated();
+        $data['branch_id'] = $request->user()->active_branch_id;
+
+        $batch = $this->batchService->create($data);
         return $this->createdResponse(new BatchResource($batch), 'Lote registrado con éxito con su movimiento inicial.');
     }
 
@@ -109,10 +119,14 @@ class BatchController
     public function export(Request $request)
     {
         $format = (string) $request->query('format', 'excel');
-        $search = trim((string) $request->query('search'));
+        $filters = [
+            'search'    => trim((string) $request->query('search')),
+            'branch_id' => $this->resolveBranchScope($request),
+            'status'    => $request->query('status', 'all'),
+        ];
         $sortBy = (string) $request->query('sort_by', 'expiration_date');
         $sortDir = (string) $request->query('sort_dir', 'asc');
 
-        return $this->batchService->export($format, $search, $sortBy, $sortDir);
+        return $this->batchService->export($format, $filters, $sortBy, $sortDir);
     }
 }

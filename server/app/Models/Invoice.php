@@ -2,16 +2,19 @@
 
 namespace App\Models;
 
+use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
 {
+    use Searchable;
+
     protected $fillable = ['sale_id', 'invoice_number', 'client_tax_id', 'business_name', 'issued_at', 'total'];
 
     public function scopeSearch(Builder $query, string $search): Builder
     {
-        return $query->where(fn ($query) => $query->where('invoice_number', 'like', "%{$search}%")->orWhere('business_name', 'like', "%{$search}%"));
+        return $query->where(fn (Builder $query) => $query->whereLike('invoice_number', $search)->orWhereLike('business_name', $search));
     }
 
     public function scopeSort(Builder $query, string $column = 'issued_at', string $direction = 'desc'): Builder

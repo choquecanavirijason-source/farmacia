@@ -31,6 +31,7 @@ import { NavList } from "@/components/layout/nav-list";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { LayoutCustomizer } from "@/components/layout/layout-customizer";
 import { EditProfileDialog } from "@/components/layout/edit-profile-dialog";
+import { BranchScopeSelect } from "@/components/layout/branch-scope-select";
 import { useLayout } from "@/context/layout-context";
 import { useAuth } from "@/context/auth-context";
 import { ICON_MAP } from "@/lib/nav/menu-icons";
@@ -277,6 +278,10 @@ export function Topbar({ sesion, groups }: TopbarProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Selector único de sucursal: elegir una cambia dónde operas (vendes/compras) y qué ves;
+            elegir "Todas las sucursales" solo cambia qué ves, sin afectar dónde operas. */}
+        <BranchScopeSelect className="hidden sm:flex w-auto" />
+
         {/* Preferencias de interfaz (Sidebar / Top) */}
         <LayoutCustomizer />
 

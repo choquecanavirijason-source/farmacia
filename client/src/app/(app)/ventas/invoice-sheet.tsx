@@ -186,12 +186,12 @@ export function InvoiceSheet({ open, onOpenChange, sale }: InvoiceSheetProps) {
         </div>
 
         <div className="flex gap-2 pt-4">
-          <Button type="button" variant="outline" className="w-full" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             Cerrar
           </Button>
           <Button
             type="button"
-            className="w-full gap-1.5"
+            className="flex-1 gap-1.5"
             onClick={handlePrint}
             disabled={loading || !currentSale}
           >

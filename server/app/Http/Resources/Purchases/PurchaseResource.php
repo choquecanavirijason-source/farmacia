@@ -14,6 +14,11 @@ class PurchaseResource extends JsonResource
             'purchase_date'  => $this->purchase_date?->format('Y-m-d'),
             'total'          => (float) $this->total,
             'supplier_id'    => $this->supplier_id,
+            'branch_id'      => $this->branch_id,
+            'branch'         => $this->whenLoaded('branch', fn () => $this->branch ? [
+                'id'   => $this->branch->id,
+                'name' => $this->branch->name,
+            ] : null),
             'supplier'       => $this->whenLoaded('supplier', function () {
                 return $this->supplier ? [
                     'id'      => $this->supplier->id,

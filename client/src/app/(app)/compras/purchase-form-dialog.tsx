@@ -45,15 +45,29 @@ const EMPTY_ROW: PurchaseItemRow = {
   fecha_vencimiento: "",
 };
 
-export function PurchaseFormDialog({
+// Componente modal para registrar una compra. Envuelve el formulario en un componente aparte
+// (con `key`) para que cada apertura sea un montaje nuevo — así el formulario arranca limpio
+// sin necesitar un efecto que "resetee" campos manualmente cuando `open` cambia.
+export function PurchaseFormDialog(props: PurchaseFormDialogProps) {
+  if (!props.open) return null;
+
+  return <PurchaseFormBody key="purchase-form" {...props} />;
+}
+
+function PurchaseFormBody({
   open,
   onOpenChange,
   proveedores: initialProveedores,
   medicamentos: initialMedicamentos,
   onCompraRegistrada,
 }: PurchaseFormDialogProps) {
-  const [proveedores, setProveedores] = useState<Proveedor[]>(initialProveedores || []);
-  const [medicamentos, setMedicamentos] = useState<Medicamento[]>(initialMedicamentos || []);
+  const [fetchedProveedores, setFetchedProveedores] = useState<Proveedor[] | null>(null);
+  const [fetchedMedicamentos, setFetchedMedicamentos] = useState<Medicamento[] | null>(null);
+  const proveedores =
+    initialProveedores && initialProveedores.length > 0 ? initialProveedores : fetchedProveedores ?? [];
+  const medicamentos =
+    initialMedicamentos && initialMedicamentos.length > 0 ? initialMedicamentos : fetchedMedicamentos ?? [];
+
   const [idProveedor, setIdProveedor] = useState<string>("");
   const [numeroFactura, setNumeroFactura] = useState("");
   const [fechaCompra, setFechaCompra] = useState(
@@ -63,34 +77,19 @@ export function PurchaseFormDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Trae los catálogos solo si no vinieron por props (una sola vez: el diálogo remonta en cada apertura).
   useEffect(() => {
-    if (open) {
-      if (!initialProveedores || initialProveedores.length === 0) {
-        fetchProveedores().then(setProveedores).catch(() => setProveedores([]));
-      } else {
-        setProveedores(initialProveedores);
-      }
-
-      if (!initialMedicamentos || initialMedicamentos.length === 0) {
-        fetchMedicamentos().then(setMedicamentos).catch(() => setMedicamentos([]));
-      } else {
-        setMedicamentos(initialMedicamentos);
-      }
-
-      const provList = initialProveedores || proveedores;
-      setIdProveedor(
-        provList.length > 0
-          ? String(provList[0].id_proveedor || provList[0].id)
-          : ""
-      );
-      setNumeroFactura("");
-      setFechaCompra(new Date().toISOString().slice(0, 10));
-      setItems([{ ...EMPTY_ROW }]);
-      setError(null);
+    if (!initialProveedores || initialProveedores.length === 0) {
+      fetchProveedores().then(setFetchedProveedores).catch(() => setFetchedProveedores([]));
     }
-  }, [open, initialProveedores, initialMedicamentos]);
+    if (!initialMedicamentos || initialMedicamentos.length === 0) {
+      fetchMedicamentos().then(setFetchedMedicamentos).catch(() => setFetchedMedicamentos([]));
+    }
+  }, [initialProveedores, initialMedicamentos]);
 
-  if (!open) return null;
+  // Derivado en render (no en efecto): mientras el usuario no elija, cae al primer proveedor disponible.
+  const selectedIdProveedor =
+    idProveedor || (proveedores[0] ? String(proveedores[0].id_proveedor || proveedores[0].id) : "");
 
   function handleItemChange(
     index: number,
@@ -120,7 +119,7 @@ export function PurchaseFormDialog({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!idProveedor) {
+    if (!selectedIdProveedor) {
       setError("Selecciona un proveedor.");
       return;
     }
@@ -162,7 +161,7 @@ export function PurchaseFormDialog({
 
     try {
       const result = await registrarCompra({
-        id_proveedor: Number(idProveedor),
+        id_proveedor: Number(selectedIdProveedor),
         numero_factura: numeroFactura.trim(),
         fecha_compra: fechaCompra,
         items: items.map((it) => ({
@@ -174,13 +173,19 @@ export function PurchaseFormDialog({
         })),
       });
 
-      onCompraRegistrada(result as any);
+      onCompraRegistrada({
+        ...result,
+        id_compra: result.id,
+        id_proveedor: result.supplier_id,
+        numero_factura: result.invoice_number,
+        fecha_compra: result.purchase_date,
+        total: Number(result.total),
+      });
       onOpenChange(false);
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        "No se pudo registrar la compra.";
+    } catch (err) {
+      const axiosMessage = (err as { response?: { data?: { message?: string } } })?.response?.data
+        ?.message;
+      const msg = axiosMessage || (err instanceof Error ? err.message : undefined) || "No se pudo registrar la compra.";
       setError(msg);
       toast.error(msg);
     } finally {
@@ -217,7 +222,7 @@ export function PurchaseFormDialog({
                 <Label htmlFor="id_proveedor">Proveedor *</Label>
                 <SearchableSelect
                   options={proveedorOptions}
-                  value={idProveedor}
+                  value={selectedIdProveedor}
                   onValueChange={(val) => setIdProveedor(val || "")}
                   placeholder="Selecciona un proveedor…"
                   searchPlaceholder="Buscar proveedor…"

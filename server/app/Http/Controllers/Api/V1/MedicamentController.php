@@ -22,6 +22,7 @@ class MedicamentController
     public function index(PaginationRequest $request)
     {
         $filters = $request->getFilters(['search', 'status', 'category_id', 'laboratory_id']);
+        $filters['deleted'] = $request->query('deleted', 'active');
 
         $result = $this->medicamentService->getPaginated(
             $filters,
@@ -76,10 +77,32 @@ class MedicamentController
         return $this->successResponse($movements, 'Kardex del medicamento obtenido con éxito.');
     }
 
+    public function uploadImage(Request $request, int $id)
+    {
+        $request->validate([
+            // 4MB máx.: de sobra para una foto de producto sin necesitar comprimir antes de subir.
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+        ]);
+
+        $medicament = Medicament::withTrashed()->findOrFail($id);
+        $updated = $this->medicamentService->uploadImage($medicament, $request->file('image'));
+
+        return $this->updatedResponse(new MedicamentResource($updated), 'Foto del medicamento actualizada con éxito.');
+    }
+
+    public function deleteImage(int $id)
+    {
+        $medicament = Medicament::withTrashed()->findOrFail($id);
+        $updated = $this->medicamentService->deleteImage($medicament);
+
+        return $this->updatedResponse(new MedicamentResource($updated), 'Foto del medicamento eliminada con éxito.');
+    }
+
     public function export(Request $request)
     {
         $format = (string) $request->query('format', 'excel');
         $filters = $request->only(['search', 'status', 'category_id', 'laboratory_id', 'sort_by', 'sort_dir']);
+        $filters['deleted'] = $request->query('deleted', 'all');
 
         return $this->medicamentService->export($format, $filters);
     }

@@ -38,10 +38,12 @@ export function CloseCashRegisterDialog({
 
   useEffect(() => {
     if (open) {
-      setMontoCierre(totalEsperado.toString());
+      // Vacío a propósito: quien cierra la caja debe contar el efectivo real,
+      // no confirmar a ciegas el monto que el sistema espera.
+      setMontoCierre("");
       setError(null);
     }
-  }, [open, totalEsperado]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -111,7 +113,7 @@ export function CloseCashRegisterDialog({
             />
           </div>
 
-          {Number.isFinite(numCierre) && (
+          {montoCierre.trim() !== "" && Number.isFinite(numCierre) && (
             <div className="text-xs flex justify-between p-2 rounded bg-muted/30 border">
               <span>Diferencia (Sobrante / Faltante):</span>
               <span

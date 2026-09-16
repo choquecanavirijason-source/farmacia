@@ -9,20 +9,21 @@ use App\Http\Resources\CashRegisters\CashRegisterResource;
 use App\Models\CashRegister;
 use App\Services\CashRegisterService;
 use App\Traits\ApiResponseTrait;
+use App\Traits\ResolvesBranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class CashRegisterController
 {
-    use ApiResponseTrait;
+    use ApiResponseTrait, ResolvesBranchScope;
 
     public function __construct(
         protected CashRegisterService $cashRegisterService
     ) {}
 
-    public function current()
+    public function current(Request $request)
     {
-        $cashRegister = $this->cashRegisterService->getCurrent();
+        $cashRegister = $this->cashRegisterService->getCurrent($request->user()->active_branch_id);
         if (!$cashRegister) {
             return $this->successResponse(null, 'No hay caja abierta actualmente.');
         }
@@ -30,9 +31,16 @@ class CashRegisterController
         return $this->resourceResponse(new CashRegisterResource($cashRegister), 'Caja actual obtenida con éxito.');
     }
 
+    public function currentByBranch()
+    {
+        $result = $this->cashRegisterService->getCurrentByBranch();
+        return $this->successResponse($result, 'Estado de caja por sucursal obtenido con éxito.');
+    }
+
     public function index(PaginationRequest $request)
     {
         $filters = $request->getFilters(['status']);
+        $filters['branch_id'] = $this->resolveBranchScope($request);
 
         $result = $this->cashRegisterService->getPaginated(
             $filters,
@@ -47,7 +55,7 @@ class CashRegisterController
     public function store(StoreCashRegisterRequest $request)
     {
         $data = $request->validated();
-        $cashRegister = $this->cashRegisterService->open((float) $data['opening_amount']);
+        $cashRegister = $this->cashRegisterService->open((float) $data['opening_amount'], (int) $request->user()->active_branch_id);
         return $this->createdResponse(new CashRegisterResource($cashRegister), 'Caja abierta con éxito.');
     }
 

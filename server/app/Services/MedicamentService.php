@@ -8,6 +8,8 @@ use App\Models\Medicament;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -17,8 +19,16 @@ class MedicamentService
     {
         $search = trim((string) ($filters['search'] ?? ''));
 
-        return Medicament::withTrashed()
-            ->with(['category', 'presentation', 'laboratory', 'batches'])
+        // `status` ya es el campo activo/inactivo del propio medicamento; el filtro de
+        // eliminados lógicos usa una llave distinta para no chocar con ese.
+        $query = match ($filters['deleted'] ?? 'active') {
+            'active'             => Medicament::withoutTrashed(),
+            'trashed', 'deleted' => Medicament::onlyTrashed(),
+            default              => Medicament::withTrashed(),
+        };
+
+        return $query
+            ->with(['category', 'presentation', 'laboratory', 'batches.branch'])
             ->withSum('batches as total_stock', 'current_quantity')
             ->when($search !== '', fn ($q) => $q->search($search))
             ->filter($filters)
@@ -29,7 +39,7 @@ class MedicamentService
     public function getById(int $id): Medicament
     {
         return Medicament::withTrashed()
-            ->with(['category', 'presentation', 'laboratory', 'batches'])
+            ->with(['category', 'presentation', 'laboratory', 'batches.branch'])
             ->withSum('batches as total_stock', 'current_quantity')
             ->findOrFail($id);
     }
@@ -66,6 +76,37 @@ class MedicamentService
         return $medicament;
     }
 
+    /**
+     * Sube (o reemplaza) la foto del medicamento en el disco configurado en
+     * MEDICAMENT_IMAGES_DISK (local por defecto, S3 cuando se configure — ver config/services.php).
+     */
+    public function uploadImage(Medicament $medicament, UploadedFile $file): Medicament
+    {
+        $disk = config('services.medicament_images.disk', 'public');
+
+        if ($medicament->image_path) {
+            Storage::disk($disk)->delete($medicament->image_path);
+        }
+
+        $path = $file->store('medicaments', $disk);
+        $medicament->update(['image_path' => $path]);
+
+        return $medicament->refresh();
+    }
+
+    /** Quita la foto del medicamento (borra el archivo del disco y limpia la referencia). */
+    public function deleteImage(Medicament $medicament): Medicament
+    {
+        $disk = config('services.medicament_images.disk', 'public');
+
+        if ($medicament->image_path) {
+            Storage::disk($disk)->delete($medicament->image_path);
+            $medicament->update(['image_path' => null]);
+        }
+
+        return $medicament->refresh();
+    }
+
     public function getKardex(int $id): Collection
     {
         Medicament::withTrashed()->findOrFail($id);
@@ -84,7 +125,13 @@ class MedicamentService
         $sortBy = $filters['sort_by'] ?? 'name';
         $sortDir = $filters['sort_dir'] ?? 'asc';
 
-        $records = Medicament::withTrashed()
+        $query = match ($filters['deleted'] ?? 'all') {
+            'active'             => Medicament::withoutTrashed(),
+            'trashed', 'deleted' => Medicament::onlyTrashed(),
+            default              => Medicament::withTrashed(),
+        };
+
+        $records = $query
             ->when($search !== '', fn ($q) => $q->search($search))
             ->filter($filters)
             ->sort($sortBy, $sortDir)

@@ -15,4 +15,6 @@ export interface DateRangeFilterProps {
   onEndDateChange: (date: string) => void;
   onApply: () => void;
   isLoading?: boolean;
+  /** Versión reducida (sin etiquetas de texto, controles más chicos) para usar dentro de una tarjeta angosta. */
+  compact?: boolean;
 }

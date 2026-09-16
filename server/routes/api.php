@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\V1\AuditController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\BatchController;
+use App\Http\Controllers\Api\V1\BranchController;
+use App\Http\Controllers\Api\V1\BranchTransferController;
 use App\Http\Controllers\Api\V1\CashRegisterController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\ClientController;
@@ -33,6 +35,13 @@ Route::middleware('auth:api')->group(function () {
     Route::post('simulation/run', [SimulationController::class, 'run']);
 
     Route::get('dashboard/stats', [DashboardController::class, 'stats']);
+    Route::get('dashboard/sales-summary', [DashboardController::class, 'salesSummary']);
+    Route::get('dashboard/ventas-tendencia', [DashboardController::class, 'ventasTendencia']);
+    Route::get('dashboard/ranking-vendedores', [DashboardController::class, 'rankingVendedores']);
+    Route::get('dashboard/top-productos', [DashboardController::class, 'topProductos']);
+    Route::get('dashboard/ventas-por-categoria', [DashboardController::class, 'ventasPorCategoria']);
+    Route::get('dashboard/ventas-por-metodo-pago', [DashboardController::class, 'ventasPorMetodoPago']);
+    Route::get('dashboard/margen-bruto', [DashboardController::class, 'margenBruto']);
 
     Route::get('categories/export', [CategoryController::class, 'export']);
     Route::delete('categories', [CategoryController::class, 'bulkDestroy']);
@@ -53,6 +62,8 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('medicaments', [MedicamentController::class, 'bulkDestroy']);
     Route::post('medicaments/{id}/restore', [MedicamentController::class, 'restore']);
     Route::get('medicaments/{id}/kardex', [MedicamentController::class, 'kardex']);
+    Route::post('medicaments/{id}/image', [MedicamentController::class, 'uploadImage']);
+    Route::delete('medicaments/{id}/image', [MedicamentController::class, 'deleteImage']);
     Route::apiResource('medicaments', MedicamentController::class);
 
     Route::get('batches/export', [BatchController::class, 'export']);
@@ -94,6 +105,7 @@ Route::middleware('auth:api')->group(function () {
 
     Route::get('cash-registers/export', [CashRegisterController::class, 'export']);
     Route::get('cash-registers/current', [CashRegisterController::class, 'current']);
+    Route::get('cash-registers/current-by-branch', [CashRegisterController::class, 'currentByBranch']);
     Route::post('cash-registers/open', [CashRegisterController::class, 'store']);
     Route::get('cash-registers/{id}/movements', [CashRegisterController::class, 'movements']);
     Route::post('cash-registers/{id}/movements', [CashRegisterController::class, 'registerMovement']);
@@ -118,4 +130,25 @@ Route::middleware('auth:api')->group(function () {
 
     Route::get('audits/export', [AuditController::class, 'export']);
     Route::apiResource('audits', AuditController::class)->only(['index', 'show']);
+
+    // Cambiar de sucursal activa: cualquier usuario autenticado con más de una
+    // sucursal asignada puede hacerlo, no requiere permiso de administración.
+    Route::post('branches/switch-active', [BranchController::class, 'switchActive']);
+
+    Route::get('branches/export', [BranchController::class, 'export'])->middleware('permission:export branches');
+    Route::delete('branches', [BranchController::class, 'bulkDestroy'])->middleware('permission:delete branches');
+    Route::post('branches/{id}/restore', [BranchController::class, 'restore'])->middleware('permission:restore branches');
+    Route::post('branches/{id}/users', [BranchController::class, 'assignUsers'])->middleware('permission:manage branch users');
+
+    Route::middleware('permission:view branches')->group(function () {
+        Route::get('branches', [BranchController::class, 'index']);
+        Route::get('branches/{id}', [BranchController::class, 'show']);
+    });
+    Route::post('branches', [BranchController::class, 'store'])->middleware('permission:create branches');
+    Route::put('branches/{id}', [BranchController::class, 'update'])->middleware('permission:edit branches');
+    Route::delete('branches/{id}', [BranchController::class, 'destroy'])->middleware('permission:delete branches');
+
+    Route::get('branch-transfers/export', [BranchTransferController::class, 'export'])->middleware('permission:export branch transfers');
+    Route::get('branch-transfers', [BranchTransferController::class, 'index'])->middleware('permission:view branch transfers');
+    Route::post('branch-transfers', [BranchTransferController::class, 'store'])->middleware('permission:create branch transfers');
 });

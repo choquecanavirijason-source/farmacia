@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exports\RecordsExport;
+use App\Models\Branch;
 use App\Models\CashMovement;
 use App\Models\CashRegister;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -15,29 +16,58 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CashRegisterService
 {
-    public function getCurrent(): ?CashRegister
+    /** Estado de la caja (abierta o no) de cada sucursal, para la vista "Todas las sucursales". */
+    public function getCurrentByBranch(): \Illuminate\Support\Collection
     {
-        return CashRegister::with('movements')->where('status', 'open')->latest('opened_at')->first();
+        $openRegisters = CashRegister::where('status', 'open')->get()->keyBy('branch_id');
+
+        return Branch::withoutTrashed()
+            ->orderBy('name')
+            ->get()
+            ->map(function (Branch $branch) use ($openRegisters) {
+                $open = $openRegisters->get($branch->id);
+
+                return [
+                    'branch'        => ['id' => $branch->id, 'name' => $branch->name],
+                    'cash_register' => $open ? [
+                        'id'             => $open->id,
+                        'opened_at'      => $open->opened_at?->toISOString(),
+                        'opening_amount' => (float) $open->opening_amount,
+                        'status'         => $open->status,
+                    ] : null,
+                ];
+            })
+            ->values();
+    }
+
+    public function getCurrent(?int $branchId = null): ?CashRegister
+    {
+        return CashRegister::with('movements')
+            ->where('status', 'open')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->latest('opened_at')
+            ->first();
     }
 
     public function getPaginated(array $filters, int $perPage = 10, string $sortBy = 'opened_at', string $sortDir = 'desc'): LengthAwarePaginator
     {
-        return CashRegister::query()
+        return CashRegister::with('branch')
             ->filter($filters)
             ->sort($sortBy, $sortDir)
             ->paginate($perPage);
     }
 
-    public function open(float $openingAmount): CashRegister
+    public function open(float $openingAmount, int $branchId): CashRegister
     {
-        if (CashRegister::where('status', 'open')->exists()) {
-            throw new HttpException(409, 'Ya hay una caja abierta.');
+        if (CashRegister::where('status', 'open')->where('branch_id', $branchId)->exists()) {
+            throw new HttpException(409, 'Ya hay una caja abierta en esta sucursal.');
         }
 
         return CashRegister::create([
             'opened_at'      => now(),
             'opening_amount' => $openingAmount,
             'status'         => 'open',
+            'branch_id'      => $branchId,
         ]);
     }
 

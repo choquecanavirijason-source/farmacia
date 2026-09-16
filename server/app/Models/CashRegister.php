@@ -23,6 +23,7 @@ class CashRegister extends Model implements Auditable
         'closing_amount',
         'expected_closing_amount',
         'status',
+        'branch_id',
         'created_id',
         'updated_id',
         'deleted_id',
@@ -60,7 +61,8 @@ class CashRegister extends Model implements Auditable
 
     public function scopeFilter(Builder $query, array $filters): Builder
     {
-        return $query->when(isset($filters['status']), fn ($query) => $query->where('status', $filters['status']));
+        return $query->when(isset($filters['status']), fn ($query) => $query->where('status', $filters['status']))
+            ->when(!empty($filters['branch_id']), fn ($query) => $query->where('branch_id', $filters['branch_id']));
     }
 
     public function scopeSort(Builder $query, string $column = 'opened_at', string $direction = 'desc'): Builder
@@ -71,5 +73,10 @@ class CashRegister extends Model implements Auditable
     public function movements()
     {
         return $this->hasMany(CashMovement::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

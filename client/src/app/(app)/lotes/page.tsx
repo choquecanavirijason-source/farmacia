@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
+  ArrowLeftRight,
   CalendarClock,
   History,
   MoreHorizontal,
@@ -39,16 +40,20 @@ import {
   computeProximosAVencer,
   computeStockBajo,
   diasHasta,
+  fetchBatches,
   DIAS_ALERTA_VENCIMIENTO,
 } from "@/lib/api/batches";
 import { fetchMedicamentos } from "@/lib/api/medicaments";
+import { create as createBranchTransfer } from "@/lib/api/branch-transfers";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/constants/permissions";
+import { useBranchView } from "@/context/branch-view-context";
 import type { IBatch, BatchTableEditableField } from "@/lib/types/batch";
 import type { Lote, Medicamento } from "@/lib/types";
 import { BatchFormDialog } from "./batch-form-dialog";
 import { DisposeBatchDialog } from "./dispose-batch-dialog";
+import { TransferBatchDialog } from "./transfer-batch-dialog";
 import { KardexSheet } from "./kardex-sheet";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +67,7 @@ const DEFAULT_PARAMS: ServerFetchParams = {
 
 export default function LotesPage() {
   const { can } = useAuth();
+  const { branchScope } = useBranchView();
   // Estados para datos, paginación y carga
   const [params, setParams] = useState<ServerFetchParams>(DEFAULT_PARAMS);
   const [items, setItems] = useState<IBatch[]>([]);
@@ -73,10 +79,16 @@ export default function LotesPage() {
   // Catálogo de medicamentos para referencias y alertas
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
 
+  // Lotes completos (sin paginar) — las alertas deben mirar TODO el inventario,
+  // no solo la página actual de la tabla, o darían falsos positivos.
+  const [allBatches, setAllBatches] = useState<IBatch[]>([]);
+  const [batchesLoaded, setBatchesLoaded] = useState(false);
+
   // Estados de formularios y acciones
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<IBatch | null>(null);
   const [bajaTarget, setBajaTarget] = useState<Lote | null>(null);
+  const [transferTarget, setTransferTarget] = useState<IBatch | null>(null);
   const [kardexTarget, setKardexTarget] = useState<Lote | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<IBatch | null>(null);
   const [selectedRows, setSelectedRows] = useState<IBatch[]>([]);
@@ -88,15 +100,34 @@ export default function LotesPage() {
     fetchMedicamentos().then(setMedicamentos);
   }, []);
 
+  // Recarga el inventario completo de lotes cada vez que algo cambia (crear/editar/
+  // eliminar/dar de baja), para que las alertas de stock bajo y vencimiento reflejen
+  // el estado real, no solo la página visible de la tabla.
+  useEffect(() => {
+    const controller = new AbortController();
+    setBatchesLoaded(false);
+    fetchBatches(true, branchScope ?? "all", controller.signal)
+      .then(setAllBatches)
+      .catch(() => {
+        // Petición cancelada (branchScope cambió antes de que respondiera) o error de red: no hacer nada.
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setBatchesLoaded(true);
+      });
+
+    return () => controller.abort();
+  }, [refreshKey, branchScope]);
+
   // Mapeo para búsqueda rápida de medicamento por ID
   const medicamentoById = useMemo(
     () => new Map(medicamentos.map((m) => [m.id_medicamento, m])),
     [medicamentos]
   );
 
-  // Adaptación de lotes para cálculo de alertas en frontend
+  // Adaptación de lotes para cálculo de alertas en frontend.
+  // Usa allBatches (inventario completo), no items (solo la página visible de la tabla).
   const lotesParaAlertas = useMemo<Lote[]>(() => {
-    return items
+    return allBatches
       .filter((b) => !b.deleted_at)
       .map((b) => ({
         ...b,
@@ -107,7 +138,7 @@ export default function LotesPage() {
         precio_compra: Number(b.purchase_price),
         id_medicamento: b.medicament_id,
       }));
-  }, [items]);
+  }, [allBatches]);
 
   const alertaVencimiento = useMemo(
     () => computeProximosAVencer(lotesParaAlertas),
@@ -146,7 +177,8 @@ export default function LotesPage() {
         sort_by: params.sort?.key || "expiration_date",
         sort_dir: params.sort?.direction || "asc",
       },
-      controller.signal
+      controller.signal,
+      { branch_id: branchScope ?? "all", status: "all" }
     )
       .then((result) => {
         setItems(result.data);
@@ -165,7 +197,7 @@ export default function LotesPage() {
       });
 
     return () => controller.abort();
-  }, [params, refreshKey]);
+  }, [params, refreshKey, branchScope]);
 
   // Apertura de modal de creación
   function openCreate() {
@@ -237,6 +269,16 @@ export default function LotesPage() {
       },
     },
     {
+      key: "branch",
+      header: "Sucursal",
+      accessor: (l) => l.branch?.name ?? "",
+      resizable: true,
+      width: 140,
+      render: (_, l) => (
+        <span className="text-xs text-muted-foreground">{l.branch?.name ?? "—"}</span>
+      ),
+    },
+    {
       key: "batch_number",
       header: "N° de Lote",
       accessor: (l) => l.batch_number,
@@ -301,10 +343,10 @@ export default function LotesPage() {
     },
     {
       key: "purchase_price",
-      header: "Precio Compra",
+      header: "Precio Compra (unid.)",
       accessor: (l) => Number(l.purchase_price),
       resizable: true,
-      width: 130,
+      width: 150,
       className: "text-right",
       edit: { type: "number", onSave: (l, v) => saveField(l, "purchase_price", Number(v)) },
       render: (_, l) => (
@@ -402,6 +444,15 @@ export default function LotesPage() {
                   <History className="size-4" aria-hidden />
                   Ver kardex
                 </DropdownMenuItem>
+                {can(PERMISSIONS.CREATE_BRANCH_TRANSFERS) && (
+                  <DropdownMenuItem
+                    disabled={l.current_quantity === 0}
+                    onClick={() => setTransferTarget(l)}
+                  >
+                    <ArrowLeftRight className="size-4" aria-hidden />
+                    Traspasar a otra sucursal
+                  </DropdownMenuItem>
+                )}
                 {can(PERMISSIONS.DISPOSE_BATCHES) && (
                   <DropdownMenuItem
                     variant="destructive"
@@ -467,7 +518,8 @@ export default function LotesPage() {
       </div>
 
       {/* Tarjetas informativas de alertas de inventario */}
-      {(alertaVencimiento.length > 0 || alertaStockBajo.length > 0) && (
+      {/* batchesLoaded evita el falso "todo con stock bajo" mientras allBatches aún está vacío */}
+      {batchesLoaded && (alertaVencimiento.length > 0 || alertaStockBajo.length > 0) && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {alertaVencimiento.length > 0 && (
             <Card className="border-warning/30 bg-warning/5">
@@ -539,7 +591,11 @@ export default function LotesPage() {
         emptyMessage="No se encontraron lotes registrados."
         pageSizeOptions={[10, 20, 50, 100]}
         exportFilename="lotes.csv"
-        onExport={can(PERMISSIONS.EXPORT_BATCHES) ? exportResource : undefined}
+        onExport={
+          can(PERMISSIONS.EXPORT_BATCHES)
+            ? (format) => exportResource(format, { branch_id: branchScope ?? "all", status: "all" })
+            : undefined
+        }
         onRefresh={refresh}
         getRowId={(l) => l.id}
         onSelectionChange={can(PERMISSIONS.DELETE_BATCHES) ? setSelectedRows : undefined}
@@ -570,6 +626,29 @@ export default function LotesPage() {
           if (!bajaTarget) return;
           await disposeBatch(bajaTarget.id_lote || (bajaTarget as any).id, { cantidad, motivo, notas });
           toast.success("Stock dado de baja con éxito.");
+          refresh();
+        }}
+      />
+
+      {/* Modal para traspasar stock a otra sucursal */}
+      <TransferBatchDialog
+        open={Boolean(transferTarget)}
+        onOpenChange={(open) => !open && setTransferTarget(null)}
+        batch={transferTarget}
+        nombreMedicamento={
+          transferTarget
+            ? medicamentoById.get(transferTarget.medicament_id)?.nombre || `Medicamento #${transferTarget.medicament_id}`
+            : ""
+        }
+        onConfirm={async (toBranchId, cantidad, motivo) => {
+          if (!transferTarget) return;
+          await createBranchTransfer({
+            batch_id: transferTarget.id,
+            to_branch_id: toBranchId,
+            quantity: cantidad,
+            reason: motivo,
+          });
+          toast.success("Traspaso registrado con éxito.");
           refresh();
         }}
       />

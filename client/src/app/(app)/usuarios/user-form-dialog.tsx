@@ -9,8 +9,11 @@ import { FormDialog } from "@/components/layout/form-dialog";
 import { InputTextField, PasswordField, Select2Field } from "@/components/form";
 import { create, update } from "@/lib/api/users";
 import { fetchRoles } from "@/lib/api/roles";
+import { fetchBranches } from "@/lib/api/branches";
 import type { IUser, IUserRequest } from "@/lib/types/user";
 import type { IRole } from "@/lib/types/role";
+import type { IBranch } from "@/lib/types/branch";
+import { setFormErrorsFromServer } from "@/lib/utils/form-errors";
 
 const userSchema = z
   .object({
@@ -24,6 +27,8 @@ const userSchema = z
       .email("El correo electrónico no es válido."),
     password: z.string().optional(),
     roles: z.array(z.string()).min(1, "Selecciona al menos un rol para el usuario."),
+    branch_ids: z.array(z.number()).optional(),
+    default_branch_id: z.number().nullable().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.password && data.password.length > 0 && data.password.length < 6) {
@@ -56,6 +61,7 @@ function UserFormBody({
   const isEditing = Boolean(user);
   const [serverError, setServerError] = useState<string | null>(null);
   const [rolesList, setRolesList] = useState<IRole[]>(propRoles || []);
+  const [branchesList, setBranchesList] = useState<IBranch[]>([]);
 
   useEffect(() => {
     if (propRoles && propRoles.length > 0) {
@@ -68,12 +74,20 @@ function UserFormBody({
       .catch(() => setRolesList([]));
   }, [propRoles]);
 
+  useEffect(() => {
+    fetchBranches()
+      .then(setBranchesList)
+      .catch(() => setBranchesList([]));
+  }, []);
+
   const defaultRoles =
     user?.roles?.map((r) => r.name) ||
     (user?.role_names && user.role_names.length > 0 ? user.role_names : ["seller"]);
 
   const defaultFirstname = user?.firstname || (user?.name ? user.name.split(" ")[0] : "");
   const defaultLastname = user?.lastname || (user?.name ? user.name.split(" ").slice(1).join(" ") : "");
+  const defaultBranchIds = user?.branches?.map((b) => b.id) ?? [];
+  const defaultDefaultBranchId = user?.branches?.find((b) => b.is_default)?.id ?? null;
 
   const methods = useForm<UserFormValues>({
     resolver: zodResolver(userSchema as any),
@@ -84,14 +98,28 @@ function UserFormBody({
       email: user?.email ?? "",
       password: "",
       roles: defaultRoles,
+      branch_ids: defaultBranchIds,
+      default_branch_id: defaultDefaultBranchId,
     },
   });
 
   const {
     handleSubmit,
+    watch,
+    setValue,
     setError,
+    setFocus,
     formState: { isSubmitting },
   } = methods;
+
+  const watchedBranchIds = watch("branch_ids") ?? [];
+  const watchedDefaultBranchId = watch("default_branch_id");
+
+  useEffect(() => {
+    if (watchedDefaultBranchId && !watchedBranchIds.includes(watchedDefaultBranchId)) {
+      setValue("default_branch_id", watchedBranchIds[0] ?? null);
+    }
+  }, [watchedBranchIds, watchedDefaultBranchId, setValue]);
 
   async function onSubmit(data: UserFormValues) {
     setServerError(null);
@@ -103,6 +131,8 @@ function UserFormBody({
       email: data.email.trim(),
       roles: data.roles,
       password: data.password || undefined,
+      branch_ids: data.branch_ids,
+      default_branch_id: data.default_branch_id,
     };
 
     if (!isEditing && !data.password) {
@@ -115,14 +145,7 @@ function UserFormBody({
       onSaved?.(response.data);
       onOpenChange(false);
     } catch (err: any) {
-      const fieldErrors = err?.response?.data?.errors;
-      if (fieldErrors && typeof fieldErrors === "object") {
-        Object.keys(fieldErrors).forEach((key) => {
-          const field = key as keyof UserFormValues;
-          const msg = Array.isArray(fieldErrors[key]) ? fieldErrors[key][0] : fieldErrors[key];
-          setError(field, { type: "server", message: msg });
-        });
-      }
+      setFormErrorsFromServer<UserFormValues>(err, setError, setFocus);
 
       const message =
         err?.response?.data?.message || err?.message || "No se pudo guardar el usuario.";
@@ -230,6 +253,28 @@ function UserFormBody({
             placeholder="Selecciona uno o más roles para este usuario…"
           />
         </div>
+
+        {branchesList.length > 1 && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Select2Field
+              name="branch_ids"
+              label="Sucursales Asignadas"
+              isMulti={true}
+              options={branchesList.map((b) => ({ value: b.id, label: b.name }))}
+              placeholder="Selecciona las sucursales donde puede operar…"
+            />
+            <Select2Field
+              name="default_branch_id"
+              label="Sucursal por Defecto"
+              options={branchesList
+                .filter((b) => watchedBranchIds.includes(b.id))
+                .map((b) => ({ value: b.id, label: b.name }))}
+              placeholder="Sucursal activa al iniciar sesión…"
+              disabled={watchedBranchIds.length === 0}
+              helperText="Con la que el usuario iniciará sesión por defecto."
+            />
+          </div>
+        )}
       </div>
     </FormDialog>
   );
