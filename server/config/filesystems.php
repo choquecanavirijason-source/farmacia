@@ -41,7 +41,11 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            // El segmento de la URL es configurable porque en despliegues donde todo
+            // el proyecto vive junto en una sola carpeta (sin separar public/ del
+            // resto de Laravel) no se puede usar el nombre "storage": ya existe ahi
+            // la carpeta real de storage/ (logs, cache) que se bloquea por seguridad.
+            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/'.env('PUBLIC_STORAGE_PATH', 'storage'),
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
