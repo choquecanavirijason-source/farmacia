@@ -1,4 +1,4 @@
-import { cpSync, existsSync, rmSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -12,16 +12,17 @@ if (!existsSync(src)) {
   process.exit(1);
 }
 
-// Limpia solo lo que el build anterior pudo haber dejado, sin tocar los
-// archivos propios de Laravel (index.php, .htaccess, storage, etc.).
-const nextOwnedEntries = [
-  "_next", "dashboard", "login", "caja", "categorias", "clientes", "compras",
-  "configuracion", "inventario", "lotes", "medicamentos", "proveedores",
-  "reportes", "usuarios", "ventas", "_not-found", "index.html", "404.html",
-  "favicon.ico", "file.svg", "globe.svg", "next.svg", "vercel.svg", "window.svg",
-];
-for (const entry of nextOwnedEntries) {
-  rmSync(path.join(dest, entry), { recursive: true, force: true });
+// Todo lo que hay en server/public es del build de Next, EXCEPTO estos archivos
+// propios de Laravel. Se borra todo lo demás antes de copiar, para que una
+// pagina eliminada en el codigo tambien desaparezca del build anterior
+// (en vez de mantener una lista manual de paginas que hay que recordar actualizar).
+const laravelOwnedEntries = new Set([".htaccess", "index.php", "robots.txt", "storage", "deploy-migrate.php"]);
+if (existsSync(dest)) {
+  for (const entry of readdirSync(dest)) {
+    if (!laravelOwnedEntries.has(entry)) {
+      rmSync(path.join(dest, entry), { recursive: true, force: true });
+    }
+  }
 }
 
 cpSync(src, dest, { recursive: true });

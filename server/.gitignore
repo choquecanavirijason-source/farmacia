@@ -16,6 +16,13 @@
 /public/build
 /public/hot
 /public/storage
+
+# El front (Next.js) se compila con "npm run build:laravel" en client/ y se
+# copia aca. No se commitea: se genera de nuevo en cada deploy.
+/public/*
+!/public/.htaccess
+!/public/index.php
+!/public/robots.txt
 /storage/*.key
 /storage/pail
 /vendor
