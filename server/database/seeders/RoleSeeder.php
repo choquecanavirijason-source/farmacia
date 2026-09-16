@@ -132,6 +132,10 @@ class RoleSeeder extends Seeder
             'create branch transfers',
             'view branch transfers',
             'export branch transfers',
+
+            // Pedidos del marketplace
+            'view orders',
+            'manage orders',
         ];
 
         foreach ($permissions as $perm) {
@@ -176,6 +180,8 @@ class RoleSeeder extends Seeder
             'view inventory',
             'view reports',
             'view audits',
+            'view orders',
+            'manage orders',
         ];
 
         $supervisor->syncPermissions(
@@ -199,6 +205,8 @@ class RoleSeeder extends Seeder
             'close cash registers',
             'create cash movements',
             'view inventory',
+            'view orders',
+            'manage orders',
         ];
 
         $seller->syncPermissions(

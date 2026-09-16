@@ -123,4 +123,9 @@ class User extends Authenticatable implements Auditable
     {
         return $this->belongsTo(Branch::class, 'active_branch_id');
     }
+
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
 }
