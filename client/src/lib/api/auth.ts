@@ -43,6 +43,24 @@ export async function login(loginVal: string, passwordVal: string): Promise<Logi
   return payload;
 }
 
+export interface RegisterRequest {
+  firstname: string;
+  lastname: string;
+  email: string;
+  password: string;
+  password_confirmation: string;
+}
+
+export async function register(data: RegisterRequest): Promise<LoginApiResponse["data"]> {
+  const response = await apiClient.post<LoginApiResponse>("/auth/register", data);
+
+  const payload = (response.data as any)?.data ?? response.data;
+  if (payload?.access_token) {
+    setAuthToken(payload.access_token);
+  }
+  return payload;
+}
+
 export async function logout(): Promise<void> {
   try {
     await apiClient.post("/auth/logout");
