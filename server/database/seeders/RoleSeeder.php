@@ -141,6 +141,10 @@ class RoleSeeder extends Seeder
         $admin = Role::findOrCreate('administrator', 'api');
         $supervisor = Role::findOrCreate('supervisor', 'api');
         $seller = Role::findOrCreate('seller', 'api');
+        // Clientes del marketplace: sin permisos del panel interno, solo pueden
+        // usar los endpoints publicos/propios del marketplace (autenticacion,
+        // no permisos de Spatie).
+        Role::findOrCreate('cliente', 'api');
 
         // Admin gets all permissions
         $admin->syncPermissions(Permission::where('guard_name', 'api')->get());

@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Http\Requests\Auth\AuthRequest;
+use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Models\User;
 use App\Traits\ApiResponseTrait;
 use App\Traits\Auth\AuthTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthController
@@ -47,6 +49,38 @@ class AuthController
         $user->load('branches');
 
         return $this->_generateTokenAndResponse_($user);
+    }
+
+    public function register(RegisterRequest $request)
+    {
+        $data = $request->validated();
+
+        $user = User::create([
+            'username'  => $this->generateUsername($data['firstname'], $data['lastname']),
+            'firstname' => $data['firstname'],
+            'lastname'  => $data['lastname'],
+            'email'     => $data['email'],
+            'password'  => Hash::make($data['password']),
+            'state'     => 'active',
+        ]);
+        $user->syncRoles(['cliente']);
+
+        return $this->_generateTokenAndResponse_($user);
+    }
+
+    private function generateUsername(string $firstname, string $lastname): string
+    {
+        $base = Str::slug("{$firstname}.{$lastname}", '.');
+        $base = Str::limit($base, 12, '');
+        $username = $base;
+        $suffix = 1;
+
+        while (User::withTrashed()->where('username', $username)->exists()) {
+            $suffix++;
+            $username = Str::limit($base, 15 - strlen((string) $suffix), '') . $suffix;
+        }
+
+        return $username;
     }
 
     public function logout(Request $request)

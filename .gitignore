@@ -1,0 +1,3 @@
+# Paquetes temporales de despliegue (zips para subir a hosting, no son codigo fuente)
+/_deploy/
+*.zip
