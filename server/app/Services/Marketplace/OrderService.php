@@ -102,10 +102,11 @@ class OrderService
         'ready'     => ['completed', 'cancelled'],
     ];
 
-    public function getPaginated(array $filters, int $perPage = 10, string $sortBy = 'created_at', string $sortDir = 'desc'): LengthAwarePaginator
+    public function getPaginated(array $filters, string $search = '', int $perPage = 10, string $sortBy = 'created_at', string $sortDir = 'desc'): LengthAwarePaginator
     {
         return Order::query()
             ->with(['user', 'branch'])
+            ->when($search !== '', fn ($q) => $q->search($search))
             ->filter($filters)
             ->sort($sortBy, $sortDir)
             ->paginate($perPage);
@@ -114,6 +115,48 @@ class OrderService
     public function getById(int $id): Order
     {
         return Order::with(['user', 'branch', 'details.medicament'])->findOrFail($id);
+    }
+
+    /**
+     * Por cada sucursal activa, indica si tiene stock suficiente de TODOS
+     * los productos del pedido, y cuales le faltan si no. Para que el staff
+     * elija bien la sucursal a la primera en vez de ir probando una por una.
+     */
+    public function getBranchAvailability(Order $order): array
+    {
+        $branches = Branch::where('status', 'active')->orderBy('name')->get();
+        $medicamentIds = $order->details->pluck('medicament_id');
+
+        $stockByBranch = Batch::whereIn('medicament_id', $medicamentIds)
+            ->whereIn('branch_id', $branches->pluck('id'))
+            ->selectRaw('branch_id, medicament_id, SUM(current_quantity) as total')
+            ->groupBy('branch_id', 'medicament_id')
+            ->get()
+            ->groupBy('branch_id');
+
+        return $branches->map(function (Branch $branch) use ($order, $stockByBranch) {
+            $branchStock = $stockByBranch->get($branch->id, collect())->keyBy('medicament_id');
+            $missing = [];
+
+            foreach ($order->details as $detail) {
+                $available = (int) ($branchStock->get($detail->medicament_id)->total ?? 0);
+                if ($available < $detail->quantity) {
+                    $missing[] = [
+                        'medicament_id' => $detail->medicament_id,
+                        'name'          => $detail->medicament->name,
+                        'available'     => $available,
+                        'needed'        => $detail->quantity,
+                    ];
+                }
+            }
+
+            return [
+                'id'          => $branch->id,
+                'name'        => $branch->name,
+                'can_fulfill' => empty($missing),
+                'missing'     => $missing,
+            ];
+        })->all();
     }
 
     public function updateStatus(Order $order, string $newStatus, ?int $branchId, User $actor): Order
@@ -215,6 +258,43 @@ class OrderService
     private function cancel(Order $order, User $actor): Order
     {
         $order->update(['status' => 'cancelled', 'updated_id' => $actor->id]);
+
+        return $order->fresh(['user', 'branch', 'details.medicament']);
+    }
+
+    /**
+     * Quita un producto puntual del pedido (ej. el cliente no trajo la
+     * receta para ese medicamento) sin cancelar todo el pedido. Recalcula
+     * el total, y si no queda ningun producto el pedido se cancela solo.
+     * No aplica a pedidos ya completados o cancelados.
+     */
+    public function removeDetail(Order $order, int $detailId, User $actor): Order
+    {
+        if (in_array($order->status, ['completed', 'cancelled'], true)) {
+            throw ValidationException::withMessages([
+                'status' => ["No se puede modificar un pedido \"{$order->status}\"."],
+            ]);
+        }
+
+        $detail = $order->details->firstWhere('id', $detailId);
+        if (!$detail) {
+            throw ValidationException::withMessages([
+                'detail' => ['Ese producto no pertenece a este pedido.'],
+            ]);
+        }
+
+        DB::transaction(function () use ($order, $detail, $actor) {
+            $detail->delete();
+
+            $newTotal = $order->details()->sum('subtotal');
+            $remaining = $order->details()->count();
+
+            $order->update([
+                'total'      => $newTotal,
+                'status'     => $remaining === 0 ? 'cancelled' : $order->status,
+                'updated_id' => $actor->id,
+            ]);
+        });
 
         return $order->fresh(['user', 'branch', 'details.medicament']);
     }

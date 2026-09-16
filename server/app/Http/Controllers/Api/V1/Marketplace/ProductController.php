@@ -25,6 +25,10 @@ class ProductController
             ->withSum('batches as total_stock', 'current_quantity')
             ->when($search !== '', fn ($q) => $q->search($search))
             ->when($request->query('category_id'), fn ($q, $categoryId) => $q->where('category_id', $categoryId))
+            ->when($request->boolean('in_stock'), fn ($q) => $q->whereHas(
+                'batches',
+                fn ($batch) => $batch->where('current_quantity', '>', 0)
+            ))
             ->sort($request->getSortBy('name'), $request->getSortDir('asc'));
 
         $result = $query->paginate($request->getPerPage(20));

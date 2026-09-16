@@ -24,6 +24,7 @@ class OrderController
 
         $result = $this->orderService->getPaginated(
             $filters,
+            $request->getSearch(),
             $request->getPerPage(10),
             $request->getSortBy('created_at'),
             $request->getSortDir('desc')
@@ -39,6 +40,14 @@ class OrderController
         return $this->resourceResponse(new OrderResource($order), 'Pedido obtenido con éxito.');
     }
 
+    public function branchAvailability(int $id)
+    {
+        $order = Order::with('details.medicament')->findOrFail($id);
+        $availability = $this->orderService->getBranchAvailability($order);
+
+        return $this->resourceResponse($availability, 'Disponibilidad por sucursal obtenida con éxito.');
+    }
+
     public function updateStatus(UpdateOrderStatusRequest $request, int $id)
     {
         $order = Order::with('details.medicament')->findOrFail($id);
@@ -51,5 +60,14 @@ class OrderController
         );
 
         return $this->resourceResponse(new OrderResource($updated), 'Estado del pedido actualizado con éxito.');
+    }
+
+    public function removeDetail(Request $request, int $id, int $detailId)
+    {
+        $order = Order::with('details.medicament')->findOrFail($id);
+
+        $updated = $this->orderService->removeDetail($order, $detailId, $request->user());
+
+        return $this->resourceResponse(new OrderResource($updated), 'Producto quitado del pedido.');
     }
 }

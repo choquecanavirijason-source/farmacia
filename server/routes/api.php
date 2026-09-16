@@ -120,7 +120,9 @@ Route::middleware('auth:api')->group(function () {
     // Gestion (staff) de los pedidos que entran por el marketplace.
     Route::get('orders', [OrderController::class, 'index'])->middleware('permission:view orders');
     Route::get('orders/{id}', [OrderController::class, 'show'])->middleware('permission:view orders');
+    Route::get('orders/{id}/branch-availability', [OrderController::class, 'branchAvailability'])->middleware('permission:view orders');
     Route::put('orders/{id}/status', [OrderController::class, 'updateStatus'])->middleware('permission:manage orders');
+    Route::delete('orders/{id}/details/{detailId}', [OrderController::class, 'removeDetail'])->middleware('permission:manage orders');
 
     Route::get('payment-methods/export', [PaymentMethodController::class, 'export']);
     Route::apiResource('payment-methods', PaymentMethodController::class);
