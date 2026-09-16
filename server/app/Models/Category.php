@@ -49,4 +49,9 @@ class Category extends Model implements Auditable
     {
         return $query->when(isset($filters['name']), fn (Builder $query) => $query->search((string) $filters['name']));
     }
+
+    public function medicaments()
+    {
+        return $this->hasMany(Medicament::class);
+    }
 }

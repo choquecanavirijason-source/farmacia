@@ -22,10 +22,19 @@ use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\SimulationController;
+use App\Http\Controllers\Api\V1\Marketplace\ProductController;
+use App\Http\Controllers\Api\V1\Marketplace\CategoryController as MarketplaceCategoryController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('auth/login', [AuthController::class, 'login']);
 Route::post('auth/register', [AuthController::class, 'register']);
+
+// Marketplace publico: catalogo visible sin necesidad de iniciar sesion.
+Route::prefix('marketplace')->group(function () {
+    Route::get('products', [ProductController::class, 'index']);
+    Route::get('products/{id}', [ProductController::class, 'show']);
+    Route::get('categories', [MarketplaceCategoryController::class, 'index']);
+});
 
 Route::middleware('auth:api')->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
