@@ -13,6 +13,8 @@ export const getProducts = async (params: {
   per_page?: number;
   search?: string;
   category_id?: number;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
 }): Promise<IPaginatedResponse<IProduct>> => {
   const res = await apiClient.get<IPaginatedResponse<IProduct>>("/marketplace/products", { params });
   return res.data;

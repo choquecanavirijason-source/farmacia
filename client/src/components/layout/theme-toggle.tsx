@@ -1,19 +1,29 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
- * Alterna claro/oscuro. `resolvedTheme` es `undefined` en el primer render
- * del servidor y se resuelve solo tras montar (lo maneja next-themes
- * internamente) — `suppressHydrationWarning` evita el warning de React por
- * ese único frame en que el ícono cambia, sin necesitar un estado "mounted"
- * propio ni un efecto.
+ * Alterna claro/oscuro. `resolvedTheme` es `undefined` en el servidor y en el
+ * primer render del cliente (recien se resuelve tras montar, leyendo
+ * localStorage/preferencia del sistema). Si el icono dependiera de eso desde
+ * el primer render, servidor y cliente dibujarian iconos distintos (Sun vs
+ * Moon son elementos distintos, no un simple cambio de texto/atributo, asi
+ * que `suppressHydrationWarning` no alcanza para taparlo). Por eso se
+ * muestra un icono fijo hasta despues de montar, y recien ahi se usa el
+ * tema real.
  */
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDark = mounted && resolvedTheme === "dark";
 
   return (
     <Button
@@ -21,12 +31,10 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-      title={isDark ? "Modo claro" : "Modo oscuro"}
+      aria-label="Cambiar tema claro/oscuro"
+      title="Cambiar tema"
     >
-      <span suppressHydrationWarning>
-        {isDark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
-      </span>
+      {isDark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
     </Button>
   );
 }

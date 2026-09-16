@@ -118,7 +118,7 @@ export function MarketplaceHeader() {
             </DropdownMenu>
           ) : (
             <div className="flex items-center gap-2">
-              <Button nativeButton={false} render={<Link href="/login?next=/" />} variant="ghost">
+              <Button nativeButton={false} render={<Link href="/login" />} variant="ghost">
                 Iniciar sesión
               </Button>
               <Button nativeButton={false} render={<Link href="/registro" />}>

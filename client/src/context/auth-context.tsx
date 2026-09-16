@@ -2,7 +2,13 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentUser, login as apiLogin, logout as apiLogout } from "@/lib/api/auth";
+import {
+  getCurrentUser,
+  login as apiLogin,
+  logout as apiLogout,
+  register as apiRegister,
+  type RegisterRequest,
+} from "@/lib/api/auth";
 import { switchActiveBranch } from "@/lib/api/branches";
 import { getAuthToken } from "@/config/axios";
 import type { RolNombre } from "@/lib/types";
@@ -30,7 +36,8 @@ export interface AuthContextType {
   can: (permission: string | string[]) => boolean;
   canAny: (permissions: string[]) => boolean;
   hasRole: (role: string) => boolean;
-  login: (loginVal: string, passwordVal: string) => Promise<void>;
+  login: (loginVal: string, passwordVal: string) => Promise<AuthUser | null>;
+  register: (data: RegisterRequest) => Promise<AuthUser | null>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   switchBranch: (branchId: number) => Promise<void>;
@@ -38,10 +45,12 @@ export interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function extractRole(user: AuthUser | null): RolNombre {
+export function extractRole(user: AuthUser | null): RolNombre {
   if (!user?.roles || user.roles.length === 0) return "VENDEDOR";
   const firstRole = user.roles[0]?.name?.toLowerCase();
-  return firstRole === "administrator" || firstRole === "admin" ? "ADMINISTRADOR" : "VENDEDOR";
+  if (firstRole === "administrator" || firstRole === "admin") return "ADMINISTRADOR";
+  if (firstRole === "cliente") return "CLIENTE";
+  return "VENDEDOR";
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -86,6 +95,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userPermissions = data?.permissions ?? [];
       setUser(userData);
       setPermissions(userPermissions);
+      return userData ?? null;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function register(data: RegisterRequest) {
+    setIsLoading(true);
+    try {
+      const result = await apiRegister(data);
+      const userData = result?.user ?? (result as any);
+      const userPermissions = result?.permissions ?? [];
+      setUser(userData);
+      setPermissions(userPermissions);
+      return userData ?? null;
     } finally {
       setIsLoading(false);
     }
@@ -152,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         canAny,
         hasRole,
         login,
+        register,
         logout,
         refreshUser: fetchUser,
         switchBranch,

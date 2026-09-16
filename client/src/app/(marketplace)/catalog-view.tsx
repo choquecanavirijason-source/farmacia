@@ -2,15 +2,22 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { PackageX, ChevronLeft, ChevronRight } from "lucide-react";
+import { PackageX, ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProductCard } from "@/components/marketplace/product-card";
-import { CategoryFilter } from "@/components/marketplace/category-filter";
 import { getProducts, getCategories } from "@/lib/api/marketplace";
 import type { IProduct, IProductCategory } from "@/lib/types/marketplace";
 
 const PER_PAGE = 12;
+
+const SORT_OPTIONS = [
+  { value: "name_asc", label: "Nombre (A-Z)", sortBy: "name", sortDir: "asc" as const },
+  { value: "name_desc", label: "Nombre (Z-A)", sortBy: "name", sortDir: "desc" as const },
+  { value: "price_asc", label: "Precio: menor a mayor", sortBy: "price", sortDir: "asc" as const },
+  { value: "price_desc", label: "Precio: mayor a menor", sortBy: "price", sortDir: "desc" as const },
+];
 
 function ProductGridSkeleton() {
   return (
@@ -32,6 +39,7 @@ export function CatalogView() {
 
   const [categories, setCategories] = useState<IProductCategory[]>([]);
   const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [sortValue, setSortValue] = useState(SORT_OPTIONS[0].value);
   const [products, setProducts] = useState<IProduct[]>([]);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
@@ -45,12 +53,13 @@ export function CatalogView() {
       .catch(() => setCategories([]));
   }, []);
 
-  // Cambiar de busqueda o categoria vuelve siempre a la pagina 1.
+  // Cambiar de busqueda, categoria u orden vuelve siempre a la pagina 1.
   useEffect(() => {
     setPage(1);
-  }, [search, categoryId]);
+  }, [search, categoryId, sortValue]);
 
   const loadProducts = useCallback(() => {
+    const sort = SORT_OPTIONS.find((o) => o.value === sortValue) ?? SORT_OPTIONS[0];
     setLoading(true);
     setErrorMsg(null);
     getProducts({
@@ -58,6 +67,8 @@ export function CatalogView() {
       per_page: PER_PAGE,
       search: search || undefined,
       category_id: categoryId ?? undefined,
+      sort_by: sort.sortBy,
+      sort_dir: sort.sortDir,
     })
       .then((res) => {
         setProducts(res.data);
@@ -66,7 +77,7 @@ export function CatalogView() {
       })
       .catch(() => setErrorMsg("No se pudo cargar el catálogo. Intenta de nuevo."))
       .finally(() => setLoading(false));
-  }, [page, search, categoryId]);
+  }, [page, search, categoryId, sortValue]);
 
   useEffect(() => {
     loadProducts();
@@ -83,8 +94,43 @@ export function CatalogView() {
         </p>
       </div>
 
-      <div className="mb-6">
-        <CategoryFilter categories={categories} activeCategoryId={categoryId} onChange={setCategoryId} />
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <Select
+          value={categoryId === null ? "all" : String(categoryId)}
+          onValueChange={(v) => setCategoryId(v === "all" ? null : Number(v))}
+        >
+          <SelectTrigger className="w-full sm:w-56">
+            <SelectValue placeholder="Categoría">
+              {categoryId === null
+                ? "Todas las categorías"
+                : (categories.find((c) => c.id === categoryId)?.name ?? "Categoría")}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las categorías</SelectItem>
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={String(category.id)}>
+                {category.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={sortValue} onValueChange={(v) => v && setSortValue(v)}>
+          <SelectTrigger className="w-full gap-1.5 sm:w-56">
+            <ArrowUpDown className="size-3.5 text-muted-foreground" aria-hidden />
+            <SelectValue placeholder="Ordenar por">
+              {SORT_OPTIONS.find((o) => o.value === sortValue)?.label ?? "Ordenar por"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {loading ? (

@@ -120,6 +120,10 @@ export const PERMISSIONS = {
   CREATE_BRANCH_TRANSFERS: "create branch transfers",
   VIEW_BRANCH_TRANSFERS: "view branch transfers",
   EXPORT_BRANCH_TRANSFERS: "export branch transfers",
+
+  // Pedidos (marketplace)
+  VIEW_ORDERS: "view orders",
+  MANAGE_ORDERS: "manage orders",
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -242,6 +246,10 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   [PERMISSIONS.CREATE_BRANCH_TRANSFERS]: "Traspasar stock entre sucursales",
   [PERMISSIONS.VIEW_BRANCH_TRANSFERS]: "Ver historial de traspasos",
   [PERMISSIONS.EXPORT_BRANCH_TRANSFERS]: "Exportar traspasos",
+
+  // Pedidos (marketplace)
+  [PERMISSIONS.VIEW_ORDERS]: "Ver pedidos del marketplace",
+  [PERMISSIONS.MANAGE_ORDERS]: "Gestionar pedidos del marketplace",
 };
 
 /**
@@ -438,6 +446,15 @@ export const PERMISSION_MODULES: IPermissionModuleDefinition[] = [
       { code: PERMISSIONS.CREATE_BRANCH_TRANSFERS, label: PERMISSION_LABELS[PERMISSIONS.CREATE_BRANCH_TRANSFERS] },
       { code: PERMISSIONS.VIEW_BRANCH_TRANSFERS, label: PERMISSION_LABELS[PERMISSIONS.VIEW_BRANCH_TRANSFERS] },
       { code: PERMISSIONS.EXPORT_BRANCH_TRANSFERS, label: PERMISSION_LABELS[PERMISSIONS.EXPORT_BRANCH_TRANSFERS] },
+    ],
+  },
+  {
+    id: "orders",
+    title: "Pedidos",
+    description: "Pedidos hechos por clientes desde el marketplace",
+    permissions: [
+      { code: PERMISSIONS.VIEW_ORDERS, label: PERMISSION_LABELS[PERMISSIONS.VIEW_ORDERS] },
+      { code: PERMISSIONS.MANAGE_ORDERS, label: PERMISSION_LABELS[PERMISSIONS.MANAGE_ORDERS] },
     ],
   },
 ];

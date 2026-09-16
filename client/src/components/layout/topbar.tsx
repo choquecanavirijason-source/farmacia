@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   ChevronDown,
   User,
+  Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -281,6 +282,18 @@ export function Topbar({ sesion, groups }: TopbarProps) {
         {/* Selector único de sucursal: elegir una cambia dónde operas (vendes/compras) y qué ves;
             elegir "Todas las sucursales" solo cambia qué ves, sin afectar dónde operas. */}
         <BranchScopeSelect className="hidden sm:flex w-auto" />
+
+        {/* Ver la tienda publica tal como la ve un cliente, sin perder el lugar en el panel. */}
+        <Button
+          nativeButton={false}
+          render={<a href="/" target="_blank" rel="noopener noreferrer" />}
+          variant="ghost"
+          size="sm"
+          className="hidden gap-1.5 sm:flex"
+        >
+          <Store className="size-4" aria-hidden />
+          <span className="hidden lg:inline">Ver marketplace</span>
+        </Button>
 
         {/* Preferencias de interfaz (Sidebar / Top) */}
         <LayoutCustomizer />

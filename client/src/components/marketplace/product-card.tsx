@@ -22,13 +22,16 @@ export function ProductCard({ product }: { product: IProduct }) {
       },
       1
     );
-    toast.success(`${product.name} agregado al carrito.`);
+    toast.success(`${product.name} agregado al carrito.`, {
+      id: "cart-toast",
+      position: "bottom-right",
+    });
   }
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:shadow-[0_12px_32px_-16px_rgba(0,0,0,0.18)]">
       <Link
-        href={`/productos/${product.id}`}
+        href={`/productos?id=${product.id}`}
         className="relative flex aspect-square items-center justify-center overflow-hidden bg-muted/40"
       >
         {product.image_url ? (
@@ -60,7 +63,7 @@ export function ProductCard({ product }: { product: IProduct }) {
           <span className="text-xs font-medium text-muted-foreground">{product.category.name}</span>
         )}
         <Link
-          href={`/productos/${product.id}`}
+          href={`/productos?id=${product.id}`}
           className="line-clamp-2 text-sm font-semibold text-foreground hover:text-primary"
         >
           {product.name}

@@ -65,6 +65,13 @@ export const MENU_GROUPS: MenuGroup[] = [
         permission: PERMISSIONS.VIEW_CLIENTS,
         roles: ["ADMINISTRADOR", "VENDEDOR"],
       },
+      {
+        href: "/pedidos",
+        label: "Pedidos del Marketplace",
+        iconName: "shopping-cart",
+        permission: PERMISSIONS.VIEW_ORDERS,
+        roles: ["ADMINISTRADOR", "VENDEDOR"],
+      },
     ],
   },
   {

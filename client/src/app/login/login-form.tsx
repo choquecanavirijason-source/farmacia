@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2, Lock, Pill, User, ShieldCheck, Sparkles } from "lucide-react";
-import { useAuth } from "@/context/auth-context";
+import { useAuth, extractRole } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,7 @@ import {
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/dashboard";
+  const nextParam = searchParams.get("next");
   const { login: authLogin } = useAuth();
 
   const [login, setLogin] = useState("");
@@ -33,8 +34,13 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      await authLogin(login, password);
-      router.push(next);
+      const user = await authLogin(login, password);
+      // Un cliente del marketplace nunca deberia caer en el panel admin por
+      // defecto (no tiene ningun permiso ahi); el resto del personal si va
+      // a /dashboard salvo que venga de una pantalla especifica (next).
+      const isCliente = extractRole(user) === "CLIENTE";
+      const destino = nextParam ?? (isCliente ? "/" : "/dashboard");
+      router.push(destino);
       router.refresh();
     } catch (err: any) {
       const message =
@@ -191,13 +197,12 @@ export function LoginForm() {
                   )}
                 </Button>
 
-                <div className="flex items-center gap-3 w-full">
-                  <div className="h-px flex-1 bg-gradient-to-r from-transparent to-muted-foreground/20" />
-                  <p className="text-center text-[11px] text-balance text-muted-foreground/60">
-                    Acceso restringido al personal autorizado
-                  </p>
-                  <div className="h-px flex-1 bg-gradient-to-l from-transparent to-muted-foreground/20" />
-                </div>
+                <p className="text-center text-sm text-muted-foreground">
+                  ¿No tenés cuenta?{" "}
+                  <Link href="/registro" className="font-medium text-primary hover:underline">
+                    Crear una cuenta
+                  </Link>
+                </p>
               </CardFooter>
             </form>
           </div>

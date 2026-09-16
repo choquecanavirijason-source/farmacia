@@ -1,4 +1,4 @@
-export type RoleName = "ADMINISTRADOR" | "VENDEDOR" | "administrator" | "seller";
+export type RoleName = "ADMINISTRADOR" | "VENDEDOR" | "CLIENTE" | "administrator" | "seller" | "cliente";
 
 export interface ISession {
   id_usuario: number;
