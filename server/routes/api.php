@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\SimulationController;
 use App\Http\Controllers\Api\V1\Marketplace\ProductController;
 use App\Http\Controllers\Api\V1\Marketplace\CategoryController as MarketplaceCategoryController;
 use App\Http\Controllers\Api\V1\Marketplace\OrderController as MarketplaceOrderController;
+use App\Http\Controllers\Api\V1\OrderController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('auth/login', [AuthController::class, 'login']);
@@ -115,6 +116,11 @@ Route::middleware('auth:api')->group(function () {
 
     Route::get('invoices/export', [InvoiceController::class, 'export']);
     Route::apiResource('invoices', InvoiceController::class);
+
+    // Gestion (staff) de los pedidos que entran por el marketplace.
+    Route::get('orders', [OrderController::class, 'index'])->middleware('permission:view orders');
+    Route::get('orders/{id}', [OrderController::class, 'show'])->middleware('permission:view orders');
+    Route::put('orders/{id}/status', [OrderController::class, 'updateStatus'])->middleware('permission:manage orders');
 
     Route::get('payment-methods/export', [PaymentMethodController::class, 'export']);
     Route::apiResource('payment-methods', PaymentMethodController::class);
