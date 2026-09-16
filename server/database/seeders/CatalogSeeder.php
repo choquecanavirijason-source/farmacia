@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Client;
 use App\Models\Company;
@@ -9,14 +10,16 @@ use App\Models\Laboratory;
 use App\Models\Medicament;
 use App\Models\Presentation;
 use App\Models\Supplier;
+use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class CatalogSeeder extends Seeder
 {
     public function run(): void
     {
         // 1. Empresa Principal (Cochabamba, Bolivia)
-        Company::updateOrCreate(
+        $company = Company::updateOrCreate(
             ['id' => 1],
             [
                 'name' => 'Farmacia Juan de Dios',
@@ -26,6 +29,31 @@ class CatalogSeeder extends Seeder
                 'email' => 'contacto@farmaciajuandedios.bo',
             ]
         );
+
+        // 1.1 Sucursal Principal: sin al menos una sucursal, nada operativo (lotes,
+        // ventas, compras, cajas) puede crearse, porque branch_id es obligatorio.
+        $branch = Branch::firstOrCreate(
+            ['company_id' => $company->id, 'name' => 'Sucursal Principal'],
+            [
+                'address' => $company->address,
+                'phone' => $company->phone,
+                'status' => 'active',
+            ]
+        );
+
+        $userIds = User::whereNull('deleted_at')->whereNull('active_branch_id')->pluck('id');
+        foreach ($userIds as $userId) {
+            if (!DB::table('branch_user')->where('branch_id', $branch->id)->where('user_id', $userId)->exists()) {
+                DB::table('branch_user')->insert([
+                    'branch_id' => $branch->id,
+                    'user_id' => $userId,
+                    'is_default' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+        User::whereNull('deleted_at')->whereNull('active_branch_id')->update(['active_branch_id' => $branch->id]);
 
         // 2. Laboratorios Farmacéuticos Reales en Bolivia
         $laboratoriosData = [

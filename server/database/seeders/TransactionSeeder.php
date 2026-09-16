@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Batch;
+use App\Models\Branch;
 use App\Models\CashRegister;
 use App\Models\Client;
 use App\Models\InventoryMovement;
@@ -30,6 +31,7 @@ class TransactionSeeder extends Seeder
         $openCash = CashRegister::where('status', 'open')->first() ?? CashRegister::first();
         $efectivoMethod = PaymentMethod::where('name', 'Efectivo')->first() ?? PaymentMethod::first();
         $qrMethod = PaymentMethod::where('name', 'like', '%QR%')->first() ?? $efectivoMethod;
+        $branchId = Branch::first()?->id;
 
         $clients = Client::all();
         $medicaments = Medicament::with('batches')->get();
@@ -45,6 +47,7 @@ class TransactionSeeder extends Seeder
                 'supplier_id' => $supplierInti->id,
                 'purchase_date' => Carbon::now()->subDays(5)->toDateString(),
                 'total' => 1250.00,
+                'branch_id' => $branchId,
                 'created_id' => $user->id,
             ]
         );
@@ -170,6 +173,7 @@ class TransactionSeeder extends Seeder
                         'client_id' => $client ? $client->id : null,
                         'total' => $totalSale,
                         'status' => 'active',
+                        'branch_id' => $branchId,
                         'created_id' => $vendedora->id,
                     ]
                 );

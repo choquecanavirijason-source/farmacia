@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Batch;
+use App\Models\Branch;
 use App\Models\CashRegister;
 use App\Models\Client;
 use App\Models\InventoryMovement;
@@ -262,6 +263,8 @@ class SimulationService
                 throw new \Exception('No hay medicamentos registrados en la base de datos.');
             }
 
+            $branchId = Branch::first()?->id;
+
             $batchRowsToInsert = [];
             $nowStr = Carbon::now()->toDateTimeString();
 
@@ -297,6 +300,7 @@ class SimulationService
                         'expiration_date' => $expDate,
                         'current_quantity' => $qty,
                         'purchase_price' => round($med->price * 0.60, 2),
+                        'branch_id' => $branchId,
                         'created_at' => $nowStr,
                         'updated_at' => $nowStr,
                     ];
@@ -391,6 +395,7 @@ class SimulationService
                         'invoice_number' => $invoiceNum,
                         'purchase_date' => $purchaseDateStr,
                         'total' => $purchaseTotal,
+                        'branch_id' => $branchId,
                         'created_id' => $extraAdmins->random()->id ?? $principalAdmin->id,
                         'created_at' => $nowStr,
                         'updated_at' => $nowStr,
@@ -487,6 +492,7 @@ class SimulationService
                         'sold_at' => $saleTime,
                         'total' => $saleTotal,
                         'status' => $status,
+                        'branch_id' => $branchId,
                         'created_id' => $seller->id,
                         'created_at' => $nowStr,
                         'updated_at' => $nowStr,
@@ -536,6 +542,7 @@ class SimulationService
                     'closing_amount' => $isToday ? null : $finalCash,
                     'expected_closing_amount' => $finalCash,
                     'status' => $isToday ? 'open' : 'closed',
+                    'branch_id' => $branchId,
                     'created_id' => $cashier->id,
                     'created_at' => $nowStr,
                     'updated_at' => $nowStr,

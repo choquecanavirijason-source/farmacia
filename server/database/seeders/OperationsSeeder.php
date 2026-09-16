@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Batch;
+use App\Models\Branch;
 use App\Models\CashRegister;
 use App\Models\Medicament;
 use App\Models\PaymentMethod;
@@ -30,6 +31,7 @@ class OperationsSeeder extends Seeder
         $medicaments = Medicament::all();
         $adminUser = User::first();
         $userId = $adminUser ? $adminUser->id : 1;
+        $branchId = Branch::first()?->id;
 
         $batchIndex = 100;
         foreach ($medicaments as $med) {
@@ -44,6 +46,7 @@ class OperationsSeeder extends Seeder
                     'current_quantity' => rand(50, 150),
                     'purchase_price' => $baseCost,
                     'medicament_id' => $med->id,
+                    'branch_id' => $branchId,
                     'created_id' => $userId,
                 ]
             );
@@ -57,6 +60,7 @@ class OperationsSeeder extends Seeder
                         'current_quantity' => rand(5, 18),
                         'purchase_price' => $baseCost,
                         'medicament_id' => $med->id,
+                        'branch_id' => $branchId,
                         'created_id' => $userId,
                     ]
                 );
@@ -73,6 +77,7 @@ class OperationsSeeder extends Seeder
                 'closing_amount' => 1845.50,
                 'expected_closing_amount' => 1845.50,
                 'status' => 'closed',
+                'branch_id' => $branchId,
                 'created_id' => $userId,
             ]
         );
@@ -84,6 +89,7 @@ class OperationsSeeder extends Seeder
                 'opened_at' => Carbon::today()->setTime(8, 0, 0),
                 'opening_amount' => 200.00,
                 'status' => 'open',
+                'branch_id' => $branchId,
                 'created_id' => $userId,
             ]
         );

@@ -13,6 +13,17 @@ use Illuminate\Support\Facades\Log;
 
 class DashboardService
 {
+    /**
+     * Día de la semana como 0=Domingo..6=Sábado. Postgres lo da nativo con EXTRACT(DOW),
+     * MySQL/MariaDB no tienen DOW: DAYOFWEEK() devuelve 1=Domingo..7=Sábado, se resta 1.
+     */
+    private function dowExpression(): string
+    {
+        return DB::connection()->getDriverName() === 'pgsql'
+            ? 'EXTRACT(DOW FROM sold_at)'
+            : '(DAYOFWEEK(sold_at) - 1)';
+    }
+
     public function getStats(array $filters = []): array
     {
         $branchId = !empty($filters['branch_id']) ? (int) $filters['branch_id'] : null;
@@ -616,10 +627,10 @@ class DashboardService
                 ->where('sold_at', '>=', $since)
                 ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->select(
-                    DB::raw('EXTRACT(DOW FROM sold_at) as dow'),
+                    DB::raw($this->dowExpression() . ' as dow'),
                     DB::raw('SUM(total) as total')
                 )
-                ->groupBy(DB::raw('EXTRACT(DOW FROM sold_at)'))
+                ->groupBy(DB::raw($this->dowExpression()))
                 ->get()
                 ->keyBy(fn ($r) => (int) $r->dow);
 
@@ -651,11 +662,11 @@ class DashboardService
                 ->where('sold_at', '>=', $since)
                 ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->select(
-                    DB::raw('EXTRACT(DOW FROM sold_at) as dow'),
+                    DB::raw($this->dowExpression() . ' as dow'),
                     DB::raw('EXTRACT(HOUR FROM sold_at) as hour'),
                     DB::raw('SUM(total) as total')
                 )
-                ->groupBy(DB::raw('EXTRACT(DOW FROM sold_at)'), DB::raw('EXTRACT(HOUR FROM sold_at)'))
+                ->groupBy(DB::raw($this->dowExpression()), DB::raw('EXTRACT(HOUR FROM sold_at)'))
                 ->get()
                 ->groupBy(fn ($r) => (int) $r->dow);
 

@@ -11,7 +11,10 @@ return new class extends Migration
     public function up(): void
     {
         // Permite comparar texto ignorando tildes (María = Maria) en las búsquedas.
-        DB::statement('CREATE EXTENSION IF NOT EXISTS unaccent');
+        // Solo aplica a Postgres: en MySQL/MariaDB las collations *_ci ya ignoran tildes.
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('CREATE EXTENSION IF NOT EXISTS unaccent');
+        }
     }
 
     /**
@@ -19,6 +22,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement('DROP EXTENSION IF EXISTS unaccent');
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('DROP EXTENSION IF EXISTS unaccent');
+        }
     }
 };
